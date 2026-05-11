@@ -1,0 +1,21 @@
+#!/bin/sh
+# Pre-push hook for OrderFlow
+# Runs basic checks before allowing push
+
+echo "Running pre-push checks..."
+
+# Run linting on affected projects
+echo "📋 Linting affected projects..."
+npx nx affected --target=lint --base=main --head=HEAD --parallel || {
+  echo "❌ Linting failed. Please fix issues before pushing."
+  exit 1
+}
+
+# Run tests on affected projects
+echo "🧪 Testing affected projects..."
+npx nx affected --target=test --base=main --head=HEAD --parallel || {
+  echo "❌ Tests failed. Please fix failing tests before pushing."
+  exit 1
+}
+
+echo "✅ Pre-push checks passed"

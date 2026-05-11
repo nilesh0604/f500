@@ -1,0 +1,13 @@
+[0m[7m[1m[31m FAIL [39m[22m[27m[0m [0m[7m[37m order-service [39m[27m[0m [2mapps/order-service/src/app/services/[22m[1morder.service.spec.ts[22m
+  [1m● [22mTest suite failed to run
+
+    [96mapps/order-service/src/app/services/order.service.ts[0m:[93m91[0m:[93m21[0m - [91merror[0m[90m TS7006: [0mParameter 'o' implicitly has an 'any' type.
+
+    [7m91[0m     data: data.map((o) => toOrder(o as Parameters<typeof toOrder>[0])),
+    [7m  [0m [91m                    ~[0m
+
+[1mTest Suites: [22m[1m[31m1 failed[39m[22m, 1 total
+[1mTests:       [22m0 total
+[1mSnapshots:   [22m0 total
+[1mTime:[22m        0.81 s
+[2mRan all test suites[22m[2m.[22m

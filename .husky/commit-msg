@@ -1,0 +1,40 @@
+#!/bin/sh
+# Commit message hook for OrderFlow
+# Validates commit message format follows Conventional Commits
+
+commit_msg_file=$1
+commit_msg=$(head -n1 "$commit_msg_file")
+
+# Conventional Commits pattern
+# Format: type(scope): description
+# Types: feat, fix, docs, style, refactor, perf, test, chore, ci, security
+pattern="^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\([a-z-]+\))?: .+"
+
+if ! echo "$commit_msg" | grep -qE "$pattern"; then
+  echo ""
+  echo "❌ Invalid commit message format."
+  echo ""
+  echo "Commit message must follow Conventional Commits format:"
+  echo "  <type>[optional scope]: <description>"
+  echo ""
+  echo "Valid types:"
+  echo "  feat:     New feature"
+  echo "  fix:      Bug fix"
+  echo "  docs:     Documentation changes"
+  echo "  style:    Code style changes (formatting)"
+  echo "  refactor: Code refactoring"
+  echo "  perf:     Performance improvements"
+  echo "  test:     Adding or updating tests"
+  echo "  chore:    Build process, dependencies"
+  echo "  ci:       CI/CD changes"
+  echo "  security: Security-related changes"
+  echo ""
+  echo "Examples:"
+  echo "  feat(auth): add JWT token refresh"
+  echo "  fix(order-service): resolve memory leak"
+  echo "  docs(api): update OpenAPI spec"
+  echo ""
+  exit 1
+fi
+
+echo "✅ Commit message format valid"

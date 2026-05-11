@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  shipped
+  delivered
+  cancelled
+}
+
+model User {
+  id               String      @id @default(uuid())
+  emailHash        String      @unique
+  passwordHash     String
+  consentTimestamp DateTime
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+  orders           Order[]
+  auditEntries     OrderAudit[]
+
+  @@map("users")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String
+  itemName        String
+  quantity        Int
+  notes           String?
+  status          OrderStatus @default(pending)
+  idempotencyKey  String?     @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id])
+  auditEntries    OrderAudit[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderAudit {
+  id         String      @id @default(uuid())
+  orderId    String
+  userId     String
+  action     String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  timestamp  DateTime    @default(now())
+  order      Order       @relation(fields: [orderId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+
+  @@index([orderId])
+  @@map("order_audits")
+}

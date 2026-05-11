@@ -84,27 +84,38 @@ Following **Fortune 500 enterprise standards**:
 
 - [ ] Create monorepo with Nx workspace
 - [ ] Configure branch protection rules (require PR, 1 approval, status checks pass)
+- [ ] Enforce **signed commits** (branch protection: require commit signing)
+- [ ] Define branch naming convention (`feature/<ticket>-<slug>`, `hotfix/`, `release/v*`)
 - [ ] Setup CODEOWNERS file
 - [ ] Configure commit conventions (Conventional Commits)
 - [ ] Setup Husky + lint-staged for pre-commit hooks
 - [ ] Configure `.editorconfig`, `.prettierrc`, `.eslintrc`
+- [ ] Pin toolchain versions: `.nvmrc` (Node 22.x), `.tool-versions` (Nx, AWS CDK)
+- [ ] Initialize `CHANGELOG.md` with Keep a Changelog format
 - [ ] Create PR template and issue templates (bug, feature, RFC)
+- [ ] Create `SECURITY.md` (vulnerability disclosure policy + contact + SLA for response)
 
 ### 0.2 Governance Documents
 
 - [ ] Write `CONTRIBUTING.md` (branching strategy, PR process, review checklist)
+- [ ] Write `CODE_OF_CONDUCT.md` (Contributor Covenant — required for all enterprise GitHub orgs)
+- [ ] Write `RFC-TEMPLATE.md` (problem statement, proposal, alternatives, trade-offs, decision)
 - [ ] Write `ADR-001-monorepo-strategy.md`
 - [ ] Write `ADR-002-event-driven-architecture.md`
 - [ ] Write `ADR-003-database-per-service.md`
 - [ ] Write `ADR-004-api-versioning-strategy.md` (URL-based: `/v1/orders`)
 - [ ] Write `ADR-005-service-to-service-auth.md` (IAM Task Roles + event envelope signing)
+- [ ] Write `ADR-006-observability-strategy.md` (CloudWatch + X-Ray + OpenTelemetry decision)
+- [ ] Write `ADR-007-authentication-approach.md` (JWT RS256, token lifetimes, refresh strategy)
 - [ ] Define `DEFINITION_OF_DONE.md`
-- [ ] Define `DATA_GOVERNANCE.md` (PII classification, retention, right-to-deletion)
+- [ ] Define `DATA_GOVERNANCE.md` (data classification: Public/Internal/Confidential/Restricted; PII fields; retention schedule; right-to-deletion)
+- [ ] Create `THREAT_MODEL.md` (STRIDE analysis: identify assets, trust boundaries, threats, mitigations before first line of code)
 - [ ] Create `RUNBOOK.md` template
-- [ ] Create `INCIDENT_RESPONSE_PLAN.md` (roles, escalation matrix, communication)
-- [ ] Create `DISASTER_RECOVERY_PLAN.md` (RPO: 1 hour, RTO: 30 min)
+- [ ] Create `INCIDENT_RESPONSE_PLAN.md` (roles, escalation matrix, severity definitions, communication templates)
+- [ ] Create `DISASTER_RECOVERY_PLAN.md` (RPO: 1 hour, RTO: 30 min, failover runbook)
 - [ ] Define SLO targets (99.9% availability, p95 < 200ms, error rate < 0.1%)
 - [ ] Define `ERROR_BUDGET_POLICY.md` (freeze non-critical deploys when budget < 20%)
+- [ ] Define `CHANGE_MANAGEMENT_PROCESS.md` (change types: standard/normal/emergency; CAB cadence; rollback criteria)
 
 ### 0.3 Project Structure
 
@@ -128,10 +139,18 @@ orderflow/
 ├── infra/                  # AWS CDK stacks
 ├── docs/
 │   ├── adr/                # Architecture Decision Records
+│   ├── rfc/                # RFC documents
 │   ├── runbooks/           # Operational runbooks
 │   ├── api/                # OpenAPI specs
-│   └── diagrams/           # Architecture diagrams
+│   ├── diagrams/           # Architecture diagrams
+│   └── evidence/           # Screenshots, reports (pre-teardown)
 ├── scripts/                # Automation scripts
+├── CHANGELOG.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── .nvmrc
+├── .tool-versions
 ├── nx.json
 ├── package.json
 └── tsconfig.base.json
@@ -143,15 +162,22 @@ Every PR must satisfy:
 
 - [ ] Unit tests written (≥80% coverage)
 - [ ] Integration tests for new endpoints
+- [ ] Contract test updated if API contract changes (Pact)
 - [ ] No SonarQube critical/blocker issues
+- [ ] No high/critical Snyk vulnerabilities introduced
+- [ ] Dependency license check passed (no GPL in proprietary code)
 - [ ] API docs updated (OpenAPI spec)
 - [ ] ADR written for architectural changes
-- [ ] Changelog updated
-- [ ] No secrets in code (pre-commit hook)
+- [ ] RFC referenced/closed if applicable
+- [ ] Changelog updated (`CHANGELOG.md`)
+- [ ] No secrets in code (pre-commit hook + TruffleHog scan)
+- [ ] Security review completed for auth/input-validation changes
+- [ ] Threat model updated if trust boundary or data flow changes
 - [ ] Performance impact assessed
-- [ ] Accessibility checked (frontend)
+- [ ] Accessibility checked (frontend — axe-core)
 - [ ] Error handling with proper HTTP codes
-- [ ] Structured logging added
+- [ ] Structured logging added (correlation ID propagated)
+- [ ] Commit signed (GPG)
 
 ---
 
@@ -1037,7 +1063,7 @@ sequenceDiagram
 ---
 
 **Created**: 2026-05-11
-**Updated**: 2026-05-11
+**Updated**: 2026-05-11 (Phase 0 Fortune 500 alignment review)
 **Author**: Nilesh Shinde
 **Status**: Planning
 **Lifecycle**: Temporary (deploy → validate → destroy)

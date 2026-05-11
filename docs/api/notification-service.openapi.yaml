@@ -1,0 +1,89 @@
+openapi: 3.1.0
+info:
+  title: Notification Service API
+  version: 1.0.0
+  description: |
+    OrderFlow Notification Service — consumes order events from SQS and
+    delivers real-time updates to clients via WebSocket (Socket.IO).
+
+servers:
+  - url: http://localhost:3002
+    description: Local development
+  - url: https://api.orderflow.internal/notification-svc
+    description: Production (internal ALB)
+
+tags:
+  - name: Health
+    description: Health and readiness probes
+  - name: WebSocket
+    description: Socket.IO real-time channel documentation
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        checks:
+          type: object
+          properties:
+            redis:
+              type: string
+              enum: [ok, down]
+            sqs:
+              type: string
+              enum: [ok, down]
+
+    ErrorResponse:
+      type: object
+      required: [error, message, correlationId]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        correlationId:
+          type: string
+
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      tags: [Health]
+      security: []
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness probe
+      tags: [Health]
+      security: []
+      operationId: getReadiness
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'

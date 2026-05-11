@@ -1,0 +1,30 @@
+# Global fallback - all files require review from leads
+* @nilesh0604
+
+# Backend services
+/apps/order-service/ @nilesh0604
+/apps/notification-svc/ @nilesh0604
+
+# Frontend
+/apps/web/ @nilesh0604
+
+# Shared libraries
+/libs/ @nilesh0604
+
+# Infrastructure / CDK
+/infra/ @nilesh0604
+
+# CI/CD workflows
+/.github/workflows/ @nilesh0604
+
+# Documentation
+/docs/ @nilesh0604
+*.md @nilesh0604
+
+# Security-related files
+/SECURITY.md @nilesh0604
+/docs/THREAT_MODEL.md @nilesh0604
+
+# Governance
+/CODE_OF_CONDUCT.md @nilesh0604
+/CONTRIBUTING.md @nilesh0604

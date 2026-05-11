@@ -1,0 +1,25 @@
+{
+  "name": "testing-utils",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/testing-utils/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:test"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/testing-utils",
+        "main": "libs/testing-utils/src/index.ts",
+        "tsConfig": "libs/testing-utils/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["libs/testing-utils/**/*.ts"]
+      }
+    }
+  }
+}

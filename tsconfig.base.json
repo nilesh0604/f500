@@ -1,0 +1,38 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@orderflow/shared-types": ["libs/shared-types/src/index.ts"],
+      "@orderflow/event-schemas": ["libs/event-schemas/src/index.ts"],
+      "@orderflow/logger": ["libs/logger/src/index.ts"],
+      "@orderflow/auth": ["libs/auth/src/index.ts"],
+      "@orderflow/testing-utils": ["libs/testing-utils/src/index.ts"],
+      "@orderflow/http-client": ["libs/http-client/src/index.ts"]
+    },
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "exclude": ["node_modules", "tmp", "dist"]
+}

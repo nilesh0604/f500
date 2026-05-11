@@ -1,0 +1,150 @@
+asyncapi: 3.0.0
+info:
+  title: OrderFlow Event Bus
+  version: 1.0.0
+  description: |
+    Async event contracts between Order Service (publisher) and
+    Notification Service (subscriber) via AWS EventBridge + SQS.
+
+defaultContentType: application/json
+
+channels:
+  orderCreated:
+    address: orderflow.order.created
+    description: Fired when a new order is successfully created
+    messages:
+      OrderCreated:
+        $ref: '#/components/messages/OrderCreated'
+
+  orderStatusChanged:
+    address: orderflow.order.status_changed
+    description: Fired when an order status transitions
+    messages:
+      OrderStatusChanged:
+        $ref: '#/components/messages/OrderStatusChanged'
+
+operations:
+  publishOrderCreated:
+    action: send
+    channel:
+      $ref: '#/channels/orderCreated'
+    bindings:
+      eventbridge:
+        source: orderflow.order-service
+        detailType: OrderCreated
+
+  publishOrderStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/orderStatusChanged'
+    bindings:
+      eventbridge:
+        source: orderflow.order-service
+        detailType: OrderStatusChanged
+
+  consumeOrderCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/orderCreated'
+    bindings:
+      sqs:
+        queue:
+          name: orderflow-notifications-queue
+
+  consumeOrderStatusChanged:
+    action: receive
+    channel:
+      $ref: '#/channels/orderStatusChanged'
+    bindings:
+      sqs:
+        queue:
+          name: orderflow-notifications-queue
+
+components:
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      title: Order Created Event
+      summary: Published when a new order is created
+      payload:
+        $ref: '#/components/schemas/OrderCreatedPayload'
+      headers:
+        $ref: '#/components/schemas/EventEnvelopeHeaders'
+
+    OrderStatusChanged:
+      name: OrderStatusChanged
+      title: Order Status Changed Event
+      summary: Published on every order status transition
+      payload:
+        $ref: '#/components/schemas/OrderStatusChangedPayload'
+      headers:
+        $ref: '#/components/schemas/EventEnvelopeHeaders'
+
+  schemas:
+    EventEnvelopeHeaders:
+      type: object
+      required: [source, type, correlationId, timestamp, version]
+      properties:
+        source:
+          type: string
+          description: Origin service
+          example: orderflow.order-service
+        type:
+          type: string
+          description: Event type discriminator
+          example: OrderCreated
+        correlationId:
+          type: string
+          format: uuid
+          description: Request correlation ID for distributed tracing
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          description: Event schema version (semver)
+          example: '1.0.0'
+
+    OrderCreatedPayload:
+      type: object
+      required: [orderId, userId, itemName, quantity, status, createdAt]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        itemName:
+          type: string
+        quantity:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending]
+        createdAt:
+          type: string
+          format: date-time
+
+    OrderStatusChangedPayload:
+      type: object
+      required: [orderId, userId, fromStatus, toStatus, changedAt]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        fromStatus:
+          type: string
+          enum: [pending, confirmed, shipped, delivered, cancelled]
+        toStatus:
+          type: string
+          enum: [pending, confirmed, shipped, delivered, cancelled]
+        changedAt:
+          type: string
+          format: date-time

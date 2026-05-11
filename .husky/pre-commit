@@ -1,0 +1,6 @@
+#!/bin/sh
+# Pre-commit hook for OrderFlow
+# Runs lint-staged to format and lint files
+
+# Run lint-staged (prettier + eslint)
+npx lint-staged
