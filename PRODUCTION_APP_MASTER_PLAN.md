@@ -181,7 +181,7 @@ Every PR must satisfy:
 
 ---
 
-## Phase 1: Backend Microservices (Weeks 2–3)
+## Phase 1: Backend Microservices (Weeks 2–4)
 
 ### 1.0 API Contract-First Development
 
@@ -277,85 +277,9 @@ Testing Pyramid:
 
 ---
 
-## Phase 2: Frontend Angular App (Weeks 3–4)
+## Phase 2: Containerization & Local Dev (Week 5)
 
-### 2.1 Angular Setup
-
-- [ ] Angular 18+ with standalone components
-- [ ] SASS with BEM methodology
-- [ ] Lazy-loaded feature modules (orders, auth)
-- [ ] Angular Material for components
-- [ ] State management with NgRx (Signal Store)
-- [ ] Environment-based configuration (dev, staging, prod)
-
-### 2.2 Features (3 Screens Only)
-
-> Minimum screens to exercise: routing, guards, API integration, WebSocket, state management.
-
-**Screen 1 — Login/Register** (auth guard, JWT interceptor)
-
-- [ ] Login form, register form, token storage
-- [ ] Auth guard on protected routes
-- [ ] HTTP interceptor for JWT attachment + 401 redirect
-
-**Screen 2 — Order List** (data table, real-time updates)
-
-- [ ] Table with pagination (cursor-based)
-- [ ] Create order button → modal/dialog form
-- [ ] Real-time status badge updates via WebSocket
-- [ ] Loading skeleton states
-
-**Screen 3 — Order Detail** (status timeline, actions)
-
-- [ ] Status timeline visualization (pending → confirmed → shipped → delivered)
-- [ ] Update status action button
-- [ ] Toast notification on status change (WebSocket)
-
-**Cross-cutting (all screens):**
-
-- [ ] Global error handling (interceptor + error boundary)
-- [ ] Loading states and skeleton screens
-- [ ] Responsive layout (mobile-first)
-
-### 2.3 Frontend Quality
-
-- [ ] Jest unit tests for components and services (≥80%)
-- [ ] Cypress E2E tests for critical user journeys
-- [ ] Lighthouse CI (performance ≥90, accessibility ≥95)
-- [ ] Bundle analysis with webpack-bundle-analyzer
-- [ ] SASS linting with stylelint
-- [ ] Strict TypeScript (no `any`, strict null checks)
-- [ ] Internationalization ready (i18n)
-- [ ] **WCAG 2.1 AA compliance** (axe-core automated checks in CI)
-- [ ] Keyboard navigation for all interactive elements
-- [ ] Screen reader testing (NVDA/VoiceOver) for critical flows
-- [ ] Color contrast ratio ≥ 4.5:1 for all text
-- [ ] Visual regression tests (Percy or Chromatic)
-- [ ] CSP headers configured (no `unsafe-inline`, no `unsafe-eval`)
-
-### 2.4 Frontend Architecture
-
-```
-apps/web/src/
-├── app/
-│   ├── core/               # Singleton services, guards, interceptors
-│   ├── shared/             # Reusable components, pipes, directives
-│   ├── features/
-│   │   ├── auth/           # Login, register
-│   │   └── orders/         # Order list, order detail, create dialog
-│   ├── store/              # NgRx Signal Store
-│   └── app.routes.ts
-├── assets/
-├── environments/
-├── styles/                 # Global SASS, variables, mixins
-└── test-setup.ts
-```
-
----
-
-## Phase 3: Containerization & Local Dev (Week 4)
-
-### 3.1 Dockerfiles (Multi-Stage)
+### 2.1 Dockerfiles (Multi-Stage)
 
 - [ ] Base image: `node:22-alpine`
 - [ ] Multi-stage builds (build → prune → runtime)
@@ -364,7 +288,7 @@ apps/web/src/
 - [ ] `.dockerignore` optimized
 - [ ] Image size target: < 150MB per service
 
-### 3.2 Docker Compose (Local Dev)
+### 2.2 Docker Compose (Local Dev)
 
 - [ ] All services orchestrated
 - [ ] PostgreSQL + Redis + LocalStack (AWS emulation)
@@ -373,7 +297,7 @@ apps/web/src/
 - [ ] Volume mounts for code changes
 - [ ] Seed scripts for local data
 
-### 3.3 Dockerfile Best Practices
+### 2.3 Dockerfile Best Practices
 
 ```dockerfile
 # Example: Order Service
@@ -397,9 +321,9 @@ CMD ["node", "dist/main.js"]
 
 ---
 
-## Phase 4: Infrastructure as Code (Week 5)
+## Phase 3: Infrastructure as Code (Week 6)
 
-### 4.1 AWS CDK Stacks
+### 3.1 AWS CDK Stacks
 
 - [ ] **NetworkStack** — VPC, subnets (public/private), NAT Gateway, security groups
 - [ ] **DatabaseStack** — RDS PostgreSQL, ElastiCache Redis
@@ -409,7 +333,7 @@ CMD ["node", "dist/main.js"]
 - [ ] **MonitoringStack** — CloudWatch dashboards, alarms, X-Ray
 - [ ] **SecurityStack** — WAF rules, Secrets Manager, IAM roles (least privilege)
 
-### 4.2 Environment Strategy & Promotion Flow
+### 3.2 Environment Strategy & Promotion Flow
 
 ```mermaid
 graph LR
@@ -436,7 +360,7 @@ Environments:
 - [ ] Cross-stack references via exports
 - [ ] Environment parity enforced (same CDK stacks, different params)
 
-### 4.3 IaC Best Practices
+### 3.3 IaC Best Practices
 
 - [ ] CDK unit tests with assertions library
 - [ ] `cdk diff` in CI before deploy
@@ -446,9 +370,9 @@ Environments:
 
 ---
 
-## Phase 5: CI Pipeline — GitHub Actions (Week 5–6)
+## Phase 4: CI Pipeline — GitHub Actions (Weeks 6–7)
 
-### 5.1 Pipeline Architecture
+### 4.1 Pipeline Architecture
 
 ```mermaid
 graph LR
@@ -467,7 +391,7 @@ graph LR
     M --> N[Deploy Prod - Canary]
 ```
 
-### 5.2 CI Workflows
+### 4.2 CI Workflows
 
 - [ ] **pr-checks.yml** — Runs on every PR
   - Lint (ESLint + Stylelint)
@@ -493,7 +417,7 @@ graph LR
   - Dependency check: Snyk/Dependabot
   - Secret scanning: TruffleHog
 
-### 5.3 Quality Gates (PR Merge Blockers)
+### 4.3 Quality Gates (PR Merge Blockers)
 
 | Gate                                 | Threshold     |
 | ------------------------------------ | ------------- |
@@ -509,9 +433,9 @@ graph LR
 
 ---
 
-## Phase 6: CD Pipeline — Deployment (Week 6–7)
+## Phase 5: CD Pipeline — Deployment (Weeks 7–8)
 
-### 6.1 Deployment Strategy
+### 5.1 Deployment Strategy
 
 ```mermaid
 graph TB
@@ -533,7 +457,7 @@ graph TB
     end
 ```
 
-### 6.2 Deployment Configurations
+### 5.2 Deployment Configurations
 
 - [ ] **Blue-Green** for frontend (CloudFront + S3)
 - [ ] **Canary** for backend services (ECS weighted target groups)
@@ -541,7 +465,7 @@ graph TB
 - [ ] **Database Migrations** — Forward-only, backward-compatible
 - [ ] **Rollback** — Automated on error rate spike (CloudWatch alarm → Lambda)
 
-### 6.3 Release Process (Fortune 500 Standard)
+### 5.3 Release Process (Fortune 500 Standard)
 
 1. **Release Branch** — Cut from `main` after sprint
 2. **Release Candidate** — Tag as `v1.2.0-rc.1`
@@ -552,7 +476,7 @@ graph TB
 7. **Post-Deploy Verification** — Smoke tests + synthetic monitoring
 8. **Release Tag** — `v1.2.0` with release notes
 
-### 6.4 Zero-Downtime Deployment Checklist
+### 5.4 Zero-Downtime Deployment Checklist
 
 - [ ] Database migrations are backward-compatible
 - [ ] API versioning maintained (no breaking changes)
@@ -564,9 +488,9 @@ graph TB
 
 ---
 
-## Phase 7: Observability & Monitoring (Week 7)
+## Phase 6: Observability & Monitoring (Week 8)
 
-### 7.1 Three Pillars
+### 6.1 Three Pillars
 
 **Logs (CloudWatch Logs)**
 
@@ -592,7 +516,7 @@ graph TB
 - [ ] Latency breakdown per dependency
 - [ ] Trace-to-log correlation
 
-### 7.2 Alerting Strategy
+### 6.2 Alerting Strategy
 
 | Severity      | Response Time     | Channel           | Example                 |
 | ------------- | ----------------- | ----------------- | ----------------------- |
@@ -601,7 +525,7 @@ graph TB
 | P3 - Medium   | 1 hour            | Slack             | Latency degradation     |
 | P4 - Low      | Next business day | Email             | Disk usage > 70%        |
 
-### 7.3 Synthetic Monitoring
+### 6.3 Synthetic Monitoring
 
 - [ ] External health probes every 60s (CloudWatch Synthetics canaries)
 - [ ] Critical user journey replay (login → create order → verify status)
@@ -610,7 +534,7 @@ graph TB
 - [ ] DNS resolution monitoring
 - [ ] Third-party dependency health checks (SQS, EventBridge availability)
 
-### 7.4 SLO Dashboard
+### 6.4 SLO Dashboard
 
 - [ ] Availability: 99.9% (43.8 min/month error budget)
 - [ ] Latency p95: < 200ms
@@ -618,7 +542,7 @@ graph TB
 - [ ] Throughput: sustain 500 RPS
 - [ ] Error budget burn rate visualization
 
-### 7.5 Error Budget Policy
+### 6.5 Error Budget Policy
 
 > **Fortune 500 Standard**: Error budgets drive reliability vs. velocity trade-offs.
 
@@ -635,9 +559,9 @@ graph TB
 
 ---
 
-## Phase 8: Security Hardening (Week 8)
+## Phase 7: Security Hardening (Week 9)
 
-### 8.1 Application Security
+### 7.1 Application Security
 
 - [ ] Input validation on all endpoints (Zod schemas)
 - [ ] SQL injection prevention (parameterized queries via Prisma)
@@ -648,7 +572,7 @@ graph TB
 - [ ] CORS strict configuration
 - [ ] Security headers (Helmet.js)
 
-### 8.2 Infrastructure Security
+### 7.2 Infrastructure Security
 
 - [ ] VPC with private subnets for services
 - [ ] Security groups (least privilege, no 0.0.0.0/0)
@@ -659,7 +583,7 @@ graph TB
 - [ ] WAF rules (SQL injection, XSS, rate limiting)
 - [ ] VPC Flow Logs enabled
 
-### 8.3 CI/CD Security
+### 7.3 CI/CD Security
 
 - [ ] SAST in every PR (SonarQube/CodeQL)
 - [ ] Container image scanning (Trivy)
@@ -669,7 +593,7 @@ graph TB
 - [ ] Immutable container tags (SHA-based)
 - [ ] SBOM generation per release
 
-### 8.4 Data Governance & Privacy
+### 7.4 Data Governance & Privacy
 
 > **Fortune 500 Standard**: Every system handling user data must comply with privacy regulations.
 
@@ -682,7 +606,7 @@ graph TB
 - [ ] PII masking in logs (email, phone, address auto-redacted)
 - [ ] Data flow diagram documenting PII movement across services
 
-### 8.5 Compliance
+### 7.5 Compliance
 
 - [ ] OWASP Top 10 addressed (mapped per vulnerability with mitigation proof)
 - [ ] SOC 2 Type II controls mapped (access logs, MFA, encryption, change mgmt)
@@ -694,9 +618,9 @@ graph TB
 
 ---
 
-## Phase 9: Performance & Resilience (Week 8–9)
+## Phase 8: Performance & Resilience (Weeks 9–10)
 
-### 9.1 Performance Optimization
+### 8.1 Performance Optimization
 
 - [ ] CDN caching for static assets (CloudFront)
 - [ ] API response caching (Redis, Cache-Control headers)
@@ -706,7 +630,7 @@ graph TB
 - [ ] Compression (gzip/brotli)
 - [ ] Angular bundle optimization (tree-shaking, lazy loading)
 
-### 9.2 Resilience Patterns
+### 8.2 Resilience Patterns
 
 - [ ] Circuit breaker (opossum library)
 - [ ] Retry with exponential backoff + jitter
@@ -716,14 +640,14 @@ graph TB
 - [ ] Graceful degradation (fallback responses)
 - [ ] Chaos engineering tests (kill containers, inject latency)
 
-### 9.3 Auto-Scaling
+### 8.3 Auto-Scaling
 
 - [ ] ECS Service Auto Scaling (CPU > 60%, memory > 70%)
 - [ ] Target tracking scaling policies
 - [ ] Scheduled scaling for known traffic patterns
 - [ ] RDS read replicas for read-heavy patterns (documented, not deployed for learning)
 
-### 9.4 Capacity Planning
+### 8.4 Capacity Planning
 
 > **Fortune 500 Standard**: Production systems must have documented capacity baselines and growth projections.
 
@@ -733,7 +657,7 @@ graph TB
 - [ ] Storage growth projection (S3 analytics: ~1GB/month estimate)
 - [ ] Cost-per-request calculation for FinOps reporting
 
-### 9.5 Load Testing
+### 8.5 Load Testing
 
 - [ ] k6 scripts for each service
 - [ ] Baseline: 500 RPS sustained for 10 minutes
@@ -744,9 +668,9 @@ graph TB
 
 ---
 
-## Phase 10: Production Operations (Week 9–10)
+## Phase 9: Production Operations (Weeks 10–11)
 
-### 10.1 Operational Readiness Review (ORR)
+### 9.1 Operational Readiness Review (ORR)
 
 Before go-live, verify:
 
@@ -765,7 +689,7 @@ Before go-live, verify:
 - [ ] All API contracts validated against OpenAPI specs
 - [ ] PII data flow documented and approved
 
-### 10.2 Runbooks
+### 9.2 Runbooks
 
 Create runbooks for:
 
@@ -777,7 +701,7 @@ Create runbooks for:
 - [ ] Failed deployment rollback
 - [ ] Data corruption recovery
 
-### 10.3 Incident Management Process
+### 9.3 Incident Management Process
 
 ```mermaid
 graph TD
@@ -791,7 +715,7 @@ graph TD
     H --> I[Share Learnings]
 ```
 
-### 10.4 On-Call & Escalation Matrix
+### 9.4 On-Call & Escalation Matrix
 
 | Level | Role                  | Response Time | Action                              |
 | ----- | --------------------- | ------------- | ----------------------------------- |
@@ -804,7 +728,7 @@ graph TD
 - [ ] Communication templates (internal status, external status page)
 - [ ] War room protocol (bridge call, shared doc, roles assigned)
 
-### 10.5 Maintenance & Iteration
+### 9.5 Maintenance & Iteration
 
 - [ ] Dependency updates (Dependabot weekly)
 - [ ] Monthly security patching
@@ -817,21 +741,22 @@ graph TD
 
 ## Timeline Summary
 
-| Phase            | Duration   | Key Deliverable                          |
-| ---------------- | ---------- | ---------------------------------------- |
-| 0: Foundation    | Week 1     | Monorepo, governance docs, ADRs          |
-| 1: Backend       | Weeks 2–3  | 2 microservices with tests               |
-| 2: Frontend      | Weeks 3–4  | Angular app (3 screens) with test suite  |
-| 3: Containers    | Week 4     | Docker Compose local dev                 |
-| 4: IaC           | Week 5     | AWS CDK stacks                           |
-| 5: CI            | Weeks 5–6  | GitHub Actions with quality gates        |
-| 6: CD            | Weeks 6–7  | Canary deploys with auto-rollback        |
-| 7: Observability | Week 7     | Dashboards, alerts, tracing              |
-| 8: Security      | Week 8     | SAST/DAST, WAF, encryption               |
-| 9: Performance   | Weeks 8–9  | Load tests, circuit breakers, auto-scale |
-| 10: Operations   | Weeks 9–10 | Runbooks, ORR, incident process          |
+| Phase            | Duration    | Key Deliverable                          |
+| ---------------- | ----------- | ---------------------------------------- |
+| 0: Foundation    | Week 1      | Monorepo, governance docs, ADRs          |
+| 1: Backend       | Weeks 2–4   | 2 microservices with tests               |
+| 2: Containers    | Week 5      | Docker Compose local dev                 |
+| 3: IaC           | Week 6      | AWS CDK stacks                           |
+| 4: CI            | Weeks 6–7   | GitHub Actions with quality gates        |
+| 5: CD            | Weeks 7–8   | Canary deploys with auto-rollback        |
+| 6: Observability | Week 8      | Dashboards, alerts, tracing              |
+| 7: Security      | Week 9      | SAST/DAST, WAF, encryption               |
+| 8: Performance   | Weeks 9–10  | Load tests, circuit breakers, auto-scale |
+| 9: Operations    | Weeks 10–11 | Runbooks, ORR, incident process          |
+| 10: Frontend     | Weeks 11–12 | Angular app (3 screens) with test suite  |
+| 11: Teardown     | Final day   | Evidence capture, destroy all resources  |
 
-**Total: ~10 weeks for production-grade delivery**
+**Total: ~12 weeks for production-grade delivery**
 
 ---
 
@@ -943,6 +868,82 @@ After completion, you'll be able to speak to:
 
 ---
 
+## Phase 10: Frontend Angular App (Weeks 11–12)
+
+### 10.1 Angular Setup
+
+- [ ] Angular 18+ with standalone components
+- [ ] SASS with BEM methodology
+- [ ] Lazy-loaded feature modules (orders, auth)
+- [ ] Angular Material for components
+- [ ] State management with NgRx (Signal Store)
+- [ ] Environment-based configuration (dev, staging, prod)
+
+### 10.2 Features (3 Screens Only)
+
+> Minimum screens to exercise: routing, guards, API integration, WebSocket, state management.
+
+**Screen 1 — Login/Register** (auth guard, JWT interceptor)
+
+- [ ] Login form, register form, token storage
+- [ ] Auth guard on protected routes
+- [ ] HTTP interceptor for JWT attachment + 401 redirect
+
+**Screen 2 — Order List** (data table, real-time updates)
+
+- [ ] Table with pagination (cursor-based)
+- [ ] Create order button → modal/dialog form
+- [ ] Real-time status badge updates via WebSocket
+- [ ] Loading skeleton states
+
+**Screen 3 — Order Detail** (status timeline, actions)
+
+- [ ] Status timeline visualization (pending → confirmed → shipped → delivered)
+- [ ] Update status action button
+- [ ] Toast notification on status change (WebSocket)
+
+**Cross-cutting (all screens):**
+
+- [ ] Global error handling (interceptor + error boundary)
+- [ ] Loading states and skeleton screens
+- [ ] Responsive layout (mobile-first)
+
+### 10.3 Frontend Quality
+
+- [ ] Jest unit tests for components and services (≥80%)
+- [ ] Cypress E2E tests for critical user journeys
+- [ ] Lighthouse CI (performance ≥90, accessibility ≥95)
+- [ ] Bundle analysis with webpack-bundle-analyzer
+- [ ] SASS linting with stylelint
+- [ ] Strict TypeScript (no `any`, strict null checks)
+- [ ] Internationalization ready (i18n)
+- [ ] **WCAG 2.1 AA compliance** (axe-core automated checks in CI)
+- [ ] Keyboard navigation for all interactive elements
+- [ ] Screen reader testing (NVDA/VoiceOver) for critical flows
+- [ ] Color contrast ratio ≥ 4.5:1 for all text
+- [ ] Visual regression tests (Percy or Chromatic)
+- [ ] CSP headers configured (no `unsafe-inline`, no `unsafe-eval`)
+
+### 10.4 Frontend Architecture
+
+```
+apps/web/src/
+├── app/
+│   ├── core/               # Singleton services, guards, interceptors
+│   ├── shared/             # Reusable components, pipes, directives
+│   ├── features/
+│   │   ├── auth/           # Login, register
+│   │   └── orders/         # Order list, order detail, create dialog
+│   ├── store/              # NgRx Signal Store
+│   └── app.routes.ts
+├── assets/
+├── environments/
+├── styles/                 # Global SASS, variables, mixins
+└── test-setup.ts
+```
+
+---
+
 ## Phase 11: Teardown & Documentation (Final Day)
 
 ### 11.1 Capture Evidence (Before Destroy)
@@ -1034,36 +1035,36 @@ sequenceDiagram
 | 3   | Service Authentication      | JWT (user-facing) + IAM Task Roles (service-to-service) | 1     |
 | 4   | Audit Trail                 | Immutable append-only log for all state changes         | 1     |
 | 5   | Data Governance (GDPR)      | PII encryption, consent tracking, right-to-deletion     | 1, 8  |
-| 6   | Testing Pyramid             | 75% unit, 20% integration, 5% E2E + contract tests      | 1, 2  |
-| 7   | Accessibility (WCAG 2.1 AA) | axe-core CI, keyboard nav, screen reader tested         | 2     |
-| 8   | Container Security          | Non-root, Trivy scan, immutable SHA tags                | 3     |
-| 9   | Infrastructure as Code      | 100% CDK, drift detection, destruction protection       | 4     |
-| 10  | Environment Promotion       | Same artifact SHA promoted dev → staging → prod         | 4, 6  |
-| 11  | Quality Gates               | 8+ automated gates, non-negotiable in CI                | 5     |
-| 12  | Security Shift-Left         | SAST + DAST + container scan + secret scan in CI        | 5, 8  |
-| 13  | Canary Deployments          | 10% → 50% → 100% with auto-rollback                     | 6     |
-| 14  | Zero-Downtime               | Blue-green (FE), canary (BE), graceful shutdown         | 6     |
-| 15  | Observability (3 Pillars)   | Structured logs + metrics + distributed traces          | 7     |
-| 16  | Synthetic Monitoring        | External probes, critical journey replay                | 7     |
-| 17  | Error Budget Policy         | Feature freeze when budget < 20%                        | 7     |
-| 18  | SLO/SLI/SLA                 | 99.9% avail, p95 < 200ms, error < 0.1%                  | 7     |
-| 19  | OWASP Top 10                | Mapped per vulnerability with mitigation proof          | 8     |
-| 20  | SOC 2 Alignment             | Access logs, MFA, encryption, change management         | 8     |
-| 21  | Resilience Patterns         | Circuit breaker, retry, bulkhead, chaos tests           | 9     |
-| 22  | Capacity Planning           | Baselines documented, scaling thresholds defined        | 9     |
-| 23  | Disaster Recovery           | RPO: 1h, RTO: 30min, documented failover procedure      | 10    |
-| 24  | On-Call & Escalation        | 4-level matrix, auto-escalation, war room protocol      | 10    |
-| 25  | Blameless Post-Mortems      | Within 48h, action items tracked to completion          | 10    |
-| 26  | Change Management (CAB)     | Change request → approval gate → deploy                 | 6, 10 |
-| 27  | FinOps / Cost Governance    | Tagging, budget alerts, cost-per-request tracking       | 4, 10 |
-| 28  | SBOM & License Compliance   | Generated per release, no GPL in proprietary code       | 5, 8  |
+| 6   | Testing Pyramid             | 75% unit, 20% integration, 5% E2E + contract tests      | 1, 10 |
+| 7   | Accessibility (WCAG 2.1 AA) | axe-core CI, keyboard nav, screen reader tested         | 10    |
+| 8   | Container Security          | Non-root, Trivy scan, immutable SHA tags                | 2     |
+| 9   | Infrastructure as Code      | 100% CDK, drift detection, destruction protection       | 3     |
+| 10  | Environment Promotion       | Same artifact SHA promoted dev → staging → prod         | 3, 5  |
+| 11  | Quality Gates               | 8+ automated gates, non-negotiable in CI                | 4     |
+| 12  | Security Shift-Left         | SAST + DAST + container scan + secret scan in CI        | 4, 7  |
+| 13  | Canary Deployments          | 10% → 50% → 100% with auto-rollback                     | 5     |
+| 14  | Zero-Downtime               | Blue-green (FE), canary (BE), graceful shutdown         | 5     |
+| 15  | Observability (3 Pillars)   | Structured logs + metrics + distributed traces          | 6     |
+| 16  | Synthetic Monitoring        | External probes, critical journey replay                | 6     |
+| 17  | Error Budget Policy         | Feature freeze when budget < 20%                        | 6     |
+| 18  | SLO/SLI/SLA                 | 99.9% avail, p95 < 200ms, error < 0.1%                  | 6     |
+| 19  | OWASP Top 10                | Mapped per vulnerability with mitigation proof          | 7     |
+| 20  | SOC 2 Alignment             | Access logs, MFA, encryption, change management         | 7     |
+| 21  | Resilience Patterns         | Circuit breaker, retry, bulkhead, chaos tests           | 8     |
+| 22  | Capacity Planning           | Baselines documented, scaling thresholds defined        | 8     |
+| 23  | Disaster Recovery           | RPO: 1h, RTO: 30min, documented failover procedure      | 9     |
+| 24  | On-Call & Escalation        | 4-level matrix, auto-escalation, war room protocol      | 9     |
+| 25  | Blameless Post-Mortems      | Within 48h, action items tracked to completion          | 9     |
+| 26  | Change Management (CAB)     | Change request → approval gate → deploy                 | 5, 9  |
+| 27  | FinOps / Cost Governance    | Tagging, budget alerts, cost-per-request tracking       | 3, 9  |
+| 28  | SBOM & License Compliance   | Generated per release, no GPL in proprietary code       | 4, 7  |
 | 29  | Documentation Automation    | OpenAPI → Swagger UI, ADRs, living runbooks             | All   |
 | 30  | Portfolio Evidence          | Screenshots, reports, diagrams preserved pre-teardown   | 11    |
 
 ---
 
 **Created**: 2026-05-11
-**Updated**: 2026-05-11 (Phase 0 Fortune 500 alignment review)
+**Updated**: 2026-05-11 (Phase 0 Fortune 500 alignment review; Phase 2 Frontend moved to Phase 10)
 **Author**: Nilesh Shinde
 **Status**: Planning
 **Lifecycle**: Temporary (deploy → validate → destroy)

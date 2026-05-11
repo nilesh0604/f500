@@ -21,7 +21,51 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "docs/evidence/.gitkeep",
+        "file": ".github/ISSUE_TEMPLATE/feature_request.md",
+        "hash": "1473130557654322701"
+      },
+      {
+        "file": "docs/api/notification-service.openapi.yaml",
+        "hash": "17941807698435855143"
+      },
+      {
+        "file": ".github/PULL_REQUEST_TEMPLATE.md",
+        "hash": "17328256107912550274"
+      },
+      {
+        "file": ".husky/pre-push",
+        "hash": "9775056835154341869"
+      },
+      {
+        "file": ".husky/commit-msg",
+        "hash": "1976846640710511194"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/bug_report.md",
+        "hash": "10089002143274799430"
+      },
+      {
+        "file": ".github/CODEOWNERS",
+        "hash": "253710147188255084"
+      },
+      {
+        "file": "docs/CHANGE_MANAGEMENT_PROCESS.md",
+        "hash": "5936319637933530095"
+      },
+      {
+        "file": "docs/adr/ADR-002-event-driven-architecture.md",
+        "hash": "5683917627424097556"
+      },
+      {
+        "file": "docs/api/order-service.openapi.yaml",
+        "hash": "8739399548137447483"
+      },
+      {
+        "file": "docs/adr/ADR-001-monorepo-strategy.md",
+        "hash": "7994706630943570635"
+      },
+      {
+        "file": "scripts/.gitkeep",
         "hash": "3244421341483603138"
       },
       {
@@ -29,208 +73,20 @@
         "hash": "3244421341483603138"
       },
       {
-        "file": "docs/adr/ADR-001-monorepo-strategy.md",
-        "hash": "7994706630943570635"
-      },
-      {
-        "file": "apps/web/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "docs/diagrams/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "docs/adr/ADR-006-observability-strategy.md",
-        "hash": "14573477904248673440"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "17282234744361233444"
-      },
-      {
         "file": "docs/adr/ADR-003-database-per-service.md",
         "hash": "3761842464489702307"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "15163129069480465797"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "17326241127892085657"
-      },
-      {
-        "file": "docs/adr/ADR-002-event-driven-architecture.md",
-        "hash": "5683917627424097556"
-      },
-      {
-        "file": ".github/workflows/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "docs/DATA_GOVERNANCE.md",
-        "hash": "13315960881158920267"
-      },
-      {
-        "file": "docs/api/order-service.openapi.yaml",
-        "hash": "8739399548137447483"
-      },
-      {
-        "file": "docs/adr/ADR-004-api-versioning-strategy.md",
-        "hash": "5737527739592342568"
-      },
-      {
-        "file": "scripts/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "docs/runbooks/RUNBOOK.md",
-        "hash": "17754354780063439277"
-      },
-      {
-        "file": ".github/CODEOWNERS",
-        "hash": "253710147188255084"
-      },
-      {
-        "file": "infra/.gitkeep",
-        "hash": "3244421341483603138"
       },
       {
         "file": ".eslintrc.json",
         "hash": "6307991810233596374"
       },
       {
-        "file": "docs/adr/ADR-007-authentication-approach.md",
-        "hash": "12419246964579396162"
-      },
-      {
-        "file": ".github/PULL_REQUEST_TEMPLATE.md",
-        "hash": "17328256107912550274"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "8144655037227735505"
-      },
-      {
-        "file": "docs/rfc/RFC-TEMPLATE.md",
-        "hash": "467680043465012292"
-      },
-      {
-        "file": "SECURITY.md",
-        "hash": "5775294024563102455"
-      },
-      {
-        "file": "CODE_OF_CONDUCT.md",
-        "hash": "5679703579846217184"
-      },
-      {
-        "file": "docs/CHANGE_MANAGEMENT_PROCESS.md",
-        "hash": "5936319637933530095"
-      },
-      {
-        "file": "docs/runbooks/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": ".husky/pre-push",
-        "hash": "9775056835154341869"
-      },
-      {
-        "file": "nx.json",
-        "hash": "12900801590441112977"
-      },
-      {
-        "file": "docs/adr/ADR-005-service-to-service-auth.md",
-        "hash": "12102129689954918040"
-      },
-      {
-        "file": "docs/DISASTER_RECOVERY_PLAN.md",
-        "hash": "14914594278118207397"
+        "file": "docs/DATA_GOVERNANCE.md",
+        "hash": "13315960881158920267"
       },
       {
         "file": ".husky/pre-commit",
         "hash": "2922627901767788001"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/bug_report.md",
-        "hash": "10089002143274799430"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "8582472016552948839"
-      },
-      {
-        "file": "DEFINITION_OF_DONE.md",
-        "hash": "7454507444138788931"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "10960416729449320841"
-      },
-      {
-        "file": "docs/INCIDENT_RESPONSE_PLAN.md",
-        "hash": "23472271635836191"
-      },
-      {
-        "file": ".husky/commit-msg",
-        "hash": "1976846640710511194"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/feature_request.md",
-        "hash": "1473130557654322701"
-      },
-      {
-        "file": "PRODUCTION_APP_MASTER_PLAN.md",
-        "hash": "15429179493937851060"
-      },
-      {
-        "file": "docs/api/notification-service.openapi.yaml",
-        "hash": "17941807698435855143"
-      },
-      {
-        "file": "docs/api/async/events.asyncapi.yaml",
-        "hash": "12553526651376329151"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/rfc.md",
-        "hash": "9191390707623759900"
-      },
-      {
-        "file": "docs/rfc/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "docs/ERROR_BUDGET_POLICY.md",
-        "hash": "1315275328242802237"
-      },
-      {
-        "file": "docs/THREAT_MODEL.md",
-        "hash": "16827721991510463079"
-      },
-      {
-        "file": "CONTRIBUTING.md",
-        "hash": "16808709911161595782"
-      },
-      {
-        "file": "CHANGELOG.md",
-        "hash": "9619278044854741062"
-      },
-      {
-        "file": "docs/adr/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "jest.preset.js",
-        "hash": "9430166341120122740"
-      },
-      {
-        "file": "package.json",
-        "hash": "9925896829716734550"
       },
       {
         "file": ".tool-versions",
@@ -239,6 +95,150 @@
       {
         "file": "docs/api/.gitkeep",
         "hash": "3244421341483603138"
+      },
+      {
+        "file": "docs/adr/ADR-005-service-to-service-auth.md",
+        "hash": "12102129689954918040"
+      },
+      {
+        "file": "docs/evidence/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "15163129069480465797"
+      },
+      {
+        "file": "docs/THREAT_MODEL.md",
+        "hash": "16827721991510463079"
+      },
+      {
+        "file": "package.json",
+        "hash": "9925896829716734550"
+      },
+      {
+        "file": "jest.preset.js",
+        "hash": "9430166341120122740"
+      },
+      {
+        "file": "docs/DISASTER_RECOVERY_PLAN.md",
+        "hash": "14914594278118207397"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/rfc.md",
+        "hash": "9191390707623759900"
+      },
+      {
+        "file": "apps/web/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "docs/ERROR_BUDGET_POLICY.md",
+        "hash": "1315275328242802237"
+      },
+      {
+        "file": "docs/adr/ADR-006-observability-strategy.md",
+        "hash": "14573477904248673440"
+      },
+      {
+        "file": "docs/adr/ADR-004-api-versioning-strategy.md",
+        "hash": "5737527739592342568"
+      },
+      {
+        "file": "docs/adr/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "docs/runbooks/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "CODE_OF_CONDUCT.md",
+        "hash": "5679703579846217184"
+      },
+      {
+        "file": "SECURITY.md",
+        "hash": "5775294024563102455"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "8582472016552948839"
+      },
+      {
+        "file": "docs/rfc/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "10960416729449320841"
+      },
+      {
+        "file": "CHANGELOG.md",
+        "hash": "17207860418874721806"
+      },
+      {
+        "file": "docs/runbooks/RUNBOOK.md",
+        "hash": "17754354780063439277"
+      },
+      {
+        "file": ".github/workflows/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "17326241127892085657"
+      },
+      {
+        "file": "docs/adr/ADR-007-authentication-approach.md",
+        "hash": "12419246964579396162"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "CONTRIBUTING.md",
+        "hash": "16808709911161595782"
+      },
+      {
+        "file": "DEFINITION_OF_DONE.md",
+        "hash": "7454507444138788931"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "17282234744361233444"
+      },
+      {
+        "file": "docs/api/async/events.asyncapi.yaml",
+        "hash": "12553526651376329151"
+      },
+      {
+        "file": "docs/rfc/RFC-TEMPLATE.md",
+        "hash": "467680043465012292"
+      },
+      {
+        "file": "infra/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "nx.json",
+        "hash": "12900801590441112977"
+      },
+      {
+        "file": "docs/diagrams/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "docs/INCIDENT_RESPONSE_PLAN.md",
+        "hash": "23472271635836191"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "8144655037227735505"
+      },
+      {
+        "file": "PRODUCTION_APP_MASTER_PLAN.md",
+        "hash": "5723403251065144535"
       }
     ],
     "projectFileMap": {
@@ -555,6 +555,14 @@
         {
           "file": "apps/order-service/jest.config.ts",
           "hash": "8433532254055884871"
+        },
+        {
+          "file": "apps/order-service/prisma/migrations/20260511200738_init/migration.sql",
+          "hash": "12042139419925619426"
+        },
+        {
+          "file": "apps/order-service/prisma/migrations/migration_lock.toml",
+          "hash": "11493296588214560035"
         },
         {
           "file": "apps/order-service/prisma/schema.prisma",
