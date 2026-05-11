@@ -6,23 +6,18 @@
   "tags": ["scope:backend", "type:app"],
   "targets": {
     "build": {
-      "executor": "@nx/node:webpack",
-      "outputs": ["{options.outputPath}"],
+      "executor": "nx:run-commands",
+      "outputs": ["dist/apps/order-service"],
       "options": {
-        "outputPath": "dist/apps/order-service",
-        "main": "apps/order-service/src/main.ts",
-        "tsConfig": "apps/order-service/tsconfig.app.json",
-        "assets": []
-      },
-      "configurations": {
-        "production": {
-          "optimization": true,
-          "extractLicenses": true
-        }
+        "commands": [
+          "npx prisma generate --schema=apps/order-service/prisma/schema.prisma",
+          "rm -rf dist/apps/order-service && npx esbuild apps/order-service/src/main.ts --bundle --platform=node --outfile=dist/apps/order-service/main.js --external:bcrypt --external:@prisma/client"
+        ],
+        "parallel": false
       }
     },
     "serve": {
-      "executor": "@nx/node:node",
+      "executor": "@nx/js:node",
       "options": {
         "buildTarget": "order-service:build"
       }

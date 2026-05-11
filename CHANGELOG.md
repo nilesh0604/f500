@@ -14,6 +14,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase 2: Containerization & Local Dev (Week 5)
+  - Multi-stage Dockerfiles for `order-service` and `notification-svc`
+    - Base image: `node:22-alpine` with 3-stage build (builder → pruning → runtime)
+    - Non-root user execution (appuser:1001)
+    - Health check endpoints configured
+    - Target image size: < 150MB per service
+  - `.dockerignore` files optimized for both services
+  - `docker-compose.yml`: Production-like local stack
+    - PostgreSQL 16 with health checks and persistent volumes
+    - Redis 7 for caching and WebSocket adapters
+    - LocalStack for AWS service emulation (SQS, EventBridge, Secrets Manager)
+    - Order Service and Notification Service with health checks
+    - Shared `orderflow-network` bridge network
+  - `docker-compose.dev.yml`: Hot-reload development environment
+    - Volume mounts for live code changes
+    - Automatic Prisma migrations on startup
+    - Nx watch mode for development
+  - Initialization scripts
+    - `scripts/init-db.sh`: PostgreSQL database initialization
+    - `scripts/localstack-init.sh`: AWS resource provisioning (SQS queues, EventBridge bus/rules, Secrets Manager)
+
 - Phase 1: Backend Microservices (Weeks 2–3)
   - API contract-first: OpenAPI 3.1 specs for Order Service and Notification Service
   - AsyncAPI 3.0 event schema for OrderCreated and OrderStatusChanged events

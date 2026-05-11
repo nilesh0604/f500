@@ -18,7 +18,13 @@ const MAX_RETRIES = 3;
 const sqsClient = new SQSClient({
   region: process.env['AWS_REGION'] ?? 'us-east-1',
   ...(process.env['LOCALSTACK_ENDPOINT']
-    ? { endpoint: process.env['LOCALSTACK_ENDPOINT'] }
+    ? {
+        endpoint: process.env['LOCALSTACK_ENDPOINT'],
+        credentials: {
+          accessKeyId: process.env['AWS_ACCESS_KEY_ID'] ?? 'test',
+          secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] ?? 'test',
+        },
+      }
     : {}),
 });
 
@@ -32,13 +38,26 @@ const handleMessage = async (message: Message): Promise<void> => {
     return;
   }
 
-  let envelope: { type?: string; data?: unknown; correlationId?: string };
+  let rawBody: unknown;
   try {
-    envelope = JSON.parse(message.Body) as typeof envelope;
+    rawBody = JSON.parse(message.Body);
   } catch {
     log.error('Failed to parse SQS message body', {
       messageId: message.MessageId,
     });
+    return;
+  }
+
+  // Handle EventBridge envelope format (has 'detail' field)
+  const eventBridgeWrapper = rawBody as {
+    detail?: { type?: string; data?: unknown; correlationId?: string };
+  };
+  const envelope =
+    eventBridgeWrapper.detail ??
+    (rawBody as { type?: string; data?: unknown; correlationId?: string });
+
+  if (!envelope.type) {
+    log.warn('Message missing event type', { messageId: message.MessageId });
     return;
   }
 
@@ -48,6 +67,7 @@ const handleMessage = async (message: Message): Promise<void> => {
     log.warn('Invalid event schema', {
       eventType,
       messageId: message.MessageId,
+      errors: validation.errors,
     });
     return;
   }

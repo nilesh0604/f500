@@ -6,20 +6,17 @@
   "tags": ["scope:backend", "type:app"],
   "targets": {
     "build": {
-      "executor": "@nx/node:webpack",
-      "outputs": ["{options.outputPath}"],
+      "executor": "nx:run-commands",
+      "outputs": ["dist/apps/notification-svc"],
       "options": {
-        "outputPath": "dist/apps/notification-svc",
-        "main": "apps/notification-svc/src/main.ts",
-        "tsConfig": "apps/notification-svc/tsconfig.app.json",
-        "assets": []
-      },
-      "configurations": {
-        "production": { "optimization": true, "extractLicenses": true }
+        "commands": [
+          "rm -rf dist/apps/notification-svc && npx esbuild apps/notification-svc/src/main.ts --bundle --platform=node --outfile=dist/apps/notification-svc/main.js"
+        ],
+        "parallel": false
       }
     },
     "serve": {
-      "executor": "@nx/node:node",
+      "executor": "@nx/js:node",
       "options": { "buildTarget": "notification-svc:build" }
     },
     "lint": {
