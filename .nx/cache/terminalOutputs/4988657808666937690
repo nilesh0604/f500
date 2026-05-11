@@ -1,8 +1,0 @@
-[1mNo tests found, exiting with code 1[22m
-Run with `--passWithNoTests` to exit with code 0
-In [1m/Users/Nilesh_Shinde/iSpace/f500/libs/auth[22m
-  4 files checked.
-  testMatch: [33m**/?(*.)+(spec|test).[jt]s?(x)[39m - 0 matches
-  testPathIgnorePatterns: [33m/node_modules/[39m - 4 matches
-  testRegex:  - 0 matches
-Pattern:  - 0 matches
