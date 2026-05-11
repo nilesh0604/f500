@@ -39,7 +39,7 @@ cdk.out/
 coverage/
 
 # Nx
-.nx/cache/
+.nx/
 
 # Misc
 *.log
