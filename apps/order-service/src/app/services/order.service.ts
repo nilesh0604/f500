@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma.client';
 import { publishEvent } from '../events/event.publisher';
+import { invalidateOrdersCache } from '../middleware/cache.middleware';
 import {
   createLogger,
   recordBusinessMetric,
@@ -85,6 +86,7 @@ export const createOrder = async (
       dimensions: { ItemName: order.itemName },
     });
 
+    await invalidateOrdersCache(userId);
     span.setAttribute('order.id', order.id);
     log.info('Order created', { orderId: order.id, userId });
     return toOrder(order as Parameters<typeof toOrder>[0]);
@@ -186,6 +188,7 @@ export const updateOrderStatus = async (
       },
     });
 
+    await invalidateOrdersCache(userId);
     span.setAttribute('order.fromStatus', order.status);
     log.info('Order status updated', {
       orderId: id,

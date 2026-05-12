@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase 8: Performance & Resilience (Weeks 9–10)
+
+  **8.1 Performance Optimization**
+  - `apps/order-service/src/app/middleware/cache.middleware.ts`: Redis response cache for `GET /v1/orders`
+    - `ordersCacheMiddleware` — Redis-backed per-user list cache (TTL 30 s); `X-Cache: HIT/MISS` header; `Cache-Control: private, max-age=30` on all list responses; gracefully degrades to pass-through if Redis is unavailable
+    - `invalidateOrdersCache` — SCAN-based key eviction for all list variants of a given user; called after `createOrder` and `updateOrderStatus` to maintain consistency
+  - `apps/order-service/src/app/app.ts`: `compression` middleware added (gzip level 6, threshold 1 KB); fires before body parsing so all JSON responses ≥ 1 KB are compressed
+  - `apps/order-service/src/app/db/prisma.client.ts`: `buildDatabaseUrl` injects Prisma connection-pool parameters at runtime: `connection_limit=20`, `pool_timeout=10`, `connect_timeout=10`, `statement_cache_size=0` (PgBouncer-safe)
+  - `apps/order-service/src/types/compression.d.ts`: Local TypeScript declaration shim for `compression` module
+  - `apps/order-service/src/app/routes/orders.router.ts`: `ordersCacheMiddleware` applied to `GET /v1/orders`
+
+  **8.2 Resilience Patterns**
+  - `apps/order-service/src/app/middleware/resilience.ts`: Resilience primitives
+    - `retryWithBackoff` — up to N attempts with exponential backoff + ±25 % jitter; per-attempt timeout via `Promise.race`
+    - `createCircuitBreaker` — opossum circuit-breaker factory with configurable thresholds; logs OPEN / HALF-OPEN / CLOSED / fallback events via `@orderflow/logger`
+  - `apps/order-service/src/app/events/event.publisher.ts`: EventBridge `publishEvent` wrapped with `createCircuitBreaker` + `retryWithBackoff` (3 attempts, 200 ms base, 5 s timeout); circuit breaks at 50 % failure rate, resets after 10 s
+  - `apps/notification-svc/src/app/consumers/sqs.consumer.ts`: Per-message 5 s processing timeout via `Promise.race`; on timeout: degraded delete (message removed to avoid DLQ churn) with `warn` log; non-timeout errors preserve existing retry behaviour
+
+  **8.3 Auto-Scaling**
+  - `infra/lib/ecs-stack.ts`:
+    - `notificationService` — added `scaleOnMemoryUtilization` (target 70 %, matching order-service)
+    - Both services — `scaleOnSchedule` added: scale-out at 08:00 UTC to 50 % of `maxCapacity`, scale-in at 22:00 UTC back to `minCapacity`
+    - `aws-cdk-lib/aws-applicationautoscaling` imported for `Schedule.cron`
+
+  **8.4 Capacity Planning**
+  - `docs/CAPACITY_PLAN.md`: Baseline capacity document
+    - Per-service resource tables (CPU, memory, min/max tasks, DB/Redis connections, max RPS)
+    - PostgreSQL connection ceiling formula; slow-query threshold documentation
+    - SQS depth alert thresholds (alert at 1 000, DLQ at 1)
+    - Storage growth projections (S3, PG orders+audit, CloudWatch logs)
+    - Cost-per-request FinOps breakdown (~$0.00007 / req at 500 RPS)
+    - RDS read replicas documented (not deployed) with Prisma migration path
+
+  **8.5 Load Testing**
+  - `scripts/load-tests/k6/order-service.baseline.js`: Baseline — 500 RPS constant for 10 min; thresholds: p95 < 200 ms, p99 < 500 ms, error < 0.1 %
+  - `scripts/load-tests/k6/order-service.spike.js`: Spike — ramp 100→2000 RPS over 30 s, sustain 2 min, ramp down; thresholds: p95 < 500 ms, error < 1 %
+  - `scripts/load-tests/k6/order-service.soak.js`: Soak — 200 RPS for 1 h with mixed read/write (10 % creates); thresholds: p95 < 200 ms, error < 0.1 %
+
 - Phase 7: Security Hardening (Week 9)
 
   **7.1 Application Security**

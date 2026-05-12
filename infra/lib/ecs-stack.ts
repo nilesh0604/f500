@@ -6,6 +6,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
 import { Construct } from 'constructs';
 import { EnvironmentConfig } from '../config/environments';
 
@@ -371,6 +372,35 @@ export class ECSStack extends cdk.Stack {
       targetUtilizationPercent: 60,
       scaleInCooldown: cdk.Duration.seconds(60),
       scaleOutCooldown: cdk.Duration.seconds(30),
+    });
+    notifScaling.scaleOnMemoryUtilization('NotifSvcMemoryScaling', {
+      targetUtilizationPercent: 70,
+      scaleInCooldown: cdk.Duration.seconds(60),
+      scaleOutCooldown: cdk.Duration.seconds(30),
+    });
+
+    orderScaling.scaleOnSchedule('OrderSvcScaleOut', {
+      schedule: appscaling.Schedule.cron({ hour: '8', minute: '0' }),
+      minCapacity: Math.max(
+        config.orderServiceMinCapacity,
+        Math.ceil(config.orderServiceMaxCapacity * 0.5)
+      ),
+    });
+    orderScaling.scaleOnSchedule('OrderSvcScaleIn', {
+      schedule: appscaling.Schedule.cron({ hour: '22', minute: '0' }),
+      minCapacity: config.orderServiceMinCapacity,
+    });
+
+    notifScaling.scaleOnSchedule('NotifSvcScaleOut', {
+      schedule: appscaling.Schedule.cron({ hour: '8', minute: '0' }),
+      minCapacity: Math.max(
+        config.notificationSvcMinCapacity,
+        Math.ceil(config.notificationSvcMaxCapacity * 0.5)
+      ),
+    });
+    notifScaling.scaleOnSchedule('NotifSvcScaleIn', {
+      schedule: appscaling.Schedule.cron({ hour: '22', minute: '0' }),
+      minCapacity: config.notificationSvcMinCapacity,
     });
 
     const targetGroup = new elbv2.ApplicationTargetGroup(

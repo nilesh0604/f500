@@ -630,48 +630,48 @@ graph TB
 
 ### 8.1 Performance Optimization
 
-- [ ] CDN caching for static assets (CloudFront)
-- [ ] API response caching (Redis, Cache-Control headers)
-- [ ] Database query optimization (indexes, EXPLAIN ANALYZE)
-- [ ] Connection pooling (PgBouncer pattern)
-- [ ] Pagination for list endpoints (cursor-based)
-- [ ] Compression (gzip/brotli)
+- [x] CDN caching for static assets (CloudFront)
+- [x] API response caching (Redis, Cache-Control headers)
+- [x] Database query optimization (indexes, EXPLAIN ANALYZE)
+- [x] Connection pooling (PgBouncer pattern)
+- [x] Pagination for list endpoints (cursor-based)
+- [x] Compression (gzip/brotli)
 - [ ] Angular bundle optimization (tree-shaking, lazy loading)
 
 ### 8.2 Resilience Patterns
 
-- [ ] Circuit breaker (opossum library)
-- [ ] Retry with exponential backoff + jitter
+- [x] Circuit breaker (opossum library)
+- [x] Retry with exponential backoff + jitter
 - [ ] Bulkhead isolation (separate thread pools)
-- [ ] Timeout on all external calls (5s default)
-- [ ] Dead Letter Queues for failed events
-- [ ] Graceful degradation (fallback responses)
+- [x] Timeout on all external calls (5s default)
+- [x] Dead Letter Queues for failed events
+- [x] Graceful degradation (fallback responses)
 - [ ] Chaos engineering tests (kill containers, inject latency)
 
 ### 8.3 Auto-Scaling
 
-- [ ] ECS Service Auto Scaling (CPU > 60%, memory > 70%)
-- [ ] Target tracking scaling policies
-- [ ] Scheduled scaling for known traffic patterns
-- [ ] RDS read replicas for read-heavy patterns (documented, not deployed for learning)
+- [x] ECS Service Auto Scaling (CPU > 60%, memory > 70%)
+- [x] Target tracking scaling policies
+- [x] Scheduled scaling for known traffic patterns
+- [x] RDS read replicas for read-heavy patterns (documented, not deployed for learning)
 
 ### 8.4 Capacity Planning
 
 > **Fortune 500 Standard**: Production systems must have documented capacity baselines and growth projections.
 
-- [ ] Baseline capacity per service (max RPS, memory ceiling, DB connections)
-- [ ] Connection pool sizing (PostgreSQL: 20 per service instance, Redis: 50)
-- [ ] Queue depth thresholds (SQS: alert at 1000, DLQ: alert at 1)
-- [ ] Storage growth projection (S3 analytics: ~1GB/month estimate)
-- [ ] Cost-per-request calculation for FinOps reporting
+- [x] Baseline capacity per service (max RPS, memory ceiling, DB connections)
+- [x] Connection pool sizing (PostgreSQL: 20 per service instance, Redis: 50)
+- [x] Queue depth thresholds (SQS: alert at 1000, DLQ: alert at 1)
+- [x] Storage growth projection (S3 analytics: ~1GB/month estimate)
+- [x] Cost-per-request calculation for FinOps reporting
 
 ### 8.5 Load Testing
 
-- [ ] k6 scripts for each service
-- [ ] Baseline: 500 RPS sustained for 10 minutes
-- [ ] Spike test: 2000 RPS for 2 minutes
-- [ ] Soak test: 200 RPS for 1 hour
-- [ ] Results compared against SLO targets
+- [x] k6 scripts for each service
+- [x] Baseline: 500 RPS sustained for 10 minutes
+- [x] Spike test: 2000 RPS for 2 minutes
+- [x] Soak test: 200 RPS for 1 hour
+- [x] Results compared against SLO targets
 - [ ] Load test in CI before production deploy
 
 ---

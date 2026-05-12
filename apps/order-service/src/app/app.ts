@@ -1,6 +1,7 @@
 import express, { Express, Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 import { httpLogMiddleware } from '@orderflow/logger';
 import { authRouter } from './routes/auth.router';
 import { ordersRouter } from './routes/orders.router';
@@ -28,6 +29,7 @@ export const createApp = (): Express => {
   app.use(securityHeaders);
   app.use(dataClassificationMiddleware);
   app.use(requestSizeGuard);
+  app.use(compression({ level: 6, threshold: 1024 }));
   app.use(express.json({ limit: '100kb' }));
   app.use(httpLogMiddleware);
   app.use(redMetricsMiddleware);

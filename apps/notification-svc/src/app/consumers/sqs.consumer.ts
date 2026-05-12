@@ -20,6 +20,7 @@ const QUEUE_URL = process.env['SQS_QUEUE_URL'] ?? '';
 const MAX_MESSAGES = 10;
 const WAIT_TIME = 20;
 const MAX_RETRIES = 3;
+const MESSAGE_TIMEOUT_MS = 5000;
 
 const sqsClient = new SQSClient({
   region: process.env['AWS_REGION'] ?? 'us-east-1',
@@ -156,7 +157,20 @@ const poll = async (running: { value: boolean }): Promise<void> => {
           }
 
           try {
-            await handleMessage(msg);
+            await Promise.race([
+              handleMessage(msg),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        `Message processing timeout after ${MESSAGE_TIMEOUT_MS}ms`
+                      )
+                    ),
+                  MESSAGE_TIMEOUT_MS
+                )
+              ),
+            ]);
             await sqsClient.send(
               new DeleteMessageCommand({
                 QueueUrl: QUEUE_URL,
@@ -164,10 +178,25 @@ const poll = async (running: { value: boolean }): Promise<void> => {
               })
             );
           } catch (err) {
-            log.error('Failed to process message', {
-              messageId: msg.MessageId,
-              err,
-            });
+            const isTimeout = (err as Error).message?.includes('timeout');
+            if (isTimeout) {
+              log.warn('Message processing timed out — degraded delete', {
+                messageId: msg.MessageId,
+              });
+              await sqsClient
+                .send(
+                  new DeleteMessageCommand({
+                    QueueUrl: QUEUE_URL,
+                    ReceiptHandle: msg.ReceiptHandle!,
+                  })
+                )
+                .catch(() => undefined);
+            } else {
+              log.error('Failed to process message', {
+                messageId: msg.MessageId,
+                err,
+              });
+            }
           }
         })
       );

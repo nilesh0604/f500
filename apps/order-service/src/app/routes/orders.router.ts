@@ -13,6 +13,7 @@ import {
   updateOrderStatus,
 } from '../services/order.service';
 import { perUserRateLimit } from '../middleware/security.middleware';
+import { ordersCacheMiddleware } from '../middleware/cache.middleware';
 import { OrderStatus } from '@orderflow/shared-types';
 
 export const ordersRouter = Router();
@@ -46,24 +47,28 @@ ordersRouter.post('/', async (req: Request, res: Response) => {
   }
 });
 
-ordersRouter.get('/', async (req: Request, res: Response) => {
-  const result = listOrdersQuerySchema.safeParse(req.query);
-  if (!result.success) {
-    res
-      .status(422)
-      .json({ error: 'Validation Error', message: 'Invalid query params' });
-    return;
-  }
+ordersRouter.get(
+  '/',
+  ordersCacheMiddleware,
+  async (req: Request, res: Response) => {
+    const result = listOrdersQuerySchema.safeParse(req.query);
+    if (!result.success) {
+      res
+        .status(422)
+        .json({ error: 'Validation Error', message: 'Invalid query params' });
+      return;
+    }
 
-  const { cursor, limit, status } = result.data;
-  const data = await listOrders(
-    (req as AuthRequest).userId,
-    cursor,
-    limit,
-    status as OrderStatus | undefined
-  );
-  res.status(200).json(data);
-});
+    const { cursor, limit, status } = result.data;
+    const data = await listOrders(
+      (req as AuthRequest).userId,
+      cursor,
+      limit,
+      status as OrderStatus | undefined
+    );
+    res.status(200).json(data);
+  }
+);
 
 ordersRouter.get('/:id', async (req: Request, res: Response) => {
   const paramResult = orderIdParamSchema.safeParse(req.params);
