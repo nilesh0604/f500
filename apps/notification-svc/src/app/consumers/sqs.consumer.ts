@@ -4,11 +4,17 @@ import {
   DeleteMessageCommand,
   Message,
 } from '@aws-sdk/client-sqs';
-import { createLogger } from '@orderflow/logger';
+import {
+  createLogger,
+  recordSqsProcessingMetrics,
+  withSpan,
+  otelTrace,
+} from '@orderflow/logger';
 import { validateEvent, EventTypeName } from '@orderflow/event-schemas';
 import { pushToUser } from '../ws/ws.server';
 
 const log = createLogger('notification-svc:sqs');
+const tracer = otelTrace.getTracer('notification-svc');
 
 const QUEUE_URL = process.env['SQS_QUEUE_URL'] ?? '';
 const MAX_MESSAGES = 10;
@@ -48,7 +54,6 @@ const handleMessage = async (message: Message): Promise<void> => {
     return;
   }
 
-  // Handle EventBridge envelope format (has 'detail' field)
   const eventBridgeWrapper = rawBody as {
     detail?: { type?: string; data?: unknown; correlationId?: string };
   };
@@ -62,33 +67,61 @@ const handleMessage = async (message: Message): Promise<void> => {
   }
 
   const eventType = envelope.type as EventTypeName;
-  const validation = validateEvent(eventType, envelope);
-  if (!validation.success) {
-    log.warn('Invalid event schema', {
-      eventType,
-      messageId: message.MessageId,
-      errors: validation.errors,
-    });
-    return;
-  }
 
-  const data = envelope.data as Record<string, unknown>;
-  const userId = data['userId'] as string | undefined;
+  await withSpan(
+    tracer,
+    `sqs.process.${eventType}`,
+    async span => {
+      const start = Date.now();
+      span.setAttribute('messaging.system', 'aws_sqs');
+      span.setAttribute('messaging.operation', 'process');
+      span.setAttribute('messaging.message_id', message.MessageId ?? '');
+      span.setAttribute('event.type', eventType);
+      if (envelope.correlationId) {
+        span.setAttribute('correlation.id', envelope.correlationId);
+      }
 
-  if (userId) {
-    pushToUser(userId, eventType, data);
-    log.info('Notification pushed', {
-      userId,
-      eventType,
-      correlationId: envelope.correlationId,
-    });
-  }
+      const validation = validateEvent(eventType, envelope);
+      if (!validation.success) {
+        log.warn('Invalid event schema', {
+          eventType,
+          messageId: message.MessageId,
+          errors: validation.errors,
+        });
+        await recordSqsProcessingMetrics({
+          eventType,
+          durationMs: Date.now() - start,
+          success: false,
+        });
+        return;
+      }
 
-  processedIds.add(message.MessageId);
-  if (processedIds.size > 10000) {
-    const first = processedIds.values().next().value;
-    if (first) processedIds.delete(first);
-  }
+      const data = envelope.data as Record<string, unknown>;
+      const userId = data['userId'] as string | undefined;
+
+      if (userId) {
+        pushToUser(userId, eventType, data);
+        log.info('Notification pushed', {
+          userId,
+          eventType,
+          correlationId: envelope.correlationId,
+        });
+      }
+
+      await recordSqsProcessingMetrics({
+        eventType,
+        durationMs: Date.now() - start,
+        success: true,
+      });
+
+      processedIds.add(message.MessageId!);
+      if (processedIds.size > 10000) {
+        const first = processedIds.values().next().value;
+        if (first) processedIds.delete(first);
+      }
+    },
+    { 'messaging.message_id': message.MessageId ?? '' }
+  );
 };
 
 const poll = async (running: { value: boolean }): Promise<void> => {

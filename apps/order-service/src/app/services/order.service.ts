@@ -1,6 +1,11 @@
 import { prisma } from '../db/prisma.client';
 import { publishEvent } from '../events/event.publisher';
-import { createLogger } from '@orderflow/logger';
+import {
+  createLogger,
+  recordBusinessMetric,
+  withSpan,
+  otelTrace,
+} from '@orderflow/logger';
 import {
   Order,
   CreateOrderDto,
@@ -12,6 +17,7 @@ import { PaginatedResponse } from '@orderflow/shared-types';
 import { EVENT_TYPES } from '@orderflow/shared-types';
 
 const log = createLogger('order-service:orders');
+const tracer = otelTrace.getTracer('order-service');
 
 const toOrder = (raw: {
   id: string;
@@ -28,46 +34,61 @@ const toOrder = (raw: {
 export const createOrder = async (
   userId: string,
   dto: CreateOrderDto
-): Promise<Order> => {
-  if (dto.idempotencyKey) {
-    const existing = await prisma.order.findUnique({
-      where: { idempotencyKey: dto.idempotencyKey },
+): Promise<Order> =>
+  withSpan(tracer, 'order.create', async span => {
+    span.setAttribute('order.userId', userId);
+    span.setAttribute('order.itemName', dto.itemName);
+    span.setAttribute('order.quantity', dto.quantity);
+
+    if (dto.idempotencyKey) {
+      const existing = await prisma.order.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey },
+      });
+      if (existing) {
+        span.setAttribute('order.idempotent', true);
+        return toOrder(existing as Parameters<typeof toOrder>[0]);
+      }
+    }
+
+    const order = await prisma.order.create({
+      data: {
+        userId,
+        itemName: dto.itemName,
+        quantity: dto.quantity,
+        notes: dto.notes ?? null,
+        idempotencyKey: dto.idempotencyKey ?? null,
+      },
     });
-    if (existing) return toOrder(existing as Parameters<typeof toOrder>[0]);
-  }
 
-  const order = await prisma.order.create({
-    data: {
-      userId,
-      itemName: dto.itemName,
-      quantity: dto.quantity,
-      notes: dto.notes ?? null,
-      idempotencyKey: dto.idempotencyKey ?? null,
-    },
-  });
+    await prisma.orderAudit.create({
+      data: {
+        orderId: order.id,
+        userId,
+        action: 'created',
+        toStatus: 'pending',
+      },
+    });
 
-  await prisma.orderAudit.create({
-    data: {
+    await publishEvent(EVENT_TYPES.ORDER_CREATED, {
       orderId: order.id,
       userId,
-      action: 'created',
-      toStatus: 'pending',
-    },
-  });
+      itemName: order.itemName,
+      quantity: order.quantity,
+      notes: order.notes,
+      status: 'pending' as const,
+      createdAt: order.createdAt.toISOString(),
+    });
 
-  await publishEvent(EVENT_TYPES.ORDER_CREATED, {
-    orderId: order.id,
-    userId,
-    itemName: order.itemName,
-    quantity: order.quantity,
-    notes: order.notes,
-    status: 'pending' as const,
-    createdAt: order.createdAt.toISOString(),
-  });
+    await recordBusinessMetric({
+      name: 'OrdersCreated',
+      value: 1,
+      dimensions: { ItemName: order.itemName },
+    });
 
-  log.info('Order created', { orderId: order.id, userId });
-  return toOrder(order as Parameters<typeof toOrder>[0]);
-};
+    span.setAttribute('order.id', order.id);
+    log.info('Order created', { orderId: order.id, userId });
+    return toOrder(order as Parameters<typeof toOrder>[0]);
+  });
 
 export const listOrders = async (
   userId: string,
@@ -109,52 +130,67 @@ export const updateOrderStatus = async (
   id: string,
   userId: string,
   dto: UpdateOrderStatusDto
-): Promise<Order> => {
-  const order = await prisma.order.findUnique({ where: { id } });
+): Promise<Order> =>
+  withSpan(tracer, 'order.updateStatus', async span => {
+    span.setAttribute('order.id', id);
+    span.setAttribute('order.userId', userId);
+    span.setAttribute('order.targetStatus', dto.status);
 
-  if (!order || order.userId !== userId) {
-    const err = new Error('Order not found');
-    (err as Error & { status: number }).status = 404;
-    throw err;
-  }
+    const order = await prisma.order.findUnique({ where: { id } });
 
-  const validTransitions =
-    ORDER_STATUS_TRANSITIONS[order.status as OrderStatus];
-  if (!validTransitions.includes(dto.status)) {
-    const err = new Error(
-      `Invalid transition: ${order.status} → ${dto.status}`
-    );
-    (err as Error & { status: number }).status = 400;
-    throw err;
-  }
+    if (!order || order.userId !== userId) {
+      const err = new Error('Order not found');
+      (err as Error & { status: number }).status = 404;
+      throw err;
+    }
 
-  const updated = await prisma.order.update({
-    where: { id },
-    data: { status: dto.status },
-  });
+    const validTransitions =
+      ORDER_STATUS_TRANSITIONS[order.status as OrderStatus];
+    if (!validTransitions.includes(dto.status)) {
+      const err = new Error(
+        `Invalid transition: ${order.status} → ${dto.status}`
+      );
+      (err as Error & { status: number }).status = 400;
+      throw err;
+    }
 
-  await prisma.orderAudit.create({
-    data: {
+    const updated = await prisma.order.update({
+      where: { id },
+      data: { status: dto.status },
+    });
+
+    await prisma.orderAudit.create({
+      data: {
+        orderId: id,
+        userId,
+        action: 'status_changed',
+        fromStatus: order.status,
+        toStatus: dto.status,
+      },
+    });
+
+    await publishEvent(EVENT_TYPES.ORDER_STATUS_CHANGED, {
       orderId: id,
       userId,
-      action: 'status_changed',
-      fromStatus: order.status,
+      fromStatus: order.status as OrderStatus,
       toStatus: dto.status,
-    },
-  });
+      changedAt: new Date().toISOString(),
+    });
 
-  await publishEvent(EVENT_TYPES.ORDER_STATUS_CHANGED, {
-    orderId: id,
-    userId,
-    fromStatus: order.status as OrderStatus,
-    toStatus: dto.status,
-    changedAt: new Date().toISOString(),
-  });
+    await recordBusinessMetric({
+      name: 'OrderStatusChanges',
+      value: 1,
+      dimensions: {
+        FromStatus: order.status,
+        ToStatus: dto.status,
+      },
+    });
 
-  log.info('Order status updated', {
-    orderId: id,
-    from: order.status,
-    to: dto.status,
+    span.setAttribute('order.fromStatus', order.status);
+    log.info('Order status updated', {
+      orderId: id,
+      from: order.status,
+      to: dto.status,
+    });
+    return toOrder(updated as Parameters<typeof toOrder>[0]);
   });
-  return toOrder(updated as Parameters<typeof toOrder>[0]);
-};

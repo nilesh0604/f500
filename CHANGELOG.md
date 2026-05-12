@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase 6: Observability & Monitoring (Week 8)
+
+  **Three Pillars — Logs**
+  - `libs/logger/src/lib/logger.ts`: Extended PII masking — email, phone (E.164), SSN, credit card, IPv4 address patterns + field-level masking for `email`, `phone`, `password`, `token`, `secret`, `authorization`
+  - `libs/logger/src/lib/logger.ts`: Trace-to-log correlation transform — injects `traceId` / `spanId` from active OTel span into every JSON log line
+  - `libs/logger/src/lib/logger.ts`: Log-level routing metadata — `_routing: pagerduty | slack | cloudwatch` added to each log entry
+  - `libs/logger/src/lib/http-log.middleware.ts`: HTTP middleware upgraded — 5xx logs at `error` level (was always `info`), `x-trace-id` response header set from active span, `traceId`/`spanId` included in access logs
+
+  **Three Pillars — Metrics**
+  - `libs/logger/src/lib/metrics.ts`: CloudWatch custom metrics publisher
+    - `recordRedMetrics()` — Rate/Error/Duration per route+method (namespace `OrderFlow/App`)
+    - `recordBusinessMetric()` — generic business metric with arbitrary dimensions
+    - `recordSqsProcessingMetrics()` — SQS message processed/error/duration per event type
+  - `apps/order-service/src/app/middleware/red-metrics.middleware.ts`: Express middleware auto-recording RED metrics for every HTTP request
+  - `apps/order-service/src/app/app.ts`: `redMetricsMiddleware` registered in middleware chain
+  - `apps/order-service/src/app/services/order.service.ts`: `OrdersCreated` and `OrderStatusChanges` business metrics recorded on each operation
+  - `apps/notification-svc/src/app/consumers/sqs.consumer.ts`: SQS processing duration/error metrics recorded per event type
+
+  **Three Pillars — Traces (AWS X-Ray / OpenTelemetry)**
+  - `libs/logger/src/lib/tracer.ts`: OpenTelemetry Node SDK bootstrap
+    - `initTracing(serviceName)` — configures resource attributes, `TraceIdRatioBasedSampler` (5% default, overridable via `OTEL_SAMPLING_RATIO`)
+    - OTLP HTTP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; console exporter otherwise
+    - Auto-instrumentation: HTTP, Express, PostgreSQL (`pg`)
+    - `withSpan(tracer, name, fn, attrs)` — utility for manual span creation with automatic OK/ERROR status and exception recording
+    - `getTraceContext()` — extracts `traceId`/`spanId` from active span context
+  - `apps/order-service/src/main.ts`: `initTracing('order-service')` called before any imports
+  - `apps/notification-svc/src/main.ts`: `initTracing('notification-svc')` called before any imports
+  - `apps/order-service/src/app/services/order.service.ts`: `order.create` and `order.updateStatus` custom spans with semantic attributes (`order.id`, `order.userId`, `order.itemName`, `order.quantity`, `order.idempotent`, `order.fromStatus`, `order.targetStatus`)
+  - `apps/notification-svc/src/app/consumers/sqs.consumer.ts`: `sqs.process.<eventType>` span per message with messaging semantic conventions (`messaging.system`, `messaging.operation`, `messaging.message_id`, `event.type`, `correlation.id`)
+  - `libs/logger/src/index.ts`: All new exports surfaced (`initTracing`, `getTraceContext`, `withSpan`, `otelTrace`, `otelContext`, `SpanStatusCode`, `recordRedMetrics`, `recordBusinessMetric`, `recordSqsProcessingMetrics`, `maskObjectPii`)
+
+  **Infra — ObservabilityStack (`infra/lib/observability-stack.ts`)**
+  - Severity-routed SNS topics: P1-Critical, P2-High, P3-Medium, P4-Low
+  - CloudWatch Log Groups with 30-day retention for both services
+  - **X-Ray sampling rules**: default 5% (`orderflow-{env}-default`), 100% on errors (`orderflow-{env}-errors`, priority 1)
+  - Infrastructure alarms: ECS CPU/memory (order-service P2, notification-svc P3), ALB 5xx rate P2, ALB p95 latency P3, RDS CPU/connections P3, DLQ depth P1
+  - **SLO alarms**: p95 latency > 200ms (SLO target breach)
+  - **Error budget burn-rate alarms**: fast-burn (2% in 1h → P1), slow-burn (5% in 6h → P2)
+  - **Anomaly detection**: CloudWatch `CfnAnomalyDetector` on ALB request count (3σ band, P3) and `OrdersCreated` business metric
+  - **Log metric filter**: `OrderServiceErrors` metric from structured JSON logs, alarm on > 10 errors/min (P2)
+  - **CloudWatch Synthetics Canary** (`orderflow-{env}-health`): health + readiness probes every 60s, P1 alarm on failure, artifacts in dedicated S3 bucket (30-day lifecycle)
+  - **SLO Dashboard** (`OrderFlow-{env}-SLO`): 6-row dashboard — header with SLO targets, RED metrics (Rate/Errors/Duration with p50/p95/p99 latency + SLO annotation), error budget burn rate, business metrics (orders created/status changes), ECS CPU/memory, RDS/SQS, Synthetics canary success %, active alarm status widget
+  - `infra/bin/app.ts`: `ObservabilityStack` instantiated alongside existing `MonitoringStack`; wired with `albDnsName` for Synthetics
+
+  **Dependencies added**
+  - `@aws-sdk/client-cloudwatch@^3.699.0`
+  - `@opentelemetry/exporter-trace-otlp-http@^0.54.0`
+  - `@opentelemetry/resources@^1.27.0`
+  - `@opentelemetry/semantic-conventions@^1.27.0`
+
+  **Test fixes**
+  - `apps/notification-svc/src/app/consumers/sqs.consumer.spec.ts`: Updated `@orderflow/logger` mock to include `otelTrace`, `withSpan`, `recordSqsProcessingMetrics`
+
 - Phase 4: CI Pipeline — GitHub Actions (Weeks 6–7)
   - `.github/workflows/pr-checks.yml`: Comprehensive PR validation workflow
     - Runs on every PR to main/develop branches

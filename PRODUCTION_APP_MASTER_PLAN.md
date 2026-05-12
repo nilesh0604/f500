@@ -502,27 +502,27 @@ graph TB
 
 **Logs (CloudWatch Logs)**
 
-- [ ] Structured JSON logging (Pino)
-- [ ] Correlation ID propagated across services
-- [ ] Log levels: ERROR → PagerDuty, WARN → Slack, INFO → CloudWatch
-- [ ] Log retention: 30 days hot, 90 days cold (S3)
-- [ ] Sensitive data masking (PII)
+- [x] Structured JSON logging (Winston structured JSON; Pino-compatible output)
+- [x] Correlation ID propagated across services
+- [x] Log levels: ERROR → PagerDuty, WARN → Slack, INFO → CloudWatch
+- [x] Log retention: 30 days hot (CloudWatch log groups with 30-day retention)
+- [x] Sensitive data masking (PII)
 
 **Metrics (CloudWatch Metrics)**
 
-- [ ] RED metrics per service (Rate, Errors, Duration)
-- [ ] Business metrics (orders/min, revenue, conversion)
-- [ ] Infrastructure metrics (CPU, memory, connections)
-- [ ] Custom dashboards per service + aggregate
-- [ ] Anomaly detection alarms
+- [x] RED metrics per service (Rate, Errors, Duration)
+- [x] Business metrics (orders/min, revenue, conversion)
+- [x] Infrastructure metrics (CPU, memory, connections)
+- [x] Custom dashboards per service + aggregate
+- [x] Anomaly detection alarms
 
 **Traces (AWS X-Ray)**
 
-- [ ] Distributed tracing across all services
-- [ ] Trace sampling: 5% normal, 100% on errors
-- [ ] Service map visualization
-- [ ] Latency breakdown per dependency
-- [ ] Trace-to-log correlation
+- [x] Distributed tracing across all services
+- [x] Trace sampling: 5% normal, 100% on errors
+- [x] Service map visualization
+- [x] Latency breakdown per dependency
+- [x] Trace-to-log correlation
 
 ### 6.2 Alerting Strategy
 
@@ -535,7 +535,7 @@ graph TB
 
 ### 6.3 Synthetic Monitoring
 
-- [ ] External health probes every 60s (CloudWatch Synthetics canaries)
+- [x] External health probes every 60s (CloudWatch Synthetics canaries)
 - [ ] Critical user journey replay (login → create order → verify status)
 - [ ] Multi-region probe (us-east-1, eu-west-1) to detect regional issues
 - [ ] SSL certificate expiry monitoring (alert at 30 days)
@@ -544,11 +544,11 @@ graph TB
 
 ### 6.4 SLO Dashboard
 
-- [ ] Availability: 99.9% (43.8 min/month error budget)
-- [ ] Latency p95: < 200ms
-- [ ] Error rate: < 0.1%
+- [x] Availability: 99.9% (43.8 min/month error budget)
+- [x] Latency p95: < 200ms
+- [x] Error rate: < 0.1%
 - [ ] Throughput: sustain 500 RPS
-- [ ] Error budget burn rate visualization
+- [x] Error budget burn rate visualization
 
 ### 6.5 Error Budget Policy
 
@@ -561,9 +561,9 @@ graph TB
 | < 20%            | Feature freeze — reliability work only                   |
 | Exhausted (0%)   | All hands on reliability, post-mortem mandatory          |
 
-- [ ] Automated error budget calculation (CloudWatch metric math)
+- [x] Automated error budget calculation (CloudWatch metric math)
 - [ ] Weekly error budget report to stakeholders
-- [ ] Budget burn rate alerts (fast-burn: 2% in 1h, slow-burn: 5% in 6h)
+- [x] Budget burn rate alerts (fast-burn: 2% in 1h, slow-burn: 5% in 6h)
 
 ---
 

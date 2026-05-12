@@ -6,6 +6,7 @@ import { httpLogMiddleware } from '@orderflow/logger';
 import { authRouter } from './routes/auth.router';
 import { ordersRouter } from './routes/orders.router';
 import { healthRouter } from './routes/health.router';
+import { redMetricsMiddleware } from './middleware/red-metrics.middleware';
 
 export const createApp = (): Express => {
   const app = express();
@@ -14,6 +15,7 @@ export const createApp = (): Express => {
   app.use(cors({ origin: process.env['CORS_ORIGIN'] ?? '*' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(httpLogMiddleware);
+  app.use(redMetricsMiddleware);
 
   app.use(
     rateLimit({

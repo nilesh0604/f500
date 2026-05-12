@@ -21,6 +21,32 @@ jest.mock('@orderflow/logger', () => ({
     error: jest.fn(),
     debug: jest.fn(),
   }),
+  otelTrace: {
+    getTracer: jest.fn().mockReturnValue({
+      startActiveSpan: jest.fn((_name: string, fn: (s: unknown) => unknown) =>
+        fn({
+          setAttribute: jest.fn(),
+          setStatus: jest.fn(),
+          recordException: jest.fn(),
+          end: jest.fn(),
+        })
+      ),
+    }),
+  },
+  withSpan: jest.fn(
+    async (
+      _tracer: unknown,
+      _name: string,
+      fn: (span: unknown) => Promise<unknown>
+    ) =>
+      fn({
+        setAttribute: jest.fn(),
+        setStatus: jest.fn(),
+        recordException: jest.fn(),
+        end: jest.fn(),
+      })
+  ),
+  recordSqsProcessingMetrics: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe('startSqsConsumer', () => {

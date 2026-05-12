@@ -1,6 +1,9 @@
+import { initTracing, createLogger } from '@orderflow/logger';
+
+initTracing('order-service');
+
 import { createApp } from './app/app';
 import { prisma } from './app/db/prisma.client';
-import { createLogger } from '@orderflow/logger';
 
 const log = createLogger('order-service');
 const PORT = process.env['PORT'] ?? '3001';

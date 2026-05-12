@@ -1,7 +1,10 @@
+import { initTracing, createLogger } from '@orderflow/logger';
+
+initTracing('notification-svc');
+
 import { startSqsConsumer } from './app/consumers/sqs.consumer';
 import { createWsServer } from './app/ws/ws.server';
 import { createApp } from './app/app';
-import { createLogger } from '@orderflow/logger';
 import * as http from 'http';
 
 const log = createLogger('notification-svc');

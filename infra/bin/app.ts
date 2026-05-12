@@ -9,6 +9,7 @@ import { SecurityStack } from '../lib/security-stack';
 import { ECSStack } from '../lib/ecs-stack';
 import { CDNStack } from '../lib/cdn-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
+import { ObservabilityStack } from '../lib/observability-stack';
 import { AppConfigStack } from '../lib/appconfig-stack';
 import { RollbackStack } from '../lib/rollback-stack';
 
@@ -113,6 +114,30 @@ const monitoringStack = new MonitoringStack(app, `${stackPrefix}-Monitoring`, {
 monitoringStack.addDependency(ecsStack);
 monitoringStack.addDependency(databaseStack);
 monitoringStack.addDependency(eventStack);
+
+const observabilityStack = new ObservabilityStack(
+  app,
+  `${stackPrefix}-Observability`,
+  {
+    env,
+    config,
+    orderServiceName: ecsStack.orderServiceName,
+    notificationServiceName: ecsStack.notificationServiceName,
+    clusterName: ecsStack.clusterName,
+    albFullName: ecsStack.albFullName,
+    albDnsName: ecsStack.albDnsName,
+    dbIdentifier: databaseStack.dbIdentifier,
+    orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
+    orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
+    orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
+    orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
+    description: `OrderFlow ${envName} — Phase 6 Observability (X-Ray, Synthetics, SLO alarms)`,
+    terminationProtection: config.envName === 'prod',
+  }
+);
+observabilityStack.addDependency(ecsStack);
+observabilityStack.addDependency(databaseStack);
+observabilityStack.addDependency(eventStack);
 
 const appConfigStack = new AppConfigStack(app, `${stackPrefix}-AppConfig`, {
   env,
