@@ -362,11 +362,19 @@ Environments:
 
 ### 3.3 IaC Best Practices
 
-- [ ] CDK unit tests with assertions library
-- [ ] `cdk diff` in CI before deploy
-- [ ] Tagging strategy (team, environment, cost-center, service)
-- [ ] Drift detection scheduled
-- [ ] Destruction protection on prod resources
+- [x] CDK unit tests with assertions library — 42 assertions across 4 test suites
+- [ ] `cdk diff` in CI before deploy — deferred to Phase 4 (GitHub Actions)
+- [x] Tagging strategy (team, environment, cost-center, service)
+- [ ] Drift detection scheduled — deferred to Phase 4 (EventBridge scheduled rule)
+- [x] Destruction protection on prod resources
+
+### 3.4 Known Gaps (Deferred)
+
+> Items identified during Phase 3 implementation that were not completed. Must be resolved before Phase 5 (CD).
+
+- [ ] **Secrets rotation not automated** — `secretsRotationDays: 90` is defined in `EnvironmentConfig` but no `SecretRotationSchedule` CDK construct is wired. Requires a Lambda-backed rotation function for RDS credentials and JWT secret. Tracked for Phase 4/5.
+- [ ] **Parameter Store for non-secret config** — Plan specifies "Parameter Store for configuration (not env vars)". Currently `REDIS_HOST`, `EVENT_BUS_NAME`, `PORT`, etc. are passed as plain ECS `environment` vars in `ECSStack`. These should be migrated to `ssm.StringParameter` and referenced via `ecs.Secret.fromSsmParameter()`.
+- [ ] **Route 53 not provisioned** — CDNStack omits Route 53 records; requires a real registered domain and ACM certificate. Deferred until a domain is available. ALB currently serves HTTP only (TLS terminated at CloudFront).
 
 ---
 

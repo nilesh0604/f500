@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Phase 3: Infrastructure as Code (Week 6)
+  - `infra/` CDK project scaffold (`package.json`, `tsconfig.json`, `cdk.json`)
+  - `infra/config/environments.ts`: Typed `EnvironmentConfig` interface with full per-environment settings for dev / staging / pre-prod / prod
+  - **NetworkStack** (`infra/lib/network-stack.ts`): VPC (10.x.0.0/16), public / private / isolated subnets across 2–3 AZs, NAT gateways, security groups for ALB / services / RDS / Redis; VPC Flow Logs to CloudWatch (staging+)
+  - **DatabaseStack** (`infra/lib/database-stack.ts`): RDS PostgreSQL 16.3 in isolated subnets with Secrets Manager credentials, parameter group with query logging, storage encryption; ElastiCache Redis 7.1 replication group with at-rest and in-transit encryption; Multi-AZ enabled for prod
+  - **EventStack** (`infra/lib/event-stack.ts`): Custom EventBridge event bus with event archive; SQS queues (`order-created`, `order-status-changed`) with DLQs and configurable `maxReceiveCount`; EventBridge rules routing events to queues; SQS-managed encryption throughout
+  - **SecurityStack** (`infra/lib/security-stack.ts`): JWT + app-config secrets in Secrets Manager; least-privilege IAM execution and task roles per service (EventBridge publish, SQS consume, Secrets Manager read, X-Ray write, CloudWatch metrics); WAF v2 with AWS managed rule sets (CRS, SQLi, KnownBadInputs) + IP-based rate limiting (staging+)
+  - **ECSStack** (`infra/lib/ecs-stack.ts`): ECS Fargate cluster with Container Insights; ALB in public subnets with path-based routing; Fargate task definitions for `order-service` (port 3000) and `notification-svc` (port 3001) with health checks, structured logging to CloudWatch, env vars and secrets injection; ECS circuit-breaker with rollback; CPU + memory auto-scaling per service; `enableExecuteCommand` for non-prod debugging
+  - **CDNStack** (`infra/lib/cdn-stack.ts`): S3 bucket (versioned, encrypted, block-public-access) for Angular frontend; CloudFront distribution with OAC, HTTP/2+3, TLS 1.2+, security headers response policy, SPA 403/404 → `index.html` rewrites; API and WebSocket path behaviours forwarded to ALB origin; access logs to separate S3 bucket
+  - **MonitoringStack** (`infra/lib/monitoring-stack.ts`): SNS alarm topic; CloudWatch alarms for ECS CPU/memory, ALB 5xx error rate and p95 latency, RDS CPU and connections, DLQ depth (any message triggers P1 alert); `OrderFlow-{env}` CloudWatch dashboard with ALB/ECS/RDS/SQS widgets
+  - `infra/bin/app.ts`: CDK app entry with full stack dependency graph and per-env termination protection on prod
+  - CDK unit tests: 42 assertions across 4 test suites (NetworkStack, DatabaseStack, EventStack, SecurityStack) — all passing
+  - `cdk synth --context env=dev` synthesises successfully to `infra/cdk.out`
+
 ### Changed
 
 - `.gitignore`: Expanded `.nx/cache/` to `.nx/` — untracked all Nx local runtime files (cache, workspace-data SQLite DBs, project graph, hashes)
