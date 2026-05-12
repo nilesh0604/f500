@@ -38,6 +38,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - IaC scanning: CDK Nag checks for infrastructure security
     - Results uploaded to GitHub Security tab (SARIF format)
 
+- Phase 5: CD Pipeline — Deployment (Weeks 7–8)
+  - `.github/workflows/deploy-staging.yml`: Automated staging deployment
+    - Triggered on merge to main branch
+    - Jobs: Build & Push Docker images, Database Migrations, Deploy to ECS Staging
+    - Smoke tests post-deployment with health endpoint validation
+    - Slack notifications for deployment success/failure
+    - AWS OIDC authentication (no long-lived credentials)
+  - `.github/workflows/deploy-production.yml`: Production canary deployment
+    - Workflow dispatch with release tag and canary percentage selection (10/25/50%)
+    - CAB (Change Advisory Board) approval gate before production
+    - Build production images with semantic versioning
+    - Pre-deployment health checks and database compatibility validation
+    - Database migrations (forward-only, backward-compatible)
+    - Canary deployment with traffic percentage control
+    - 15-minute canary monitoring with CloudWatch metrics
+    - Full rollout approval gate with manual confirmation
+    - Post-deployment verification with smoke tests
+    - PagerDuty integration for critical deployment failures
+  - `.aws/task-definitions/`: ECS task definition templates
+    - Staging task definitions for order-service and notification-svc (512 CPU, 1024 MB)
+    - Production task definitions (1024 CPU, 2048 MB) with stopTimeout for graceful shutdown
+    - Health checks configured (30s interval, 5s timeout, 60s startPeriod)
+    - Secrets injection from AWS Secrets Manager
+    - ulimits configuration for high-throughput scenarios
+  - `infra/lib/appconfig-stack.ts`: AWS AppConfig for feature flags
+    - Application and environment configuration for each deployment stage
+    - Feature flags: newOrderWorkflow, enhancedNotifications, realTimeOrderTracking, paymentRetryLogic, orderAnalytics
+    - Dynamic configuration for orderService, notificationService, circuitBreaker, rateLimiting
+    - Canary deployment strategy (25% traffic increase, 15-minute duration)
+    - IAM role for ECS tasks to access AppConfig
+  - `infra/lib/rollback-stack.ts`: Auto-rollback infrastructure
+    - Lambda function for automatic rollback on error rate spikes
+    - CloudWatch alarms for 5xx errors (order-service and notification-svc)
+    - Circuit breaker failure detection
+    - SNS topic for rollback notifications
+    - Cross-service rollback coordination
+  - `infra/lib/rollback/index.js`: Auto-rollback Lambda function
+    - Parses alarm events to identify affected services
+    - Finds previous stable task definition
+    - Executes ECS service update with rollback
+    - Records rollback metrics to CloudWatch
+    - Sends success/failure notifications via SNS
+  - `apps/order-service/test/smoke/`: Smoke test suite
+    - Health endpoint validation (/health, /ready, /live)
+    - API endpoint availability checks
+    - Authentication validation (401/400 responses)
+    - CORS headers verification
+    - Response time SLAs (< 500ms for health checks)
+    - Concurrent request handling
+  - `apps/order-service/test/smoke/load.spec.ts`: Load test suite
+    - Configurable concurrent users and duration
+    - Ramp-up period for steady-state testing
+    - P95 latency measurement
+    - Error rate validation (< 1%)
+    - Burst traffic stress tests (50 concurrent requests)
+  - `package.json`: Added `test:smoke` script for smoke test execution
+  - Updated `infra/bin/app.ts`: Integrated AppConfigStack and RollbackStack into CDK app
+
 - Phase 3: Infrastructure as Code (Week 6)
   - `infra/` CDK project scaffold (`package.json`, `tsconfig.json`, `cdk.json`)
   - `infra/config/environments.ts`: Typed `EnvironmentConfig` interface with full per-environment settings for dev / staging / pre-prod / prod

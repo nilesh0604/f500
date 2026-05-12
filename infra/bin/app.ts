@@ -9,6 +9,8 @@ import { SecurityStack } from '../lib/security-stack';
 import { ECSStack } from '../lib/ecs-stack';
 import { CDNStack } from '../lib/cdn-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
+import { AppConfigStack } from '../lib/appconfig-stack';
+import { RollbackStack } from '../lib/rollback-stack';
 
 const app = new cdk.App();
 
@@ -111,6 +113,24 @@ const monitoringStack = new MonitoringStack(app, `${stackPrefix}-Monitoring`, {
 monitoringStack.addDependency(ecsStack);
 monitoringStack.addDependency(databaseStack);
 monitoringStack.addDependency(eventStack);
+
+const appConfigStack = new AppConfigStack(app, `${stackPrefix}-AppConfig`, {
+  env,
+  config,
+  description: `OrderFlow ${envName} — AppConfig feature flags and dynamic config`,
+  terminationProtection: config.envName === 'prod',
+});
+
+const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
+  env,
+  config,
+  clusterName: ecsStack.clusterName,
+  orderServiceName: ecsStack.orderServiceName,
+  notificationServiceName: ecsStack.notificationServiceName,
+  description: `OrderFlow ${envName} — Auto-rollback Lambda and CloudWatch alarms`,
+  terminationProtection: config.envName === 'prod',
+});
+rollbackStack.addDependency(ecsStack);
 
 cdk.Tags.of(app).add('Project', 'orderflow');
 cdk.Tags.of(app).add('Environment', envName);

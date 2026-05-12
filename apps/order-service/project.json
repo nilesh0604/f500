@@ -35,6 +35,14 @@
         "jestConfig": "apps/order-service/jest.config.ts",
         "passWithNoTests": false
       }
+    },
+    "test:smoke": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "npx jest --config=apps/order-service/jest.config.ts --testPathPattern=smoke --passWithNoTests=false --detectOpenHandles"
+        ]
+      }
     }
   }
 }
