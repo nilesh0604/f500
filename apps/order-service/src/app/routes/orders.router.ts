@@ -4,6 +4,7 @@ import {
   createOrderSchema,
   updateOrderStatusSchema,
   listOrdersQuerySchema,
+  orderIdParamSchema,
 } from '../validation/order.schemas';
 import {
   createOrder,
@@ -11,11 +12,13 @@ import {
   getOrder,
   updateOrderStatus,
 } from '../services/order.service';
+import { perUserRateLimit } from '../middleware/security.middleware';
 import { OrderStatus } from '@orderflow/shared-types';
 
 export const ordersRouter = Router();
 
 ordersRouter.use(authenticate);
+ordersRouter.use(perUserRateLimit);
 
 ordersRouter.post('/', async (req: Request, res: Response) => {
   const result = createOrderSchema.safeParse(req.body);
@@ -63,7 +66,15 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
 });
 
 ordersRouter.get('/:id', async (req: Request, res: Response) => {
-  const order = await getOrder(req.params['id'], (req as AuthRequest).userId);
+  const paramResult = orderIdParamSchema.safeParse(req.params);
+  if (!paramResult.success) {
+    res.status(400).json({ error: 'Bad Request', message: 'Invalid order ID' });
+    return;
+  }
+  const order = await getOrder(
+    paramResult.data.id,
+    (req as AuthRequest).userId
+  );
   if (!order) {
     res.status(404).json({ error: 'Not Found', message: 'Order not found' });
     return;
@@ -72,6 +83,11 @@ ordersRouter.get('/:id', async (req: Request, res: Response) => {
 });
 
 ordersRouter.patch('/:id/status', async (req: Request, res: Response) => {
+  const paramResult = orderIdParamSchema.safeParse(req.params);
+  if (!paramResult.success) {
+    res.status(400).json({ error: 'Bad Request', message: 'Invalid order ID' });
+    return;
+  }
   const result = updateOrderStatusSchema.safeParse(req.body);
   if (!result.success) {
     res.status(422).json({
@@ -84,7 +100,7 @@ ordersRouter.patch('/:id/status', async (req: Request, res: Response) => {
 
   try {
     const order = await updateOrderStatus(
-      req.params['id'],
+      paramResult.data.id,
       (req as AuthRequest).userId,
       result.data
     );

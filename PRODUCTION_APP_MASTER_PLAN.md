@@ -571,58 +571,58 @@ graph TB
 
 ### 7.1 Application Security
 
-- [ ] Input validation on all endpoints (Zod schemas)
-- [ ] SQL injection prevention (parameterized queries via Prisma)
-- [ ] XSS prevention (Angular built-in + CSP headers)
-- [ ] CSRF protection (SameSite cookies + tokens)
-- [ ] Rate limiting per IP and per user
-- [ ] Request size limits
-- [ ] CORS strict configuration
-- [ ] Security headers (Helmet.js)
+- [x] Input validation on all endpoints (Zod schemas)
+- [x] SQL injection prevention (parameterized queries via Prisma)
+- [x] XSS prevention (Angular built-in + CSP headers)
+- [x] CSRF protection (SameSite cookies + tokens)
+- [x] Rate limiting per IP and per user
+- [x] Request size limits
+- [x] CORS strict configuration
+- [x] Security headers (Helmet.js)
 
 ### 7.2 Infrastructure Security
 
-- [ ] VPC with private subnets for services
-- [ ] Security groups (least privilege, no 0.0.0.0/0)
-- [ ] IAM roles per service (least privilege)
-- [ ] Secrets in AWS Secrets Manager (rotated every 90 days)
-- [ ] Encryption at rest (RDS, S3, Redis)
-- [ ] Encryption in transit (TLS 1.3)
-- [ ] WAF rules (SQL injection, XSS, rate limiting)
-- [ ] VPC Flow Logs enabled
+- [x] VPC with private subnets for services
+- [x] Security groups (least privilege, no 0.0.0.0/0)
+- [x] IAM roles per service (least privilege)
+- [x] Secrets in AWS Secrets Manager (rotated every 90 days)
+- [x] Encryption at rest (RDS, S3, Redis)
+- [x] Encryption in transit (TLS 1.3)
+- [x] WAF rules (SQL injection, XSS, rate limiting)
+- [x] VPC Flow Logs enabled
 
 ### 7.3 CI/CD Security
 
-- [ ] SAST in every PR (SonarQube/CodeQL)
-- [ ] Container image scanning (Trivy)
-- [ ] Dependency vulnerability alerts (Dependabot)
-- [ ] Secret scanning (GitHub Advanced Security)
-- [ ] Signed commits required
-- [ ] Immutable container tags (SHA-based)
-- [ ] SBOM generation per release
+- [x] SAST in every PR (SonarQube/CodeQL)
+- [x] Container image scanning (Trivy)
+- [x] Dependency vulnerability alerts (Dependabot)
+- [x] Secret scanning (GitHub Advanced Security)
+- [x] Signed commits required
+- [x] Immutable container tags (SHA-based)
+- [x] SBOM generation per release
 
 ### 7.4 Data Governance & Privacy
 
 > **Fortune 500 Standard**: Every system handling user data must comply with privacy regulations.
 
-- [ ] Data classification matrix (Public, Internal, Confidential, Restricted)
-- [ ] PII fields identified and encrypted at rest + in transit
-- [ ] Data retention policy: order data 7 years, user sessions 30 days, logs 90 days
-- [ ] Right-to-deletion implementation (GDPR Article 17)
+- [x] Data classification matrix (Public, Internal, Confidential, Restricted)
+- [x] PII fields identified and encrypted at rest + in transit
+- [x] Data retention policy: order data 7 years, user sessions 30 days, logs 90 days
+- [x] Right-to-deletion implementation (GDPR Article 17)
 - [ ] Data processing agreements documented
-- [ ] Consent management (opt-in tracking with timestamps)
-- [ ] PII masking in logs (email, phone, address auto-redacted)
+- [x] Consent management (opt-in tracking with timestamps)
+- [x] PII masking in logs (email, phone, address auto-redacted)
 - [ ] Data flow diagram documenting PII movement across services
 
 ### 7.5 Compliance
 
-- [ ] OWASP Top 10 addressed (mapped per vulnerability with mitigation proof)
-- [ ] SOC 2 Type II controls mapped (access logs, MFA, encryption, change mgmt)
-- [ ] Audit trail for all state changes (immutable append-only log)
-- [ ] Access review documentation (quarterly simulated review)
-- [ ] SBOM (Software Bill of Materials) generated per release
-- [ ] License compliance scan (no GPL in proprietary code)
-- [ ] Penetration test checklist (simulated, documented findings)
+- [x] OWASP Top 10 addressed (mapped per vulnerability with mitigation proof)
+- [x] SOC 2 Type II controls mapped (access logs, MFA, encryption, change mgmt)
+- [x] Audit trail for all state changes (immutable append-only log)
+- [x] Access review documentation (quarterly simulated review)
+- [x] SBOM (Software Bill of Materials) generated per release
+- [x] License compliance scan (no GPL in proprietary code)
+- [x] Penetration test checklist (simulated, documented findings)
 
 ---
 

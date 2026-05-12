@@ -3,6 +3,8 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import { EnvironmentConfig } from '../config/environments';
 
@@ -35,6 +37,13 @@ export class SecurityStack extends cdk.Stack {
       },
     });
 
+    cdk.Tags.of(this.jwtSecret).add(
+      'RotationPolicyDays',
+      String(config.secretsRotationDays)
+    );
+    cdk.Tags.of(this.jwtSecret).add('DataClassification', 'Restricted');
+    cdk.Tags.of(this.jwtSecret).add('ManagedRotation', 'manual-CICD');
+
     const appConfigSecret = new secretsmanager.Secret(this, 'AppConfigSecret', {
       secretName: `/orderflow/${config.envName}/app-config`,
       description: 'OrderFlow application configuration secrets',
@@ -42,6 +51,11 @@ export class SecurityStack extends cdk.Stack {
         ENVIRONMENT: cdk.SecretValue.unsafePlainText(config.envName),
       },
     });
+    cdk.Tags.of(appConfigSecret).add('DataClassification', 'Confidential');
+    cdk.Tags.of(appConfigSecret).add(
+      'RotationPolicyDays',
+      String(config.secretsRotationDays)
+    );
 
     this.orderServiceExecutionRole = new iam.Role(
       this,
@@ -252,6 +266,37 @@ export class SecurityStack extends cdk.Stack {
       });
 
       this.webAclArn = webAcl.attrArn;
+
+      const wafLogGroup = new logs.LogGroup(this, 'WafLogGroup', {
+        logGroupName: `aws-waf-logs-orderflow-${config.envName}`,
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      });
+
+      new wafv2.CfnLoggingConfiguration(this, 'WafLogging', {
+        resourceArn: webAcl.attrArn,
+        logDestinationConfigs: [wafLogGroup.logGroupArn],
+      });
+
+      const wafAccessLogsBucket = new s3.Bucket(this, 'WafAccessLogsBucket', {
+        bucketName: `orderflow-${config.envName}-waf-logs-${this.account}`,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        lifecycleRules: [
+          {
+            id: 'expire-waf-logs',
+            expiration: cdk.Duration.days(config.logRetentionDays),
+          },
+        ],
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+      });
+
+      new cdk.CfnOutput(this, 'WafAccessLogsBucket', {
+        value: wafAccessLogsBucket.bucketName,
+        exportName: `${id}-WafAccessLogsBucket`,
+        description: 'WAF access logs S3 bucket',
+      });
 
       new cdk.CfnOutput(this, 'WebAclArn', {
         value: this.webAclArn,

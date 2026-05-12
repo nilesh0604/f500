@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase 7: Security Hardening (Week 9)
+
+  **7.1 Application Security**
+  - `apps/order-service/src/app/middleware/security.middleware.ts`: New security middleware module
+    - `strictCors` — allowlist-only CORS (env-driven `CORS_ORIGIN`); returns 403/204 on preflight from unknown origins; no wildcard `*`
+    - `securityHeaders` — CSP (`default-src 'none'`), `X-Frame-Options: DENY`, `X-XSS-Protection: 0`, `Referrer-Policy`, `Permissions-Policy`, HSTS in production only
+    - `perUserRateLimit` — 200 req/15 min keyed on `userId` post-auth (orders router)
+    - `requestSizeGuard` — 413 for POST/PUT/PATCH bodies > 100 KB (checked via `Content-Length` header)
+  - `apps/order-service/src/app/middleware/data-classification.middleware.ts`: Data classification middleware
+    - `dataClassificationMiddleware` — attaches `X-Data-Classification` response header (Public / Internal / Confidential / Restricted) per route
+    - `PII_FIELD_REGISTRY` — maps domain entity fields to data classification level and applicable regulation (GDPR, CCPA)
+  - `apps/order-service/src/app/app.ts`: Middleware chain hardened
+    - Replaced loose `cors({ origin: '*' })` with `strictCors`
+    - Added `securityHeaders`, `dataClassificationMiddleware`, `requestSizeGuard`
+    - Helmet called with `contentSecurityPolicy: false` (custom CSP via `securityHeaders`), `crossOriginEmbedderPolicy: false`
+    - `app.set('trust proxy', 1)` for correct IP resolution behind ALB
+    - Global body limit tightened from 1 MB → 100 KB
+  - `apps/order-service/src/app/routes/orders.router.ts`: `perUserRateLimit` applied after `authenticate`; `:id` params validated as UUID via `orderIdParamSchema` before service calls
+  - `apps/order-service/src/app/validation/auth.schemas.ts`: Password complexity regex (uppercase + lowercase + digit + special char); email normalised to lowercase; `consentTimestamp` rejected if in the future; password max 72 chars on login
+  - `apps/order-service/src/app/validation/order.schemas.ts`: `itemName` and `notes` trimmed; `cursor` validated as UUID; new `orderIdParamSchema` for path param injection prevention
+
+  **7.2 Infrastructure Security**
+  - `infra/lib/security-stack.ts`: Secrets Manager tags — `RotationPolicyDays`, `DataClassification`, `ManagedRotation` on JWT and app-config secrets; WAF CloudWatch log group (`aws-waf-logs-orderflow-{env}`); `CfnLoggingConfiguration` wiring WAF → log group; WAF access logs S3 bucket with lifecycle expiry; `aws-cdk-lib/aws-logs` and `aws-cdk-lib/aws-s3` imports added
+
+  **7.3 CI/CD Security**
+  - `.github/workflows/sbom.yml`: SBOM generation workflow
+    - Triggers: on release (published), weekly Sunday 03:00 UTC, workflow_dispatch
+    - Generates CycloneDX JSON SBOM via `@cyclonedx/cyclonedx-npm`
+    - Validates no GPL-2.0 / GPL-3.0 / AGPL-3.0 licensed components
+    - Uploads SBOM as 90-day workflow artifact
+    - Attaches SBOM to GitHub release as asset
+    - `verify-image-tags` job — enforces SHA-based (immutable) image tags in ECS task definitions on every release
+
+  **7.4 Data Governance & Privacy**
+  - PII field registry (`PII_FIELD_REGISTRY`) documents all PII fields with classification + regulation reference
+  - `X-Data-Classification` header creates auditable data-flow trail for every HTTP response
+  - GDPR right-to-deletion (soft-delete with email hash replacement) already implemented in `auth.service.ts` (Phase 1); confirmed in SOC 2 controls map
+
+  **7.5 Compliance**
+  - `docs/adr/ADR-009-owasp-top10-mitigations.md`: Complete OWASP Top 10 (2021) mitigation map with evidence links to source files for each of the 10 categories
+  - `docs/SOC2_CONTROLS.md`: SOC 2 Type II controls mapping (CC1–CC9) with evidence artefacts, simulated quarterly access review checklist, and penetration test checklist
+
+  **Security Tests (34 new)**
+  - `apps/order-service/src/app/middleware/security.middleware.spec.ts`: 15 tests covering `strictCors` (allowed/denied origins, preflight, same-origin), `securityHeaders` (all required headers, HSTS only in prod), `requestSizeGuard` (small pass, oversized POST blocked, GET allowed)
+  - `apps/order-service/src/app/validation/auth.schemas.spec.ts`: 7 tests — password complexity, length limits, email normalisation, future `consentTimestamp` rejection
+  - `apps/order-service/src/app/validation/order.schemas.spec.ts`: 12 tests — whitespace trimming, boundary values, UUID cursor validation, path-traversal and SQLi injection via `orderIdParamSchema`
+
 - Phase 6: Observability & Monitoring (Week 8)
 
   **Three Pillars — Logs**

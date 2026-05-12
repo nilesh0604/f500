@@ -1,0 +1,124 @@
+# SBOM Generation Workflow - OrderFlow
+# Generates a Software Bill of Materials (CycloneDX JSON) on every release
+# and on weekly schedule. Uploaded as a release asset and workflow artifact.
+# See Phase 7: Security Hardening (Week 9) — 7.3 CI/CD Security
+
+name: SBOM Generation
+
+on:
+  release:
+    types: [published]
+  schedule:
+    # Weekly on Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  generate-sbom:
+    name: Generate SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install CycloneDX CLI
+        run: npm install -g @cyclonedx/cyclonedx-npm@latest
+
+      - name: Generate SBOM — workspace
+        run: |
+          cyclonedx-npm \
+            --package-lock-only \
+            --output-format json \
+            --output-file sbom-workspace.cdx.json \
+            .
+
+      - name: Validate SBOM
+        run: |
+          node -e "
+            const sbom = require('./sbom-workspace.cdx.json');
+            const comp = sbom.components || [];
+            console.log('SBOM components:', comp.length);
+            const forbidden = comp.filter(c =>
+              (c.licenses || []).some(l =>
+                ['GPL-2.0', 'GPL-3.0', 'AGPL-3.0'].includes(
+                  (l.license || {}).id || ''
+                )
+              )
+            );
+            if (forbidden.length) {
+              console.error('FORBIDDEN licenses found:');
+              forbidden.forEach(c =>
+                console.error(' -', c.name, c.version)
+              );
+              process.exit(1);
+            }
+            console.log('License compliance: PASS');
+          "
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom-workspace.cdx.json
+          retention-days: 90
+
+      - name: Attach SBOM to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sbom-workspace.cdx.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-image-tags:
+    name: Verify Immutable Image Tags (SHA-pinned)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check task definitions use SHA tags
+        run: |
+          echo "Verifying ECS task definitions reference SHA-based image tags..."
+          files=$(find .aws/task-definitions -name '*.json' 2>/dev/null)
+          if [ -z "$files" ]; then
+            echo "No task definition files found — skipping"
+            exit 0
+          fi
+          FAIL=0
+          for f in $files; do
+            images=$(jq -r '
+              (.containerDefinitions // []) |
+              .[].image // ""
+            ' "$f")
+            while IFS= read -r img; do
+              [ -z "$img" ] && continue
+              tag="${img##*:}"
+              if echo "$tag" | grep -qE '^(latest|dev|staging|prod)$'; then
+                echo "FAIL: $f uses mutable tag '$tag' (image: $img)"
+                FAIL=1
+              else
+                echo "OK:   $f -> $img"
+              fi
+            done <<< "$images"
+          done
+          exit $FAIL
