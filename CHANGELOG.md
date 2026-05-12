@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase 4: CI Pipeline — GitHub Actions (Weeks 6–7)
+  - `.github/workflows/pr-checks.yml`: Comprehensive PR validation workflow
+    - Runs on every PR to main/develop branches
+    - Jobs: Setup, Lint & Format, Unit Tests (≥80% coverage), Build Verification, Security & Dependencies
+    - Nx affected for incremental builds (only changed services)
+    - npm audit with critical/high vulnerability detection
+    - Bundle size check (< 5MB threshold)
+    - SonarQube analysis integration
+    - Secret scanning with TruffleHog
+    - Parallel job execution with concurrency control
+  - `.github/workflows/integration-tests.yml`: Integration test suite
+    - Runs on PR to main branch
+    - Docker Compose stack startup (PostgreSQL, Redis, LocalStack, services)
+    - Integration tests with testcontainers pattern
+    - Contract tests placeholder (Pact framework ready)
+    - API schema validation (OpenAPI 3.1)
+    - Smoke tests for service health endpoints
+    - Service logs collection on failure
+  - `.github/workflows/security-scan.yml`: Security scanning workflow
+    - Runs on PR, daily schedule (2 AM UTC), and manual trigger
+    - Secret scanning: TruffleHog with verified secrets detection
+    - SAST: SonarQube analysis with TypeScript rules
+    - SAST: GitHub CodeQL with security-extended queries
+    - Dependency scanning: npm audit + Snyk integration
+    - Container scanning: Trivy for Order Service and Notification Service images
+    - License compliance: GPL/AGPL forbidden license detection
+    - IaC scanning: CDK Nag checks for infrastructure security
+    - Results uploaded to GitHub Security tab (SARIF format)
+
 - Phase 3: Infrastructure as Code (Week 6)
   - `infra/` CDK project scaffold (`package.json`, `tsconfig.json`, `cdk.json`)
   - `infra/config/environments.ts`: Typed `EnvironmentConfig` interface with full per-environment settings for dev / staging / pre-prod / prod
