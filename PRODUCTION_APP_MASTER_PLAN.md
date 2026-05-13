@@ -82,40 +82,40 @@ Following **Fortune 500 enterprise standards**:
 
 ### 0.1 Repository Setup
 
-- [ ] Create monorepo with Nx workspace
-- [ ] Configure branch protection rules (require PR, 1 approval, status checks pass)
-- [ ] Enforce **signed commits** (branch protection: require commit signing)
-- [ ] Define branch naming convention (`feature/<ticket>-<slug>`, `hotfix/`, `release/v*`)
-- [ ] Setup CODEOWNERS file
-- [ ] Configure commit conventions (Conventional Commits)
-- [ ] Setup Husky + lint-staged for pre-commit hooks
-- [ ] Configure `.editorconfig`, `.prettierrc`, `.eslintrc`
-- [ ] Pin toolchain versions: `.nvmrc` (Node 22.x), `.tool-versions` (Nx, AWS CDK)
-- [ ] Initialize `CHANGELOG.md` with Keep a Changelog format
-- [ ] Create PR template and issue templates (bug, feature, RFC)
-- [ ] Create `SECURITY.md` (vulnerability disclosure policy + contact + SLA for response)
+- [x] Create monorepo with Nx workspace
+- [x] Configure branch protection rules (require PR, 1 approval, status checks pass)
+- [x] Enforce **signed commits** (branch protection: require commit signing)
+- [x] Define branch naming convention (`feature/<ticket>-<slug>`, `hotfix/`, `release/v*`)
+- [x] Setup CODEOWNERS file
+- [x] Configure commit conventions (Conventional Commits)
+- [x] Setup Husky + lint-staged for pre-commit hooks
+- [x] Configure `.editorconfig`, `.prettierrc`, `.eslintrc`
+- [x] Pin toolchain versions: `.nvmrc` (Node 22.x), `.tool-versions` (Nx, AWS CDK)
+- [x] Initialize `CHANGELOG.md` with Keep a Changelog format
+- [x] Create PR template and issue templates (bug, feature, RFC)
+- [x] Create `SECURITY.md` (vulnerability disclosure policy + contact + SLA for response)
 
 ### 0.2 Governance Documents
 
-- [ ] Write `CONTRIBUTING.md` (branching strategy, PR process, review checklist)
-- [ ] Write `CODE_OF_CONDUCT.md` (Contributor Covenant — required for all enterprise GitHub orgs)
-- [ ] Write `RFC-TEMPLATE.md` (problem statement, proposal, alternatives, trade-offs, decision)
-- [ ] Write `ADR-001-monorepo-strategy.md`
-- [ ] Write `ADR-002-event-driven-architecture.md`
-- [ ] Write `ADR-003-database-per-service.md`
-- [ ] Write `ADR-004-api-versioning-strategy.md` (URL-based: `/v1/orders`)
-- [ ] Write `ADR-005-service-to-service-auth.md` (IAM Task Roles + event envelope signing)
-- [ ] Write `ADR-006-observability-strategy.md` (CloudWatch + X-Ray + OpenTelemetry decision)
-- [ ] Write `ADR-007-authentication-approach.md` (JWT RS256, token lifetimes, refresh strategy)
-- [ ] Define `DEFINITION_OF_DONE.md`
-- [ ] Define `DATA_GOVERNANCE.md` (data classification: Public/Internal/Confidential/Restricted; PII fields; retention schedule; right-to-deletion)
-- [ ] Create `THREAT_MODEL.md` (STRIDE analysis: identify assets, trust boundaries, threats, mitigations before first line of code)
-- [ ] Create `RUNBOOK.md` template
-- [ ] Create `INCIDENT_RESPONSE_PLAN.md` (roles, escalation matrix, severity definitions, communication templates)
-- [ ] Create `DISASTER_RECOVERY_PLAN.md` (RPO: 1 hour, RTO: 30 min, failover runbook)
-- [ ] Define SLO targets (99.9% availability, p95 < 200ms, error rate < 0.1%)
-- [ ] Define `ERROR_BUDGET_POLICY.md` (freeze non-critical deploys when budget < 20%)
-- [ ] Define `CHANGE_MANAGEMENT_PROCESS.md` (change types: standard/normal/emergency; CAB cadence; rollback criteria)
+- [x] Write `CONTRIBUTING.md` (branching strategy, PR process, review checklist)
+- [x] Write `CODE_OF_CONDUCT.md` (Contributor Covenant — required for all enterprise GitHub orgs)
+- [x] Write `RFC-TEMPLATE.md` (problem statement, proposal, alternatives, trade-offs, decision)
+- [x] Write `ADR-001-monorepo-strategy.md`
+- [x] Write `ADR-002-event-driven-architecture.md`
+- [x] Write `ADR-003-database-per-service.md`
+- [x] Write `ADR-004-api-versioning-strategy.md` (URL-based: `/v1/orders`)
+- [x] Write `ADR-005-service-to-service-auth.md` (IAM Task Roles + event envelope signing)
+- [x] Write `ADR-006-observability-strategy.md` (CloudWatch + X-Ray + OpenTelemetry decision)
+- [x] Write `ADR-007-authentication-approach.md` (JWT RS256, token lifetimes, refresh strategy)
+- [x] Define `DEFINITION_OF_DONE.md`
+- [x] Define `DATA_GOVERNANCE.md` (data classification: Public/Internal/Confidential/Restricted; PII fields; retention schedule; right-to-deletion)
+- [x] Create `THREAT_MODEL.md` (STRIDE analysis: identify assets, trust boundaries, threats, mitigations before first line of code)
+- [x] Create `RUNBOOK.md` template
+- [x] Create `INCIDENT_RESPONSE_PLAN.md` (roles, escalation matrix, severity definitions, communication templates)
+- [x] Create `DISASTER_RECOVERY_PLAN.md` (RPO: 1 hour, RTO: 30 min, failover runbook)
+- [x] Define SLO targets (99.9% availability, p95 < 200ms, error rate < 0.1%)
+- [x] Define `ERROR_BUDGET_POLICY.md` (freeze non-critical deploys when budget < 20%)
+- [x] Define `CHANGE_MANAGEMENT_PROCESS.md` (change types: standard/normal/emergency; CAB cadence; rollback criteria)
 
 ### 0.3 Project Structure
 
@@ -160,24 +160,24 @@ orderflow/
 
 Every PR must satisfy:
 
-- [ ] Unit tests written (≥80% coverage)
-- [ ] Integration tests for new endpoints
-- [ ] Contract test updated if API contract changes (Pact)
-- [ ] No SonarQube critical/blocker issues
-- [ ] No high/critical Snyk vulnerabilities introduced
-- [ ] Dependency license check passed (no GPL in proprietary code)
-- [ ] API docs updated (OpenAPI spec)
-- [ ] ADR written for architectural changes
-- [ ] RFC referenced/closed if applicable
-- [ ] Changelog updated (`CHANGELOG.md`)
-- [ ] No secrets in code (pre-commit hook + TruffleHog scan)
-- [ ] Security review completed for auth/input-validation changes
-- [ ] Threat model updated if trust boundary or data flow changes
-- [ ] Performance impact assessed
-- [ ] Accessibility checked (frontend — axe-core)
-- [ ] Error handling with proper HTTP codes
-- [ ] Structured logging added (correlation ID propagated)
-- [ ] Commit signed (GPG)
+- [x] Unit tests written (≥80% coverage)
+- [x] Integration tests for new endpoints
+- [x] Contract test updated if API contract changes (Pact)
+- [x] No SonarQube critical/blocker issues
+- [x] No high/critical Snyk vulnerabilities introduced
+- [x] Dependency license check passed (no GPL in proprietary code)
+- [x] API docs updated (OpenAPI spec)
+- [x] ADR written for architectural changes
+- [x] RFC referenced/closed if applicable
+- [x] Changelog updated (`CHANGELOG.md`)
+- [x] No secrets in code (pre-commit hook + TruffleHog scan)
+- [x] Security review completed for auth/input-validation changes
+- [x] Threat model updated if trust boundary or data flow changes
+- [x] Performance impact assessed
+- [x] Accessibility checked (frontend — axe-core)
+- [x] Error handling with proper HTTP codes
+- [x] Structured logging added (correlation ID propagated)
+- [x] Commit signed (GPG)
 
 ---
 
@@ -187,20 +187,20 @@ Every PR must satisfy:
 
 > **Fortune 500 Standard**: Define API contracts (OpenAPI 3.1) BEFORE writing implementation code. All teams agree on interfaces first.
 
-- [ ] Define OpenAPI specs for both services in `docs/api/`
-- [ ] Generate TypeScript types from OpenAPI specs (openapi-typescript)
-- [ ] Define event schemas in AsyncAPI 3.0 format (`docs/api/async/`)
-- [ ] API versioning via URL path (`/v1/orders`)
-- [ ] Backward compatibility rule: existing fields never removed, only deprecated
+- [x] Define OpenAPI specs for both services in `docs/api/`
+- [x] Generate TypeScript types from OpenAPI specs (openapi-typescript)
+- [x] Define event schemas in AsyncAPI 3.0 format (`docs/api/async/`)
+- [x] API versioning via URL path (`/v1/orders`)
+- [x] Backward compatibility rule: existing fields never removed, only deprecated
 
 ### 1.1 Shared Libraries First
 
-- [ ] `libs/shared-types` — Domain models, DTOs, event interfaces
-- [ ] `libs/event-schemas` — JSON Schema + AsyncAPI validation for events
-- [ ] `libs/logger` — Winston/Pino structured logger with correlation IDs
-- [ ] `libs/auth` — JWT validation middleware
-- [ ] `libs/http-client` — Axios wrapper with retry, circuit breaker, correlation ID propagation
-- [ ] `libs/testing-utils` — Factory functions, mock builders, test DB setup
+- [x] `libs/shared-types` — Domain models, DTOs, event interfaces
+- [x] `libs/event-schemas` — JSON Schema + AsyncAPI validation for events
+- [x] `libs/logger` — Winston/Pino structured logger with correlation IDs
+- [x] `libs/auth` — JWT validation middleware
+- [x] `libs/http-client` — Axios wrapper with retry, circuit breaker, correlation ID propagation
+- [x] `libs/testing-utils` — Factory functions, mock builders, test DB setup
 
 ### 1.2 Order Service (Core — includes Auth)
 
@@ -208,53 +208,53 @@ Every PR must satisfy:
 
 **Auth endpoints (minimal):**
 
-- [ ] `POST /v1/auth/register` — email + password, returns JWT
-- [ ] `POST /v1/auth/login` — returns access token (15min) + refresh token (7d)
-- [ ] Password hashing with bcrypt (cost factor: 12)
-- [ ] JWT issuance with RS256
-- [ ] PII handling: email encrypted at rest, masked in logs
-- [ ] GDPR: consent timestamp on register, `DELETE /v1/auth/me` for right-to-deletion
+- [x] `POST /v1/auth/register` — email + password, returns JWT
+- [x] `POST /v1/auth/login` — returns access token (15min) + refresh token (7d)
+- [x] Password hashing with bcrypt (cost factor: 12)
+- [x] JWT issuance with RS256
+- [x] PII handling: email encrypted at rest, masked in logs
+- [x] GDPR: consent timestamp on register, `DELETE /v1/auth/me` for right-to-deletion
 
 **Order endpoints (core CRUD):**
 
-- [ ] `POST /v1/orders` — create order (item name, quantity, notes)
-- [ ] `GET /v1/orders` — list user's orders (cursor-based pagination)
-- [ ] `GET /v1/orders/:id` — order detail
-- [ ] `PATCH /v1/orders/:id/status` — update status (pending → confirmed → shipped → delivered)
+- [x] `POST /v1/orders` — create order (item name, quantity, notes)
+- [x] `GET /v1/orders` — list user's orders (cursor-based pagination)
+- [x] `GET /v1/orders/:id` — order detail
+- [x] `PATCH /v1/orders/:id/status` — update status (pending → confirmed → shipped → delivered)
 
 **Enterprise patterns exercised:**
 
-- [ ] Express app scaffold with TypeScript
-- [ ] PostgreSQL with Prisma ORM (migrations, seeding)
-- [ ] Event publishing on state transitions (OrderCreated, StatusChanged)
-- [ ] Input validation with Zod (generated from OpenAPI schemas)
-- [ ] Health check endpoint (`/health` liveness, `/ready` readiness)
-- [ ] Graceful shutdown handling (SIGTERM → drain connections → close DB → exit)
-- [ ] Rate limiting per API key
-- [ ] Request/response logging with correlation ID
-- [ ] Audit trail table for all state changes (who, what, when, before/after)
-- [ ] Idempotency keys on `POST` endpoints (prevent duplicate orders)
-- [ ] OpenAPI response validation middleware
+- [x] Express app scaffold with TypeScript
+- [x] PostgreSQL with Prisma ORM (migrations, seeding)
+- [x] Event publishing on state transitions (OrderCreated, StatusChanged)
+- [x] Input validation with Zod (generated from OpenAPI schemas)
+- [x] Health check endpoint (`/health` liveness, `/ready` readiness)
+- [x] Graceful shutdown handling (SIGTERM → drain connections → close DB → exit)
+- [x] Rate limiting per API key
+- [x] Request/response logging with correlation ID
+- [x] Audit trail table for all state changes (who, what, when, before/after)
+- [x] Idempotency keys on `POST` endpoints (prevent duplicate orders)
+- [x] OpenAPI response validation middleware
 
 ### 1.3 Notification Service (Event Consumer)
 
 > Exercises: async messaging, SQS consumption, WebSocket, DLQ, idempotency.
 
-- [ ] SQS consumer (long-polling) — listens for OrderCreated, StatusChanged
-- [ ] WebSocket for real-time push (Socket.IO with Redis adapter)
-- [ ] Retry with exponential backoff + DLQ
-- [ ] Idempotency (deduplication by messageId)
-- [ ] Health check endpoints (`/health`, `/ready`)
-- [ ] Graceful shutdown (drain SQS, close WebSocket connections)
+- [x] SQS consumer (long-polling) — listens for OrderCreated, StatusChanged
+- [x] WebSocket for real-time push (Socket.IO with Redis adapter)
+- [x] Retry with exponential backoff + DLQ
+- [x] Idempotency (deduplication by messageId)
+- [x] Health check endpoints (`/health`, `/ready`)
+- [x] Graceful shutdown (drain SQS, close WebSocket connections)
 
 ### 1.4 Service-to-Service Communication
 
 > **Fortune 500 Standard**: All internal service communication must be authenticated and authorized.
 
-- [ ] Service identity via IAM Task Roles (no shared credentials)
-- [ ] Event envelope schema: `{ source, type, correlationId, timestamp, data, version }`
-- [ ] Dead letter queue monitoring with automated alerting
-- [ ] Circuit breaker on all downstream HTTP calls (opossum: 50% failure → open)
+- [x] Service identity via IAM Task Roles (no shared credentials)
+- [x] Event envelope schema: `{ source, type, correlationId, timestamp, data, version }`
+- [x] Dead letter queue monitoring with automated alerting
+- [x] Circuit breaker on all downstream HTTP calls (opossum: 50% failure → open)
 
 ### 1.5 Testing Strategy (Backend)
 
@@ -269,11 +269,11 @@ Testing Pyramid:
 └─────────────────┘
 ```
 
-- [ ] Unit tests: Jest with mocked dependencies (≥80% coverage)
-- [ ] Integration tests: Supertest + Docker PostgreSQL (testcontainers)
-- [ ] Contract tests: Pact between Order Service ↔ Notification Service
-- [ ] Load tests: k6 scripts (target: 500 RPS, p95 < 200ms)
-- [ ] Mutation testing: Stryker (≥70% mutation score)
+- [x] Unit tests: Jest with mocked dependencies (≥80% coverage)
+- [x] Integration tests: Supertest + Docker PostgreSQL (testcontainers)
+- [x] Contract tests: Pact between Order Service ↔ Notification Service
+- [x] Load tests: k6 scripts (target: 500 RPS, p95 < 200ms)
+- [x] Mutation testing: Stryker (≥70% mutation score)
 
 ---
 
@@ -281,21 +281,21 @@ Testing Pyramid:
 
 ### 2.1 Dockerfiles (Multi-Stage)
 
-- [ ] Base image: `node:22-alpine`
-- [ ] Multi-stage builds (build → prune → runtime)
-- [ ] Non-root user execution
-- [ ] Health check instructions
-- [ ] `.dockerignore` optimized
-- [ ] Image size target: < 150MB per service
+- [x] Base image: `node:22-alpine`
+- [x] Multi-stage builds (build → prune → runtime)
+- [x] Non-root user execution
+- [x] Health check instructions
+- [x] `.dockerignore` optimized
+- [x] Image size target: < 150MB per service
 
 ### 2.2 Docker Compose (Local Dev)
 
-- [ ] All services orchestrated
-- [ ] PostgreSQL + Redis + LocalStack (AWS emulation)
-- [ ] Hot-reload for development
-- [ ] Shared network for inter-service communication
-- [ ] Volume mounts for code changes
-- [ ] Seed scripts for local data
+- [x] All services orchestrated
+- [x] PostgreSQL + Redis + LocalStack (AWS emulation)
+- [x] Hot-reload for development
+- [x] Shared network for inter-service communication
+- [x] Volume mounts for code changes
+- [x] Seed scripts for local data
 
 ### 2.3 Dockerfile Best Practices
 
@@ -325,13 +325,13 @@ CMD ["node", "dist/main.js"]
 
 ### 3.1 AWS CDK Stacks
 
-- [ ] **NetworkStack** — VPC, subnets (public/private), NAT Gateway, security groups
-- [ ] **DatabaseStack** — RDS PostgreSQL, ElastiCache Redis
-- [ ] **ECSStack** — Fargate cluster, task definitions, services, ALB
-- [ ] **EventStack** — EventBridge bus, SQS queues, DLQs
-- [ ] **CDNStack** — CloudFront distribution, S3 bucket (frontend), Route 53
-- [ ] **MonitoringStack** — CloudWatch dashboards, alarms, X-Ray
-- [ ] **SecurityStack** — WAF rules, Secrets Manager, IAM roles (least privilege)
+- [x] **NetworkStack** — VPC, subnets (public/private), NAT Gateway, security groups
+- [x] **DatabaseStack** — RDS PostgreSQL, ElastiCache Redis
+- [x] **ECSStack** — Fargate cluster, task definitions, services, ALB
+- [x] **EventStack** — EventBridge bus, SQS queues, DLQs
+- [x] **CDNStack** — CloudFront distribution, S3 bucket (frontend), Route 53
+- [x] **MonitoringStack** — CloudWatch dashboards, alarms, X-Ray
+- [x] **SecurityStack** — WAF rules, Secrets Manager, IAM roles (least privilege)
 
 ### 3.2 Environment Strategy & Promotion Flow
 
@@ -354,11 +354,11 @@ Environments:
 
 **Artifact Promotion Rule**: Same Docker image SHA promoted through all environments. No rebuilds between stages.
 
-- [ ] Environment-specific CDK context files
-- [ ] Parameter Store for configuration (not env vars)
-- [ ] Secrets Manager for credentials (rotation every 90 days automated)
-- [ ] Cross-stack references via exports
-- [ ] Environment parity enforced (same CDK stacks, different params)
+- [x] Environment-specific CDK context files
+- [x] Parameter Store for configuration (not env vars)
+- [x] Secrets Manager for credentials (rotation every 90 days automated)
+- [x] Cross-stack references via exports
+- [x] Environment parity enforced (same CDK stacks, different params)
 
 ### 3.3 IaC Best Practices
 
@@ -401,7 +401,7 @@ graph LR
 
 ### 4.2 CI Workflows
 
-- [ ] **pr-checks.yml** — Runs on every PR
+- [x] **pr-checks.yml** — Runs on every PR
   - Lint (ESLint + Stylelint)
   - Format check (Prettier)
   - Unit tests with coverage
@@ -412,13 +412,13 @@ graph LR
   - License compliance check
   - Nx affected (only test/build changed services)
 
-- [ ] **integration-tests.yml** — Runs on PR to main
+- [x] **integration-tests.yml** — Runs on PR to main
   - Spin up Docker Compose
   - Run integration test suite
   - Contract tests (Pact)
   - API schema validation (OpenAPI)
 
-- [ ] **security-scan.yml** — Scheduled daily + on PR
+- [x] **security-scan.yml** — Scheduled daily + on PR
   - SAST: SonarQube/CodeQL
   - DAST: OWASP ZAP (staging)
   - Container scanning: Trivy
@@ -467,11 +467,11 @@ graph TB
 
 ### 5.2 Deployment Configurations
 
-- [ ] **Blue-Green** for frontend (CloudFront + S3)
-- [ ] **Canary** for backend services (ECS weighted target groups)
-- [ ] **Feature Flags** via AWS AppConfig for gradual rollout
-- [ ] **Database Migrations** — Forward-only, backward-compatible
-- [ ] **Rollback** — Automated on error rate spike (CloudWatch alarm → Lambda)
+- [x] **Blue-Green** for frontend (CloudFront + S3)
+- [x] **Canary** for backend services (ECS weighted target groups)
+- [x] **Feature Flags** via AWS AppConfig for gradual rollout
+- [x] **Database Migrations** — Forward-only, backward-compatible
+- [x] **Rollback** — Automated on error rate spike (CloudWatch alarm → Lambda)
 
 ### 5.3 Release Process (Fortune 500 Standard)
 
@@ -486,13 +486,13 @@ graph TB
 
 ### 5.4 Zero-Downtime Deployment Checklist
 
-- [ ] Database migrations are backward-compatible
-- [ ] API versioning maintained (no breaking changes)
-- [ ] Health checks configured (liveness + readiness)
-- [ ] Connection draining enabled (ALB: 30s)
-- [ ] Graceful shutdown in services (SIGTERM handling)
-- [ ] Circuit breakers configured (downstream failures)
-- [ ] Feature flags for risky changes
+- [x] Database migrations are backward-compatible
+- [x] API versioning maintained (no breaking changes)
+- [x] Health checks configured (liveness + readiness)
+- [x] Connection draining enabled (ALB: 30s)
+- [x] Graceful shutdown in services (SIGTERM handling)
+- [x] Circuit breakers configured (downstream failures)
+- [x] Feature flags for risky changes
 
 ---
 
@@ -536,18 +536,18 @@ graph TB
 ### 6.3 Synthetic Monitoring
 
 - [x] External health probes every 60s (CloudWatch Synthetics canaries)
-- [ ] Critical user journey replay (login → create order → verify status)
-- [ ] Multi-region probe (us-east-1, eu-west-1) to detect regional issues
-- [ ] SSL certificate expiry monitoring (alert at 30 days)
-- [ ] DNS resolution monitoring
-- [ ] Third-party dependency health checks (SQS, EventBridge availability)
+- [x] Critical user journey replay (login → create order → verify status)
+- [x] Multi-region probe (us-east-1, eu-west-1) to detect regional issues
+- [x] SSL certificate expiry monitoring (alert at 30 days)
+- [x] DNS resolution monitoring
+- [x] Third-party dependency health checks (SQS, EventBridge availability)
 
 ### 6.4 SLO Dashboard
 
 - [x] Availability: 99.9% (43.8 min/month error budget)
 - [x] Latency p95: < 200ms
 - [x] Error rate: < 0.1%
-- [ ] Throughput: sustain 500 RPS
+- [x] Throughput: sustain 500 RPS
 - [x] Error budget burn rate visualization
 
 ### 6.5 Error Budget Policy
@@ -562,7 +562,7 @@ graph TB
 | Exhausted (0%)   | All hands on reliability, post-mortem mandatory          |
 
 - [x] Automated error budget calculation (CloudWatch metric math)
-- [ ] Weekly error budget report to stakeholders
+- [x] Weekly error budget report to stakeholders
 - [x] Budget burn rate alerts (fast-burn: 2% in 1h, slow-burn: 5% in 6h)
 
 ---
@@ -609,10 +609,10 @@ graph TB
 - [x] PII fields identified and encrypted at rest + in transit
 - [x] Data retention policy: order data 7 years, user sessions 30 days, logs 90 days
 - [x] Right-to-deletion implementation (GDPR Article 17)
-- [ ] Data processing agreements documented
+- [x] Data processing agreements documented
 - [x] Consent management (opt-in tracking with timestamps)
 - [x] PII masking in logs (email, phone, address auto-redacted)
-- [ ] Data flow diagram documenting PII movement across services
+- [x] Data flow diagram documenting PII movement across services
 
 ### 7.5 Compliance
 
@@ -636,17 +636,17 @@ graph TB
 - [x] Connection pooling (PgBouncer pattern)
 - [x] Pagination for list endpoints (cursor-based)
 - [x] Compression (gzip/brotli)
-- [ ] Angular bundle optimization (tree-shaking, lazy loading)
+- [x] Angular bundle optimization (tree-shaking, lazy loading)
 
 ### 8.2 Resilience Patterns
 
 - [x] Circuit breaker (opossum library)
 - [x] Retry with exponential backoff + jitter
-- [ ] Bulkhead isolation (separate thread pools)
+- [x] Bulkhead isolation (separate thread pools)
 - [x] Timeout on all external calls (5s default)
 - [x] Dead Letter Queues for failed events
 - [x] Graceful degradation (fallback responses)
-- [ ] Chaos engineering tests (kill containers, inject latency)
+- [x] Chaos engineering tests (kill containers, inject latency)
 
 ### 8.3 Auto-Scaling
 
@@ -672,7 +672,7 @@ graph TB
 - [x] Spike test: 2000 RPS for 2 minutes
 - [x] Soak test: 200 RPS for 1 hour
 - [x] Results compared against SLO targets
-- [ ] Load test in CI before production deploy
+- [x] Load test in CI before production deploy
 
 ---
 
@@ -1072,7 +1072,7 @@ sequenceDiagram
 ---
 
 **Created**: 2026-05-11
-**Updated**: 2026-05-11 (Phase 0 Fortune 500 alignment review; Phase 2 Frontend moved to Phase 10)
+**Updated**: 2026-05-13 (Marked Phases 0–8 complete; Phase 9–11 pending)
 **Author**: Nilesh Shinde
-**Status**: Planning
+**Status**: In Progress — Phases 0–8 Complete
 **Lifecycle**: Temporary (deploy → validate → destroy)
