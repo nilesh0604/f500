@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+.angular
+.nx/cache
+tmp
+package-lock.json

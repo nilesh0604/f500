@@ -1,45 +1,17 @@
 {
-  "root": true,
-  "ignorePatterns": ["**/*"],
-  "plugins": ["@nx"],
+  "extends": ["../../.eslintrc.json"],
+  "ignorePatterns": ["!**/*"],
   "overrides": [
     {
-      "files": ["*.ts", "*.tsx", "*.js", "*.jsx"],
-      "rules": {
-        "@nx/enforce-module-boundaries": [
-          "error",
-          {
-            "enforceBuildableLibDependency": true,
-            "allow": [],
-            "depConstraints": [
-              {
-                "sourceTag": "*",
-                "onlyDependOnLibsWithTags": ["*"]
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["*.ts", "*.tsx"],
-      "extends": ["plugin:@nx/typescript"],
-      "rules": {
-        "@typescript-eslint/no-explicit-any": "error",
-        "@typescript-eslint/no-unused-vars": [
-          "error",
-          { "argsIgnorePattern": "^_" }
-        ],
-        "@typescript-eslint/explicit-function-return-type": "warn",
-        "@typescript-eslint/no-floating-promises": "error"
-      }
-    },
-    {
-      "files": ["apps/web/**/*.ts"],
+      "files": ["*.ts"],
       "extends": [
         "plugin:@nx/typescript",
         "plugin:@angular-eslint/recommended"
       ],
+      "parserOptions": {
+        "project": ["apps/web/tsconfig.eslint.json"],
+        "createDefaultProgram": true
+      },
       "rules": {
         "@typescript-eslint/no-explicit-any": "error",
         "@typescript-eslint/no-unused-vars": [
@@ -60,12 +32,11 @@
         "@angular-eslint/use-lifecycle-interface": "error",
         "@angular-eslint/no-input-rename": "error",
         "@angular-eslint/no-output-rename": "error",
-        "@angular-eslint/prefer-on-push-change-detection": "warn",
         "@angular-eslint/use-pipe-transform-interface": "error"
       }
     },
     {
-      "files": ["apps/web/**/*.html"],
+      "files": ["*.html"],
       "extends": ["plugin:@angular-eslint/template/recommended"],
       "rules": {
         "@angular-eslint/template/no-negated-async": "error",
@@ -76,23 +47,13 @@
         "@angular-eslint/template/label-has-associated-control": "error",
         "@angular-eslint/template/no-autofocus": "error",
         "@angular-eslint/template/no-distracting-elements": "error",
-        "@angular-eslint/template/role-has-required-aria-props": "error",
         "@angular-eslint/template/valid-aria": "error"
       }
     },
     {
-      "files": ["*.js", "*.jsx"],
-      "extends": ["plugin:@nx/javascript"],
+      "files": ["*.spec.ts"],
+      "env": { "jest": true },
       "rules": {}
-    },
-    {
-      "files": ["*.spec.ts", "*.spec.tsx", "*.spec.js", "*.spec.jsx"],
-      "env": {
-        "jest": true
-      },
-      "rules": {
-        "@angular-eslint/prefer-on-push-change-detection": "off"
-      }
     }
   ]
 }

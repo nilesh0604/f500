@@ -7,7 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Frontend F500 Standards)
+
+- `.stylelintrc.json`: Stylelint config with `stylelint-config-standard-scss`, BEM class pattern enforcement, `max-nesting-depth: 3`, no named colors, SCSS variable naming rules
+- `.eslintrc.json`: Added Angular ESLint rules for `apps/web` — `@angular-eslint/recommended` for TS files (component/directive selector prefix, lifecycle interface enforcement, no empty lifecycle, prefer OnPush warn); `@angular-eslint/template/recommended` for HTML files (accessibility rules: `alt-text`, `click-events-have-key-events`, `interactive-supports-focus`, `label-has-associated-control`, `valid-aria`, `role-has-required-aria-props`)
+- `apps/web-e2e/`: Full Cypress E2E scaffold — `cypress.config.ts`, `project.json` (Nx target), `tsconfig.json`, `src/support/e2e.ts` (cypress-axe import), `src/support/commands.ts` (custom `login` session command, `checkA11y` WCAG 2.1 AA command), `src/fixtures/test-data.ts` (shared mock data), `src/e2e/auth.cy.ts` (login/register flow specs), `src/e2e/orders.cy.ts` (order list + detail specs with intercepted HTTP), `src/e2e/accessibility.cy.ts` (axe WCAG 2.1 AA checks on all 3 screens)
+- `lighthouserc.js`: Lighthouse CI config — performance ≥0.90, accessibility ≥0.95, color-contrast/aria/button-name errors, p95 LCP ≤3500ms, CLS ≤0.1, TBT ≤300ms
+- `apps/web/src/main.ts`: Added `import '@angular/localize/init'` for i18n readiness
+- `apps/web/project.json`: Added `stylelint` executor target; added `analyze` target (webpack-bundle-analyzer); fixed `e2e` target `devServerTarget`
+- `package.json`: Added devDependencies `@lhci/cli`, `cypress-axe`, `stylelint`, `stylelint-config-prettier-scss`, `stylelint-config-standard-scss`, `stylelint-scss`, `webpack-bundle-analyzer`, `@angular/localize`; added scripts `stylelint`, `stylelint:fix`, `analyze`, `lhci`; added `*.scss` lint-staged hook
+- `.github/workflows/pr-checks.yml`: Added Job 7 `stylelint` (SCSS linting, web-affected only) and Job 8 `lighthouse` (Lighthouse CI, runs after build); both added to `pr-checks-summary` needs and status table
+
+### Fixed (Discovered during test run)
+
+- `apps/web/.eslintrc.json`: Created project-level ESLint config extending root; added `parserOptions.project` pointing to `tsconfig.eslint.json`; removed unsupported `@angular-eslint/prefer-on-push-change-detection` (not in v18) and `@angular-eslint/template/role-has-required-aria-props` rules
+- `apps/web/tsconfig.eslint.json`: Created new tsconfig covering all `.ts` files including `jest.config.ts` and environment files, resolving `parserOptions.project` parse errors
+- `apps/web/src/app/core/interceptors/auth.interceptor.ts`: Added `void` to `router.navigate()` (`no-floating-promises`)
+- `apps/web/src/app/store/auth.store.ts`: Added `void` to all three `router.navigate()` calls (`no-floating-promises`)
+- `apps/web/src/app/core/services/websocket.service.ts`: Removed unused `Observable` import (`no-unused-vars`)
+- `apps/web/src/app/shared/components/status-badge/status-badge.component.ts`: Added explicit return type to `config` getter (`explicit-function-return-type`)
+- `apps/web/src/app/store/orders.store.ts`: Replaced non-null assertion `!` with typed cast (`no-non-null-assertion`)
+- `apps/web/src/app/features/orders/order-list/order-list.component.ts`: Read `nextCursor()` signal once into local variable to remove non-null assertion (`no-non-null-assertion`)
+- `apps/web/src/app/core/services/order.service.spec.ts`: Added `status` param branch test → branch coverage 75% → 100%
+- `apps/web/src/app/core/services/toast.service.spec.ts`: Added `warn()` and default `show()` tests → branch coverage 50% → 100%; global branches now 100% (was 71.42%, below 80% threshold)
+- `apps/web/src/styles/_variables.scss` + `main.scss`: Auto-fixed 9 stylelint violations (`color-hex-length`, `color-function-notation`, `alpha-value-notation`, `scss/at-mixin-argumentless-call-parentheses`, `scss/dollar-variable-empty-line-before`)
+
+### Fixed
+
+- `apps/web/jest.config.ts`: Corrected `setupFilesAfterFramework` (invalid key) → `setupFilesAfterEnv`; added explicit `testEnvironment: 'jsdom'` — both caused all 18 frontend unit tests to silently not execute the Angular test setup
+- `apps/web/src/app/core/services/toast.service.spec.ts`: Added `crypto.randomUUID` mock in `beforeEach` — jsdom does not expose `crypto.randomUUID`, causing 5 `ToastService` tests to throw `TypeError: crypto.randomUUID is not a function`
+
 ### Added
+
+- Phase 10: Frontend Angular App (Weeks 11–12)
+
+  **10.1 Angular Setup**
+  - `apps/web/project.json`: Nx project config with build/serve/test/lint/e2e targets; `@angular-devkit/build-angular:browser` executor; production + staging + development configurations
+  - `apps/web/tsconfig.json` / `tsconfig.app.json` / `tsconfig.spec.json`: TypeScript project references with strict mode, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`
+  - `apps/web/jest.config.ts`: jest-preset-angular setup with 80% coverage threshold across branches/functions/lines/statements
+  - `apps/web/proxy.conf.json`: Dev proxy — `/v1` → `http://localhost:3001`, `/socket.io` → `http://localhost:3002` (WebSocket)
+  - `apps/web/src/environments/`: `environment.ts` (dev), `environment.staging.ts`, `environment.prod.ts` — all three environments with `apiBaseUrl` and `wsUrl`
+  - `apps/web/src/styles/_variables.scss`: Design tokens — color palette, status colors, spacing, typography, shadows, breakpoints
+  - `apps/web/src/styles/_mixins.scss`: `respond-to`, `flex-center`, `flex-between`, `truncate`, `card`, `skeleton-shimmer`, `status-badge` mixins
+  - `apps/web/src/styles/main.scss`: Angular Material theme (blue/orange/red), global reset, layout utilities (`.container`, `.page`), Material overrides, `:focus-visible` accessibility
+  - `package.json`: `socket.io-client@^4.8.1` added to dependencies
+
+  **10.2 App Shell**
+  - `apps/web/src/main.ts`: `bootstrapApplication` entry point
+  - `apps/web/src/app/app.config.ts`: `ApplicationConfig` with `provideRouter` (withComponentInputBinding), `provideHttpClient` (withInterceptors), `provideAnimationsAsync`
+  - `apps/web/src/app/app.routes.ts`: Lazy-loaded routes — `/auth` → `authRoutes`, `/orders` → `ordersRoutes` (guarded), catch-all redirect
+  - `apps/web/src/app/app.component.ts`: Root shell — `<router-outlet>` + `<app-toast>`
+
+  **10.3 Core Layer**
+  - `apps/web/src/app/core/services/auth.service.ts`: `AuthService` — `login`, `register`, `logout`, `getAccessToken`, `isAuthenticated` (JWT exp check); tokens stored in `sessionStorage`
+  - `apps/web/src/app/core/services/order.service.ts`: `OrderService` — `list` (cursor pagination + status filter), `get`, `create` (Idempotency-Key header), `updateStatus`
+  - `apps/web/src/app/core/services/websocket.service.ts`: `WebSocketService` — `socket.io-client` with JWT auth, `order:status_changed` events exposed as `orderStatus$` Observable; auto-reconnect (5 attempts)
+  - `apps/web/src/app/core/services/toast.service.ts`: `ToastService` — Signal-based toast queue; `show/success/error/warn/dismiss`; auto-dismiss with configurable duration
+  - `apps/web/src/app/core/interceptors/auth.interceptor.ts`: Functional `authInterceptor` — attaches `Authorization: Bearer <token>` header; redirects to `/auth/login` on 401
+  - `apps/web/src/app/core/interceptors/error.interceptor.ts`: Functional `errorInterceptor` — surfaces `error.message` via ToastService for all non-401 HTTP errors
+  - `apps/web/src/app/core/guards/auth.guard.ts`: Functional `authGuard` — redirects unauthenticated users to `/auth/login`
+
+  **10.4 NgRx Signal Store**
+  - `apps/web/src/app/store/auth.store.ts`: `AuthStore` — `isAuthenticated`, `isLoading`, `error` state; `init`, `login`, `register`, `logout` methods using `rxMethod`
+  - `apps/web/src/app/store/orders.store.ts`: `OrdersStore` — `orders[]`, `selectedOrder`, pagination state; `loadOrders` (append-on-cursor), `loadOrder`, `createOrder`, `updateOrderStatus`, `applyRealtimeUpdate`
+
+  **10.5 Shared Components**
+  - `apps/web/src/app/shared/components/toast/toast.component.ts`: `ToastComponent` — fixed bottom-right toast list with type-specific icons/colors; slide-in animation; ARIA live region
+  - `apps/web/src/app/shared/components/skeleton/skeleton.component.ts`: `SkeletonComponent` — configurable width/height/borderRadius shimmer placeholder with ARIA status
+  - `apps/web/src/app/shared/components/status-badge/status-badge.component.ts`: `StatusBadgeComponent` — pill badge for all 5 order statuses with color-coded backgrounds; ARIA label
+
+  **Screen 1 — Login/Register**
+  - `apps/web/src/app/features/auth/auth.routes.ts`: Auth lazy routes
+  - `apps/web/src/app/features/auth/login/login.component.ts`: Login form — reactive form with email/password, password visibility toggle, error banner, loading spinner; routes to `/orders` on success
+  - `apps/web/src/app/features/auth/register/register.component.ts`: Register form — password complexity regex (upper+lower+digit+special, 8–72 chars), GDPR consent checkbox with `requiredTrue` validator, `consentTimestamp` sent as ISO-8601
+
+  **Screen 2 — Order List**
+  - `apps/web/src/app/features/orders/orders.routes.ts`: Orders lazy routes (list + detail)
+  - `apps/web/src/app/features/orders/create-order-dialog/create-order-dialog.component.ts`: Create Order modal — itemName/quantity/notes form; UUID idempotency key generated client-side
+  - `apps/web/src/app/features/orders/order-list/order-list.component.ts`: Order list — Material table with 5 columns; skeleton loading rows; empty state; cursor-based "Load more"; real-time status badge updates via WebSocket subscription; WebSocket connectivity indicator in toolbar
+
+  **Screen 3 — Order Detail**
+  - `apps/web/src/app/features/orders/order-detail/order-detail.component.ts`: Order detail — 4-step status timeline (pending → confirmed → shipped → delivered) with icon indicators and connector lines; order info grid; "Mark as next status" action button; WebSocket toast notification on real-time status change; `@Input() id` binding via `withComponentInputBinding`
+
+  **Unit Tests (3 suites)**
+  - `apps/web/src/app/core/services/auth.service.spec.ts`: 5 tests — login stores tokens, register stores tokens, logout clears sessionStorage, `isAuthenticated` false with no token, false with expired token
+  - `apps/web/src/app/core/services/order.service.spec.ts`: 6 tests — list, list with cursor/limit params, get, create with Idempotency-Key, updateStatus body
+  - `apps/web/src/app/core/services/toast.service.spec.ts`: 6 tests — add toast, auto-dismiss, dismiss by id, 4000ms default, 6000ms error duration
 
 - Phase 8: Performance & Resilience (Weeks 9–10)
 

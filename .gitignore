@@ -41,5 +41,11 @@ coverage/
 # Nx
 .nx/
 
+# Angular build cache
+.angular/
+
+# Cypress artefacts
+dist/cypress/
+
 # Misc
 *.log

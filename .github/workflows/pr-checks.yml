@@ -251,7 +251,59 @@ jobs:
             -Dsonar.test.inclusions=**/*.spec.ts,**/*.test.ts
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**
 
-  # Job 7: Bundle size check
+  # Job 7: SCSS / Stylelint
+  stylelint:
+    name: Stylelint (SCSS)
+    runs-on: ubuntu-latest
+    needs: setup
+    if: contains(needs.setup.outputs.affected-projects, 'web')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Stylelint
+        run: npm run stylelint
+
+  # Job 8: Lighthouse CI (perf ≥90, a11y ≥95)
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    needs: build
+    if: contains(needs.setup.outputs.affected-projects, 'web')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Run Lighthouse CI
+        run: npx lhci autorun --config=lighthouserc.js
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+  # Job 9: Bundle size check
   bundle-size:
     name: Bundle Size Check
     runs-on: ubuntu-latest
@@ -280,11 +332,11 @@ jobs:
             echo "✅ Bundle size: $BUNDLE_SIZE bytes (limit: $MAX_SIZE bytes)"
           fi
 
-  # Job 8: Final summary
+  # Job 10: Final summary
   pr-checks-summary:
     name: PR Checks Summary
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests, build, security-scan]
+    needs: [lint, unit-tests, build, security-scan, stylelint, lighthouse]
     if: always()
     steps:
       - name: Generate summary
@@ -297,13 +349,17 @@ jobs:
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Verification | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stylelint (SCSS) | ${{ needs.stylelint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lighthouse CI | ${{ needs.lighthouse.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Check if any job failed
+          # Check if any required job failed
           if [[ "${{ needs.lint.result }}" == "failure" ]] || \
              [[ "${{ needs.unit-tests.result }}" == "failure" ]] || \
              [[ "${{ needs.build.result }}" == "failure" ]] || \
-             [[ "${{ needs.security-scan.result }}" == "failure" ]]; then
+             [[ "${{ needs.security-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.stylelint.result }}" == "failure" ]] || \
+             [[ "${{ needs.lighthouse.result }}" == "failure" ]]; then
             echo "❌ **PR checks failed** - Please review the errors above" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi

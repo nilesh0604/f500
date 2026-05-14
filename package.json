@@ -21,6 +21,10 @@
     "e2e": "nx run-many --target=e2e --all",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
+    "stylelint": "stylelint 'apps/web/src/**/*.scss' --config .stylelintrc.json",
+    "stylelint:fix": "stylelint 'apps/web/src/**/*.scss' --config .stylelintrc.json --fix",
+    "analyze": "npx nx run web:analyze",
+    "lhci": "lhci autorun",
     "prepare": "husky || true",
     "workspace-generator": "nx workspace-generator",
     "cdk:bootstrap": "cd infra && cdk bootstrap",
@@ -69,6 +73,7 @@
     "redis": "^4.7.0",
     "rxjs": "~7.8.0",
     "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3",
     "tslib": "^2.3.0",
     "uuid": "^9.0.1",
     "winston": "^3.17.0",
@@ -85,6 +90,7 @@
     "@angular/cli": "^18.2.0",
     "@angular/compiler-cli": "^18.2.0",
     "@angular/language-service": "^18.2.0",
+    "@angular/localize": "^18.2.0",
     "@nx/angular": "20.0.0",
     "@nx/cypress": "20.0.0",
     "@nx/eslint": "20.0.0",
@@ -125,9 +131,16 @@
     "postcss": "^8.4.5",
     "prettier": "^3.3.3",
     "sass": "^1.80.6",
+    "cypress-axe": "^1.5.0",
+    "@lhci/cli": "^0.14.0",
+    "stylelint": "^16.9.0",
+    "stylelint-config-prettier-scss": "^1.0.0",
+    "stylelint-config-standard-scss": "^13.1.0",
+    "stylelint-scss": "^6.7.0",
     "ts-jest": "^29.1.0",
     "ts-node": "10.9.1",
-    "typescript": "~5.5.0"
+    "typescript": "~5.5.0",
+    "webpack-bundle-analyzer": "^4.10.2"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,md,yaml,yml}": [
@@ -135,6 +148,9 @@
     ],
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix"
+    ],
+    "*.scss": [
+      "stylelint --fix --config .stylelintrc.json"
     ]
   }
 }
