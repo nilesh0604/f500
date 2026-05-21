@@ -1,0 +1,123 @@
+name: LLM Security Review (Bedrock)
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+  id-token: write
+
+jobs:
+  llm-security:
+    name: Claude Security Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+
+      - name: Authenticate to AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BEDROCK_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Get PR diff (TypeScript/JavaScript only)
+        id: diff
+        run: |
+          DIFF=$(git diff origin/main...HEAD -- '*.ts' '*.js' '*.tsx' | head -c 50000)
+          if [ -z "$DIFF" ]; then
+            echo "No TypeScript/JavaScript changes detected — skipping LLM review."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            # Write diff to file to avoid shell escaping issues
+            echo "$DIFF" > /tmp/pr-diff.txt
+          fi
+
+      - name: Claude Security Review via Bedrock
+        if: steps.diff.outputs.skip == 'false'
+        run: |
+          DIFF_CONTENT=$(cat /tmp/pr-diff.txt)
+
+          PAYLOAD=$(jq -n \
+            --arg diff "$DIFF_CONTENT" \
+            '{
+              "anthropic_version": "bedrock-2023-05-31",
+              "max_tokens": 4096,
+              "messages": [{
+                "role": "user",
+                "content": ("You are a senior application security engineer reviewing a TypeScript/Express pull request for the OrderFlow monorepo.\n\nCheck for these vulnerability classes (be specific — reference exact file and line):\n1. SQL/NoSQL injection (including Prisma raw queries)\n2. XSS (SSR or Angular template injection)\n3. SSRF (axios/fetch with user-controlled URLs)\n4. Path traversal (fs operations, file uploads)\n5. Broken authentication/authorization (JWT bypass, missing auth middleware)\n6. Mass assignment (spreading req.body into Prisma create/update)\n7. Missing input validation (routes without Zod middleware)\n8. Hardcoded secrets or AWS credentials\n9. Race conditions in async handlers (shared mutable state)\n10. Improper error handling (stack traces in API responses)\n11. Missing rate limiting on sensitive endpoints\n12. PII being logged\n\nFor each finding provide:\n- Severity: CRITICAL | HIGH | MEDIUM | LOW\n- CWE ID\n- File and line number\n- Attack scenario (1 sentence)\n- Concrete fix\n\nIf no issues found, respond: {\"status\":\"PASS\",\"findings\":[]}\n\nRespond in JSON only:\n{\"status\":\"PASS\"|\"FAIL\",\"findings\":[{\"severity\":\"\",\"cwe\":\"\",\"file\":\"\",\"line\":0,\"description\":\"\",\"fix\":\"\"}],\"summary\":\"\"}\n\nDiff to review:\n" + $diff)
+              }]
+            }')
+
+          aws bedrock-runtime invoke-model \
+            --model-id us.anthropic.claude-sonnet-4-5-20250929-v1:0 \
+            --region us-east-1 \
+            --content-type application/json \
+            --accept application/json \
+            --body "$PAYLOAD" \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/bedrock-response.json
+
+          # Parse the response body
+          cat /tmp/bedrock-response.json | jq -r '.body' | base64 -d > /tmp/security-report.json || \
+            cat /tmp/bedrock-response.json > /tmp/security-report.json
+
+          echo "Security report:"
+          cat /tmp/security-report.json | jq .
+
+      - name: Post findings as PR comment
+        if: steps.diff.outputs.skip == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          REPORT=$(cat /tmp/security-report.json 2>/dev/null || echo '{"status":"ERROR","findings":[],"summary":"Failed to parse security report"}')
+          STATUS=$(echo "$REPORT" | jq -r '.status // "ERROR"')
+          SUMMARY=$(echo "$REPORT" | jq -r '.summary // "No summary available"')
+          FINDING_COUNT=$(echo "$REPORT" | jq '[.findings // [] | .[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length')
+
+          if [ "$STATUS" = "PASS" ]; then
+            BADGE="✅ **PASS**"
+          else
+            BADGE="❌ **FAIL** — $FINDING_COUNT HIGH/CRITICAL finding(s)"
+          fi
+
+          FINDINGS_MD=$(echo "$REPORT" | jq -r '
+            .findings // [] |
+            map("| \(.severity) | \(.cwe // "N/A") | `\(.file):\(.line)` | \(.description) |") |
+            join("\n")
+          ')
+
+          COMMENT="## 🔍 Claude Security Review (AWS Bedrock)\n\n${BADGE}\n\n${SUMMARY}\n"
+
+          if [ -n "$FINDINGS_MD" ]; then
+            COMMENT="${COMMENT}\n### Findings\n\n| Severity | CWE | Location | Description |\n|---|---|---|---|\n${FINDINGS_MD}\n"
+          fi
+
+          COMMENT="${COMMENT}\n---\n*Powered by Claude Sonnet via AWS Bedrock — code stays in your VPC*"
+
+          curl -s -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" \
+            -d "{\"body\": $(echo -e "$COMMENT" | jq -Rs .)}"
+
+      - name: Fail on HIGH/CRITICAL findings
+        if: steps.diff.outputs.skip == 'false'
+        run: |
+          REPORT=$(cat /tmp/security-report.json 2>/dev/null || echo '{"findings":[]}')
+          HIGH_COUNT=$(echo "$REPORT" | jq '[.findings // [] | .[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length')
+
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::error::$HIGH_COUNT HIGH/CRITICAL security finding(s) detected. Review the PR comment for details."
+            exit 1
+          fi
+
+          echo "✅ No HIGH/CRITICAL findings. Security review passed."

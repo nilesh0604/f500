@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "aws-unified": {
+      "command": "npx",
+      "args": ["-y", "@aws/mcp-unified"],
+      "env": {
+        "AWS_REGION": "${AWS_REGION}",
+        "AWS_PROFILE": "${AWS_PROFILE}"
+      }
+    },
+    "jira": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-server-jira"],
+      "env": {
+        "JIRA_URL": "${JIRA_URL}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
+        "JIRA_EMAIL": "${JIRA_EMAIL}"
+      }
+    }
+  }
+}

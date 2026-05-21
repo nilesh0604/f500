@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (AI-Driven Development Infrastructure)
+
+- `.claudeignore`: Prevents Claude from reading build artifacts, reducing token waste per session
+- `CLAUDE.md` (root): Project brain — architecture, standards, shared libs, security rules, known
+  tech debt; auto-loaded by every Claude session in this repo
+- `apps/order-service/CLAUDE.md`: Service-scoped context — domain rules, Prisma schema summary,
+  API endpoints, env vars, resilience patterns
+- `apps/notification-svc/CLAUDE.md`: Service-scoped context — SQS consumer rules, WebSocket
+  events, idempotency rules, local dev commands
+- `apps/web/CLAUDE.md`: Frontend context — Angular 18 + NgRx Signal Store patterns, 3-screen
+  architecture, API consumption, SCSS standards
+- `infra/CLAUDE.md`: CDK context — all 8 stacks, environment config, tagging rules, IAM policy
+  standards, known gaps
+- `~/.claude/CLAUDE.md`: Updated global rules — Conventional Commits format, branch naming,
+  test runner, never-auto-run list, changelog requirement
+- `.cloud/permissions.yaml`: Agent guardrails — hard-deny list (force push, cdk destroy, DROP TABLE,
+  rm -rf) + allow-with-confirmation list (cdk deploy, prisma migrate deploy)
+- `agents/orchestrator/instructions.md`: Orchestrator entry point — 8-step autonomous pipeline
+  from ticket parse → design → code → test → changelog → PR
+- `agents/design-agent/instructions.md`: Design sub-agent — produces TDD.md with API contract,
+  DB schema diff, sequence diagrams, rollback plan
+- `agents/code-agent/instructions.md`: Code sub-agent — TDD red/green/refactor loop, enforces
+  project standards, lints and tests before finishing
+- `agents/test-agent/instructions.md`: Test sub-agent — coverage gap analysis, writes additional
+  unit tests to reach 80% threshold
+- `agents/deploy-agent/instructions.md`: Deploy sub-agent — commits, pushes, opens PR via GitHub
+  MCP with filled PR template; uses claude-haiku for cost efficiency
+- `hooks/pre-tool.sh`: Pre-tool hook — secret pattern detection, blocks force push / cdk destroy /
+  migrate reset / .env writes, writes audit trail to `.cloud/audit.log`
+- `hooks/post-tool.sh`: Post-tool hook — auto-lints written TypeScript files, warns on .env
+  modification, appends to audit log
+- `skills/create-test-file/skill.md`: Reusable Jest test template with AWS SDK mocks, Prisma
+  mocks, AAA pattern, naming conventions
+- `skills/generate-prisma-migration/skill.md`: Safe migration workflow — additive-only rules,
+  step-by-step process, rollback SQL generation
+- `skills/update-changelog/skill.md`: Keep a Changelog format guide with OrderFlow-specific
+  conventions and per-service grouping examples
+- `skills/open-pr/skill.md`: PR opening guide using GitHub MCP with title format, body template,
+  and label conventions
+- `.mcp.json`: MCP server configuration for github, aws-unified, jira, slack (uses env vars —
+  no secrets hardcoded)
+- `.github/workflows/llm-security-scan.yml`: LLM security review via AWS Bedrock on every PR —
+  Claude Sonnet reviews TypeScript/JS diff for OWASP Top 10, posts inline PR comments,
+  fails on HIGH/CRITICAL findings; uses OIDC auth (no long-lived keys)
+- `scripts/ai-dev.sh`: Operator script — fetches Jira ticket, runs orchestrator headlessly;
+  single command: `./scripts/ai-dev.sh JIRA-456`
+- `docs/AI_DRIVEN_DEV_SETUP_PLAN.md`: Full setup plan with status tracking checklist
+
 ### Added (Frontend F500 Standards)
 
 - `.stylelintrc.json`: Stylelint config with `stylelint-config-standard-scss`, BEM class pattern enforcement, `max-nesting-depth: 3`, no named colors, SCSS variable naming rules
