@@ -56,11 +56,14 @@ apps/
 │   │   │   ├── health.ts            # GET /health
 │   │   │   └── ingest.ts            # Document ingestion (admin)
 │   │   ├── services/
+│   │   │   ├── agent.ts             # ReAct agent controller
 │   │   │   ├── bedrock-client.ts    # Bedrock KB + LLM wrapper
 │   │   │   ├── session-store.ts     # DynamoDB session management
 │   │   │   ├── prompt-manager.ts    # Versioned prompt retrieval (S3)
+│   │   │   ├── query-planner.ts     # Query decomposition
 │   │   │   ├── context-assembler.ts # RAG context assembly
-│   │   │   └── citation-extractor.ts # Source deduplication
+│   │   │   ├── citation-extractor.ts # Source deduplication
+│   │   │   └── reflection.ts        # Self-reflection evaluator
 │   │   ├── types/
 │   │   │   └── index.ts             # Domain types
 │   │   ├── lib/
@@ -227,15 +230,22 @@ Endpoints:
 
 ```typescript
 // Key components:
-// 1. Lambda function (Node.js 22, arm64, 1024MB)
+// 1. Lambda function (Node.js 22, arm64, 1024MB, 30s timeout)
 // 2. Function URL (CORS enabled, streaming)
 // 3. Bedrock Knowledge Base
 //    - S3 data source (Mahabharata chunks)
 //    - Titan V2 embeddings (1024-dim)
 //    - Vector store: RDS Aurora (cheaper than OpenSearch for small corpus)
-// 4. DynamoDB table (sessions)
-// 5. IAM roles (least privilege)
-// 6. CloudWatch log group (7-day retention)
+// 4. DynamoDB tables
+//    - sessions: TTL 7 days
+//    - rate-limits: per-IP counters
+//    - agent-state: stores agent reasoning steps (optional, for debugging)
+// 5. S3 buckets
+//    - corpus: Mahabharata chunks
+//    - prompts: versioned system prompts
+//    - agent-prompts: ReAct and reflection prompts
+// 6. IAM roles (least privilege)
+// 7. CloudWatch log group (7-day retention)
 ```
 
 **Cost Optimizations**:
@@ -304,28 +314,46 @@ export interface Citation {
 
 1. Validate input (Zod)
 2. Get/create session (DynamoDB)
-3. Call Bedrock KB (RetrieveAndGenerate)
-4. Extract citations
-5. Update session
-6. Return response
+3. **Initialize Agent** with query and session context
+4. **Agent Loop** (max 3 iterations):
+   a. Query Planner decomposes complex query (if needed)
+   b. Retrieve context from Bedrock KB
+   c. Context Assembler filters results (75% threshold)
+   d. Check if context is sufficient (reflection step)
+   e. If insufficient, reformulate query and continue
+   f. If sufficient, generate answer
+5. **Self-Reflection**: Verify answer completeness
+6. Extract citations
+7. Update session with full agent trace
+8. Return response
 
-**Cost optimization**: Use `RetrieveAndGenerate` API (single call vs separate retrieve + generate)
+**Cost optimization**: Iteration limits prevent runaway costs; reflection reduces unnecessary LLM calls
 
 ### 5.2 Handler: `src/handlers/chat-stream.ts`
 
 **Flow**:
 
 1. Set up Function URL response stream
-2. Call Bedrock with `stream: true`
-3. Pipe chunks to response
-4. Prefix with `session_id:` on first chunk
+2. **Stream agent reasoning steps**:
+   - `event: thought` - Agent's reasoning
+   - `event: action` - Tool being called (retrieve/generate)
+   - `event: observation` - Retrieved context summary
+   - `event: reflection` - Self-evaluation
+3. **Stream final answer** via `event: message`
+4. End with `event: done` containing citations and token usage
 
 **Implementation**:
 
 ```typescript
 // Lambda Function URL supports streaming responses
 // Content-Type: text/event-stream
-// Format: session_id:uuid\ndata:chunk\n\n
+// Events:
+//   thought: {thought: "Decomposing query..."}
+//   action: {tool: "retrieve", input: "Karna foster father"}
+//   observation: {chunks: 3, sources: [...]}
+//   reflection: {complete: true}
+//   message: {chunk: "Karna's foster father..."}
+//   done: {citations: [...], token_usage: {...}}
 ```
 
 ### 5.3 Service: `src/services/bedrock-client.ts`
@@ -350,7 +378,108 @@ export class BedrockClient {
 }
 ```
 
-### 5.4 Service: `src/services/session-store.ts`
+### 5.4 Service: `src/services/agent.ts`
+
+**File**: `src/services/agent.ts`
+
+```typescript
+// ReAct Agent Controller
+export class Agent {
+  private maxIterations = 3;
+
+  async run(query: string, sessionContext: Message[]): Promise<AgentResult> {
+    const trace: AgentStep[] = [];
+
+    // Step 1: Decompose query if complex
+    const subQueries = await this.planner.decompose(query);
+
+    // Step 2: Iterative retrieval loop
+    let context: string[] = [];
+    for (let i = 0; i < this.maxIterations; i++) {
+      // Retrieve
+      const results = await this.bedrock.retrieve(subQueries[i] || query);
+      context.push(...results.map(r => r.content));
+
+      // Check sufficiency via reflection
+      const sufficiency = await this.reflector.checkSufficiency(
+        query,
+        context.join('\n\n')
+      );
+
+      trace.push({
+        iteration: i,
+        query: subQueries[i] || query,
+        results: results.length,
+        sufficient: sufficiency.sufficient,
+      });
+
+      if (sufficiency.sufficient) break;
+    }
+
+    // Step 3: Generate answer
+    const answer = await this.bedrock.generate(
+      query,
+      context.join('\n\n'),
+      sessionContext
+    );
+
+    // Step 4: Final reflection
+    const quality = await this.reflector.evaluateAnswer(query, answer);
+
+    return { answer, trace, quality };
+  }
+}
+```
+
+### 5.5 Service: `src/services/query-planner.ts`
+
+**File**: `src/services/query-planner.ts`
+
+```typescript
+// Query Decomposition for multi-hop questions
+export class QueryPlanner {
+  async decompose(query: string): Promise<string[]> {
+    // Use LLM to analyze if query needs decomposition
+    // Examples:
+    //   "Who was Karna's foster father?" → ["Karna foster father"]
+    //   "What happened to Arjuna's son after the war?" →
+    //     ["Arjuna son name", "Abhimanyu fate after war"]
+
+    const analysis = await this.llm.analyze(query);
+    if (analysis.needsDecomposition) {
+      return analysis.subQueries;
+    }
+    return [query];
+  }
+}
+```
+
+### 5.6 Service: `src/services/reflection.ts`
+
+**File**: `src/services/reflection.ts`
+
+```typescript
+// Self-Reflection Evaluator
+export class Reflector {
+  async checkSufficiency(
+    query: string,
+    context: string
+  ): Promise<SufficiencyCheck> {
+    // Ask LLM: "Is the context sufficient to answer the query?"
+    // Returns: { sufficient: boolean, missingInfo?: string }
+  }
+
+  async evaluateAnswer(
+    query: string,
+    answer: string
+  ): Promise<QualityEvaluation> {
+    // Ask LLM: "Does the answer fully address the query?"
+    // Returns: { complete: boolean, issues?: string[] }
+  }
+}
+```
+
+### 5.7 Service: `src/services/session-store.ts`
 
 ```typescript
 // DynamoDB session management with TTL

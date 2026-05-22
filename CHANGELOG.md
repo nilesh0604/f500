@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Vyasa RAG Service - Phase 1: Governance)
+
+- `docs/rfc/004-vyasa-rag-service.md`: RFC for **agentic** serverless RAG service with ReAct loop, query decomposition, and self-reflection
+- `docs/adr/010-vyasa-serverless-architecture.md`: ADR documenting Lambda vs ECS, Bedrock KB vs OpenSearch decisions
+- `docs/api/vyasa-rag.yaml`: OpenAPI 3.1 spec for chat, streaming, and admin endpoints
+- Agentic components in implementation plan:
+  - `src/services/agent.ts` - ReAct agent controller
+  - `src/services/query-planner.ts` - Query decomposition
+  - `src/services/reflection.ts` - Self-reflection evaluator
+  - SSE streaming of agent reasoning steps (`thought`, `action`, `observation`, `reflection`)
+
 ### Added (AI-Driven Development Infrastructure)
 
 - `.claudeignore`: Prevents Claude from reading build artifacts, reducing token waste per session

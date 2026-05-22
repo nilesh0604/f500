@@ -1,0 +1,486 @@
+openapi: 3.1.0
+info:
+  title: Vyasa Intelligence RAG Service
+  description: |
+    Agentic RAG service for Mahabharata Q&A with session management and streaming support.
+
+    ## Features
+    - Multi-turn conversation with session persistence
+    - Server-Sent Events (SSE) for streaming responses
+    - Accurate citations from the Mahabharata text
+    - Rate limiting (10 RPM per IP, 100 RPM global)
+
+    ## Architecture
+    - Lambda + Function URL (serverless)
+    - Bedrock Knowledge Base (vector search + generation)
+    - DynamoDB (session store)
+    - S3 (document corpus + versioned prompts)
+  version: 1.0.0
+  contact:
+    name: OrderFlow Architecture Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://{function-url}.lambda-url.{region}.on.aws
+    description: Lambda Function URL
+    variables:
+      function-url:
+        description: Lambda function URL identifier
+        default: vyasa-rag
+      region:
+        description: AWS region
+        default: us-east-1
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service health status
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                version: 1.0.0
+                timestamp: '2026-05-22T12:00:00Z'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chat:
+    post:
+      summary: Non-streaming chat
+      description: |
+        Send a message to the Vyasa RAG service and receive a complete response.
+
+        ## Session Management
+        - If `session_id` is not provided, a new session is created
+        - Sessions persist for 7 days
+        - Session context is used for multi-turn conversations
+
+        ## Citations
+        - Response includes citations from the Mahabharata
+        - Citations include title and optional metadata (book, chapter, verse)
+      operationId: chat
+      tags:
+        - Chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              new-session:
+                summary: New session
+                value:
+                  message: 'Who was Karna and what was his relationship with the Pandavas?'
+              existing-session:
+                summary: Existing session
+                value:
+                  session_id: '550e8400-e29b-41d4-a716-446655440000'
+                  message: 'What was his role in the Kurukshetra war?'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              example:
+                session_id: '550e8400-e29b-41d4-a716-446655440000'
+                response: 'Karna was the eldest son of Kunti, born to her before her marriage to Pandu. Despite being the eldest Pandava by birth, he was raised by a charioteer and later became a close friend of Duryodhana...'
+                citations:
+                  - title: 'Mahabharata - Adi Parva'
+                    book: 'Adi Parva'
+                    chapter: 'Sambhava Parva'
+                  - title: 'Mahabharata - Udyoga Parva'
+                    book: 'Udyoga Parva'
+                    chapter: 'Bhagavad-Yana Parva'
+                token_usage:
+                  prompt_tokens: 2450
+                  completion_tokens: 180
+                  total_tokens: 2630
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'ValidationError'
+                message: 'message is required and must be between 1 and 4000 characters'
+                code: 'FR-API-005'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'RateLimitExceeded'
+                message: 'Rate limit exceeded. Try again in 60 seconds.'
+                code: 'NFR-SEC-003'
+                retry_after: 60
+        '503':
+          description: Service unavailable (Bedrock/DynamoDB down)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'ServiceUnavailable'
+                message: 'I am temporarily unable to search. Please try again shortly.'
+                code: 'NFR-REL-004'
+
+  /chat/stream:
+    post:
+      summary: Streaming chat (SSE)
+      description: |
+        Send a message and receive a streaming response via Server-Sent Events.
+
+        ## SSE Format
+        ```
+        event: message
+        data: {"session_id": "uuid", "chunk": "text fragment"}
+
+        event: done
+        data: {"citations": [...], "token_usage": {...}}
+        ```
+
+        ## Events
+        - `message`: Response text chunk
+        - `citation`: Citation information
+        - `error`: Error during streaming
+        - `done`: Stream complete with final metadata
+      operationId: chatStream
+      tags:
+        - Chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/ChatStreamEvent'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/ingest:
+    post:
+      summary: Document ingestion
+      description: |
+        Admin endpoint to ingest documents into the knowledge base.
+        Requires admin authentication.
+      operationId: ingestDocuments
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '202':
+          description: Ingestion job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (not admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: Session ID for continuing a conversation. Omit to create a new session.
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        message:
+          type: string
+          description: User message to send to the RAG service
+          minLength: 1
+          maxLength: 4000
+          example: 'Who was Karna and what was his relationship with the Pandavas?'
+        stream:
+          type: boolean
+          description: Whether to stream the response (used internally, prefer /chat/stream endpoint)
+          default: false
+
+    ChatResponse:
+      type: object
+      required:
+        - session_id
+        - response
+        - citations
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: Session ID (new or existing)
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        response:
+          type: string
+          description: Generated response from the LLM
+          example: 'Karna was the eldest son of Kunti...'
+        citations:
+          type: array
+          description: Citations from the Mahabharata supporting the response
+          items:
+            $ref: '#/components/schemas/Citation'
+        token_usage:
+          $ref: '#/components/schemas/TokenUsage'
+
+    Citation:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Title of the source text
+          example: 'Mahabharata - Adi Parva'
+        book:
+          type: string
+          description: Book/Parva name
+          example: 'Adi Parva'
+        chapter:
+          type: string
+          description: Chapter name
+          example: 'Sambhava Parva'
+        verse:
+          type: string
+          description: Verse reference if available
+          example: '1.1.1'
+        score:
+          type: number
+          format: float
+          description: Relevance score (0.0 - 1.0)
+          example: 0.92
+
+    TokenUsage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+          description: Number of tokens in the prompt
+          example: 2450
+        completion_tokens:
+          type: integer
+          description: Number of tokens in the completion
+          example: 180
+        total_tokens:
+          type: integer
+          description: Total tokens used
+          example: 2630
+
+    ChatStreamEvent:
+      type: object
+      discriminator:
+        propertyName: event
+        mapping:
+          message: '#/components/schemas/StreamMessageEvent'
+          citation: '#/components/schemas/StreamCitationEvent'
+          error: '#/components/schemas/StreamErrorEvent'
+          done: '#/components/schemas/StreamDoneEvent'
+
+    StreamMessageEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [message]
+        data:
+          type: object
+          properties:
+            session_id:
+              type: string
+              format: uuid
+            chunk:
+              type: string
+              description: Text fragment of the response
+
+    StreamCitationEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [citation]
+        data:
+          $ref: '#/components/schemas/Citation'
+
+    StreamErrorEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [error]
+        data:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    StreamDoneEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [done]
+        data:
+          type: object
+          properties:
+            citations:
+              type: array
+              items:
+                $ref: '#/components/schemas/Citation'
+            token_usage:
+              $ref: '#/components/schemas/TokenUsage'
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+          example: healthy
+        version:
+          type: string
+          example: '1.0.0'
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-05-22T12:00:00Z'
+        dependencies:
+          type: object
+          properties:
+            bedrock:
+              type: string
+              enum: [ok, error]
+            dynamodb:
+              type: string
+              enum: [ok, error]
+            s3:
+              type: string
+              enum: [ok, error]
+
+    IngestRequest:
+      type: object
+      required:
+        - source_uri
+      properties:
+        source_uri:
+          type: string
+          description: S3 URI of documents to ingest
+          example: 's3://vyasa-rag-corpus/new-documents/'
+        sync_mode:
+          type: string
+          enum: [FULL_SYNC, INCREMENTAL]
+          default: INCREMENTAL
+          description: Ingestion mode
+
+    IngestResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          description: Ingestion job ID
+          example: 'ingest-20260522-001'
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED, FAILED]
+          example: PENDING
+        estimated_completion:
+          type: string
+          format: date-time
+          example: '2026-05-22T13:00:00Z'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: 'ValidationError'
+        message:
+          type: string
+          description: Human-readable error message
+          example: 'message is required and must be between 1 and 4000 characters'
+        code:
+          type: string
+          description: PRD requirement code
+          example: 'FR-API-005'
+        retry_after:
+          type: integer
+          description: Seconds to wait before retry (for rate limits)
+          example: 60
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Admin JWT token for protected endpoints
+
+tags:
+  - name: Health
+    description: Service health and status
+  - name: Chat
+    description: Chat and conversation endpoints
+  - name: Admin
+    description: Administrative endpoints (requires auth)
