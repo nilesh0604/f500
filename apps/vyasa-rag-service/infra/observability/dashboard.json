@@ -1,0 +1,243 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Request Volume",
+        "region": "us-east-1",
+        "metrics": [
+          [
+            "AWS/ApiGateway",
+            "Count",
+            "ApiName",
+            "vyasa-rag-api",
+            { "stat": "Sum" }
+          ],
+          [
+            "...",
+            { "stat": "Sum", "color": "#2ca02c", "label": "Total Requests" }
+          ]
+        ],
+        "period": 300,
+        "yAxis": { "left": { "min": 0 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Latency (p50, p90, p99)",
+        "region": "us-east-1",
+        "metrics": [
+          [
+            "AWS/Lambda",
+            "Duration",
+            "FunctionName",
+            "vyasa-rag-service",
+            { "stat": "p50" }
+          ],
+          ["...", { "stat": "p90", "color": "#ff7f0e" }],
+          ["...", { "stat": "p99", "color": "#d62728" }]
+        ],
+        "period": 60,
+        "annotations": {
+          "horizontal": [
+            { "value": 3000, "label": "Target <3s", "color": "#2ca02c" }
+          ]
+        },
+        "yAxis": { "left": { "min": 0, "max": 10000 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Error Rate",
+        "region": "us-east-1",
+        "metrics": [
+          [
+            "AWS/Lambda",
+            "Errors",
+            "FunctionName",
+            "vyasa-rag-service",
+            { "stat": "Sum" }
+          ],
+          [
+            "...",
+            { "stat": "Sum", "color": "#d62728", "label": "Lambda Errors" }
+          ],
+          [
+            ".",
+            "Throttles",
+            ".",
+            ".",
+            { "stat": "Sum", "color": "#ff7f0e", "label": "Throttles" }
+          ]
+        ],
+        "period": 60,
+        "yAxis": { "left": { "min": 0 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Bedrock Token Usage",
+        "region": "us-east-1",
+        "metrics": [
+          [
+            "VyasaRAG",
+            "BedrockInputTokens",
+            { "stat": "Sum", "color": "#1f77b4" }
+          ],
+          [".", "BedrockOutputTokens", { "stat": "Sum", "color": "#ff7f0e" }]
+        ],
+        "period": 300,
+        "yAxis": { "left": { "min": 0 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Bedrock Latency by Operation",
+        "region": "us-east-1",
+        "metrics": [
+          [
+            "VyasaRAG",
+            "BedrockLatency",
+            "Operation",
+            "Retrieve",
+            { "stat": "p90" }
+          ],
+          ["...", "Operation", "Generate", { "stat": "p90" }],
+          ["...", "Operation", "DecomposeQuery", { "stat": "p90" }]
+        ],
+        "period": 60,
+        "yAxis": { "left": { "min": 0 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "DynamoDB - Sessions Table",
+        "region": "us-east-1",
+        "metrics": [
+          [
+            "AWS/DynamoDB",
+            "ConsumedReadCapacityUnits",
+            "TableName",
+            "vyasa-rag-sessions-dev",
+            { "stat": "Sum" }
+          ],
+          [
+            ".",
+            "ConsumedWriteCapacityUnits",
+            ".",
+            ".",
+            { "stat": "Sum", "color": "#ff7f0e" }
+          ],
+          [
+            ".",
+            "ThrottledRequests",
+            ".",
+            ".",
+            { "stat": "Sum", "color": "#d62728" }
+          ]
+        ],
+        "period": 300,
+        "yAxis": { "left": { "min": 0 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Rate Limiting - Rejected Requests",
+        "region": "us-east-1",
+        "metrics": [
+          ["VyasaRAG", "RateLimitRejected", "Type", "PerIP", { "stat": "Sum" }],
+          ["...", "Type", "Global", { "stat": "Sum" }]
+        ],
+        "period": 60,
+        "yAxis": { "left": { "min": 0 } }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Agent Iterations Distribution",
+        "region": "us-east-1",
+        "metrics": [
+          ["VyasaRAG", "AgentIterations", { "stat": "Average" }],
+          ["...", { "stat": "Maximum", "color": "#ff7f0e" }]
+        ],
+        "period": 300,
+        "yAxis": { "left": { "min": 0, "max": 5 } }
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 18,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Recent Errors",
+        "region": "us-east-1",
+        "query": "SOURCE '/aws/lambda/vyasa-rag-service' | fields @timestamp, @message\n| filter @message like /ERROR/ or @message like /error/\n| sort @timestamp desc\n| limit 20",
+        "logGroupNames": ["/aws/lambda/vyasa-rag-service"]
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 18,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Top Slow Queries",
+        "region": "us-east-1",
+        "query": "SOURCE '/aws/lambda/vyasa-rag-service' | fields @timestamp, @message\n| parse @message '*latency*: *ms*, *query*: \"*\"' as _, latency, _, query\n| filter ispresent(query)\n| stats percentile(latency, 99) as p99_latency by query\n| sort p99_latency desc\n| limit 10",
+        "logGroupNames": ["/aws/lambda/vyasa-rag-service"]
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 24,
+      "width": 24,
+      "height": 2,
+      "properties": {
+        "markdown": "## Vyasa RAG Service Dashboard\n\n**Links:** [X-Ray Service Map](https://us-east-1.console.aws.amazon.com/xray/home?region=us-east-1#/service-map) | [CloudWatch Logs](https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group/$252Faws$252Flambda$252Fvyasa-rag-service) | [Bedrock Metrics](https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#metricsV2?graph=~(metrics~(~(~'VyasaRAG~'BedrockInputTokens)))"
+      }
+    }
+  ]
+}

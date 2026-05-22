@@ -1,0 +1,130 @@
+{
+  "description": "CloudWatch Alarms for Vyasa RAG Service",
+  "alarms": [
+    {
+      "alarmName": "vyasa-rag-high-error-rate",
+      "alarmDescription": "Error rate exceeds 1% over 5 minutes",
+      "metricName": "Errors",
+      "namespace": "AWS/Lambda",
+      "statistic": "Sum",
+      "period": 60,
+      "evaluationPeriods": 5,
+      "threshold": 5,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "dimensions": [{ "name": "FunctionName", "value": "vyasa-rag-service" }],
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"],
+      "okActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-high-latency-p99",
+      "alarmDescription": "p99 latency exceeds 5 seconds",
+      "metricName": "Duration",
+      "namespace": "AWS/Lambda",
+      "statistic": "p99",
+      "period": 60,
+      "evaluationPeriods": 3,
+      "threshold": 5000,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "dimensions": [{ "name": "FunctionName", "value": "vyasa-rag-service" }],
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-throttling",
+      "alarmDescription": "Lambda throttling detected",
+      "metricName": "Throttles",
+      "namespace": "AWS/Lambda",
+      "statistic": "Sum",
+      "period": 60,
+      "evaluationPeriods": 2,
+      "threshold": 1,
+      "comparisonOperator": "GreaterThanOrEqualToThreshold",
+      "treatMissingData": "notBreaching",
+      "dimensions": [{ "name": "FunctionName", "value": "vyasa-rag-service" }],
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-bedrock-high-latency",
+      "alarmDescription": "Bedrock generation latency exceeds 4 seconds",
+      "metricName": "BedrockLatency",
+      "namespace": "VyasaRAG",
+      "statistic": "p90",
+      "period": 60,
+      "evaluationPeriods": 3,
+      "threshold": 4000,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "dimensions": [{ "name": "Operation", "value": "Generate" }],
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-high-token-usage",
+      "alarmDescription": "Token usage exceeds 50K tokens in 5 minutes",
+      "metricName": "BedrockInputTokens",
+      "namespace": "VyasaRAG",
+      "statistic": "Sum",
+      "period": 300,
+      "evaluationPeriods": 1,
+      "threshold": 50000,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-agent-max-iterations",
+      "alarmDescription": "Agent hitting max iterations frequently",
+      "metricName": "AgentIterations",
+      "namespace": "VyasaRAG",
+      "statistic": "Maximum",
+      "period": 300,
+      "evaluationPeriods": 2,
+      "threshold": 3,
+      "comparisonOperator": "GreaterThanOrEqualToThreshold",
+      "treatMissingData": "notBreaching",
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-dynamodb-throttling",
+      "alarmDescription": "DynamoDB throttling on sessions table",
+      "metricName": "ThrottledRequests",
+      "namespace": "AWS/DynamoDB",
+      "statistic": "Sum",
+      "period": 60,
+      "evaluationPeriods": 2,
+      "threshold": 1,
+      "comparisonOperator": "GreaterThanOrEqualToThreshold",
+      "treatMissingData": "notBreaching",
+      "dimensions": [
+        { "name": "TableName", "value": "vyasa-rag-sessions-dev" }
+      ],
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-circuit-breaker-open",
+      "alarmDescription": "Circuit breaker opened (indicates service degradation)",
+      "metricName": "CircuitBreakerOpen",
+      "namespace": "VyasaRAG",
+      "statistic": "Sum",
+      "period": 60,
+      "evaluationPeriods": 1,
+      "threshold": 1,
+      "comparisonOperator": "GreaterThanOrEqualToThreshold",
+      "treatMissingData": "notBreaching",
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    },
+    {
+      "alarmName": "vyasa-rag-low-feedback-score",
+      "alarmDescription": "Average user feedback rating below 3.5",
+      "metricName": "FeedbackAverageRating",
+      "namespace": "VyasaRAG",
+      "statistic": "Average",
+      "period": 3600,
+      "evaluationPeriods": 1,
+      "threshold": 3.5,
+      "comparisonOperator": "LessThanThreshold",
+      "treatMissingData": "notBreaching",
+      "alarmActions": ["arn:aws:sns:us-east-1:ACCOUNT:vyasa-rag-alerts"]
+    }
+  ]
+}

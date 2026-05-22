@@ -1,0 +1,277 @@
+{
+  "version": "1.0.0",
+  "description": "Golden dataset for Vyasa RAG evaluation - Mahabharata knowledge",
+  "created_at": "2026-05-22",
+  "categories": {
+    "single_hop": "Direct factual questions",
+    "multi_hop": "Questions requiring multiple facts",
+    "complex_reasoning": "Questions requiring synthesis",
+    "edge_cases": "Ambiguous or out-of-scope questions"
+  },
+  "test_cases": [
+    {
+      "id": "test-001",
+      "category": "single_hop",
+      "query": "Who was Karna's biological mother?",
+      "expected_answer": "Kunti",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": ["Karna was born to Kunti"],
+      "difficulty": "easy",
+      "tags": ["characters", "lineage"]
+    },
+    {
+      "id": "test-002",
+      "category": "single_hop",
+      "query": "What was Arjuna's bow called?",
+      "expected_answer": "Gandiva",
+      "expected_citations": ["Virata Parva", "Udyoga Parva"],
+      "required_facts": ["Arjuna wielded the bow Gandiva"],
+      "difficulty": "easy",
+      "tags": ["weapons", "characters"]
+    },
+    {
+      "id": "test-003",
+      "category": "single_hop",
+      "query": "Where did Krishna deliver the Bhagavad Gita?",
+      "expected_answer": "Kurukshetra",
+      "expected_citations": ["Bhagavad Gita", "Bhishma Parva"],
+      "required_facts": [
+        "The Bhagavad Gita was delivered on the battlefield of Kurukshetra"
+      ],
+      "difficulty": "easy",
+      "tags": ["locations", "scriptures"]
+    },
+    {
+      "id": "test-004",
+      "category": "multi_hop",
+      "query": "Who were the parents of Karna's foster father?",
+      "expected_answer": "Adhiratha's parents - requires finding Adhiratha's lineage",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": [
+        "Karna was raised by Adhiratha",
+        "Adhiratha was a charioteer",
+        "Adhiratha's parentage"
+      ],
+      "difficulty": "hard",
+      "tags": ["lineage", "multi-hop"]
+    },
+    {
+      "id": "test-005",
+      "category": "multi_hop",
+      "query": "What happened to Arjuna's son after the war?",
+      "expected_answer": "Abhimanyu died during the Chakravyuha formation at Kurukshetra",
+      "expected_citations": ["Drona Parva"],
+      "required_facts": [
+        "Arjuna's son was Abhimanyu",
+        "Abhimanyu entered the Chakravyuha",
+        "Abhimanyu was killed in battle"
+      ],
+      "difficulty": "medium",
+      "tags": ["characters", "war", "multi-hop"]
+    },
+    {
+      "id": "test-006",
+      "category": "multi_hop",
+      "query": "What was the relationship between Krishna and the Pandavas?",
+      "expected_answer": "Krishna was their cousin and charioteer/advisor to Arjuna",
+      "expected_citations": ["Adi Parva", "Udyoga Parva"],
+      "required_facts": [
+        "Krishna's father Vasudeva was brother of Kunti",
+        "Krishna served as Arjuna's charioteer",
+        "Krishna advised the Pandavas"
+      ],
+      "difficulty": "medium",
+      "tags": ["relationships", "characters"]
+    },
+    {
+      "id": "test-007",
+      "category": "complex_reasoning",
+      "query": "Why did Karna refuse to fight under Draupadi's swayamvara?",
+      "expected_answer": "Karna was rejected for being a charioteer's son (suta-putra), not a kshatriya",
+      "expected_citations": ["Adi Parva", "Virata Parva"],
+      "required_facts": [
+        "Draupadi announced only kshatriyas could compete",
+        "Karna was raised as a charioteer's son",
+        "Karna attempted to string the bow",
+        "Draupadi rejected him based on birth"
+      ],
+      "difficulty": "hard",
+      "tags": ["reasoning", "social", "events"]
+    },
+    {
+      "id": "test-008",
+      "category": "complex_reasoning",
+      "query": "How did Bhishma attain his vow of celibacy?",
+      "expected_answer": "Bhishma took a vow of brahmacharya to ensure his father's marriage to Satyavati",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": [
+        "Shantanu wanted to marry Satyavati",
+        "Satyavati's father wanted her son to be king",
+        "Devavrata (Bhishma) took the vow",
+        "He was granted the name Bhishma for terrible vow"
+      ],
+      "difficulty": "medium",
+      "tags": ["vows", "characters", "reasoning"]
+    },
+    {
+      "id": "test-009",
+      "category": "edge_cases",
+      "query": "What is the capital of India?",
+      "expected_answer": "OUT_OF_SCOPE",
+      "expected_citations": [],
+      "required_facts": [],
+      "difficulty": "n/a",
+      "tags": ["out-of-scope", "boundary-test"]
+    },
+    {
+      "id": "test-010",
+      "category": "edge_cases",
+      "query": "Who won the 2024 Cricket World Cup?",
+      "expected_answer": "OUT_OF_SCOPE",
+      "expected_citations": [],
+      "required_facts": [],
+      "difficulty": "n/a",
+      "tags": ["out-of-scope", "temporal"]
+    },
+    {
+      "id": "test-011",
+      "category": "edge_cases",
+      "query": "Tell me about the movie Bahubali",
+      "expected_answer": "OUT_OF_SCOPE",
+      "expected_citations": [],
+      "required_facts": [],
+      "difficulty": "n/a",
+      "tags": ["out-of-scope", "modern"]
+    },
+    {
+      "id": "test-012",
+      "category": "single_hop",
+      "query": "How many Pandava brothers were there?",
+      "expected_answer": "Five - Yudhishthira, Bhima, Arjuna, Nakula, and Sahadeva",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": ["Five Pandava brothers", "Their names"],
+      "difficulty": "easy",
+      "tags": ["characters", "facts"]
+    },
+    {
+      "id": "test-013",
+      "category": "multi_hop",
+      "query": "What weapons did each Pandava receive from gods?",
+      "expected_answer": "Various divine weapons - Arjuna received many from Indra and Shiva, Bhima from Vayu, etc.",
+      "expected_citations": ["Van Parva", "Adi Parva"],
+      "required_facts": [
+        "Arjuna received weapons from Indra",
+        "Arjuna received Pashupata from Shiva",
+        "Bhima's strength from Vayu",
+        "Other Pandavas' divine gifts"
+      ],
+      "difficulty": "hard",
+      "tags": ["weapons", "characters", "multi-hop"]
+    },
+    {
+      "id": "test-014",
+      "category": "complex_reasoning",
+      "query": "Why did the Kurukshetra war happen?",
+      "expected_answer": "Multiple causes including succession dispute, Draupadi's humiliation, failed negotiations",
+      "expected_citations": ["Udyoga Parva", "Sabha Parva"],
+      "required_facts": [
+        "Duryodhana refused to return kingdom",
+        "Draupadi was insulted in Hastinapura",
+        "Peace negotiations failed",
+        "Dharma vs adharma conflict"
+      ],
+      "difficulty": "hard",
+      "tags": ["war", "reasoning", "causes"]
+    },
+    {
+      "id": "test-015",
+      "category": "single_hop",
+      "query": "What was the duration of the Kurukshetra war?",
+      "expected_answer": "18 days",
+      "expected_citations": ["Bhishma Parva"],
+      "required_facts": ["War lasted 18 days"],
+      "difficulty": "easy",
+      "tags": ["war", "facts"]
+    },
+    {
+      "id": "test-016",
+      "category": "single_hop",
+      "query": "Who was the teacher of the Pandavas and Kauravas?",
+      "expected_answer": "Dronacharya",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": ["Drona was the weapons teacher"],
+      "difficulty": "easy",
+      "tags": ["characters", "education"]
+    },
+    {
+      "id": "test-017",
+      "category": "multi_hop",
+      "query": "How did Ekalavya learn archery without Drona's teaching?",
+      "expected_answer": "Ekalavya made a clay statue of Drona and practiced before it, mastering archery",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": [
+        "Ekalavya was rejected by Drona",
+        "He made a clay idol of Drona",
+        "He practiced archery before the idol",
+        "He became a great archer"
+      ],
+      "difficulty": "medium",
+      "tags": ["characters", "skills", "determination"]
+    },
+    {
+      "id": "test-018",
+      "category": "complex_reasoning",
+      "query": "What was the significance of Draupadi's swayamvara?",
+      "expected_answer": "It set up the rivalry between Pandavas and Kauravas, established Arjuna's identity, led to alliance with Drupada",
+      "expected_citations": ["Adi Parva"],
+      "required_facts": [
+        "Archery contest winner would marry Draupadi",
+        "Arjuna won disguised as brahmin",
+        "Karna was insulted",
+        "Led to alliance between Pandavas and Drupada"
+      ],
+      "difficulty": "hard",
+      "tags": ["events", "politics", "reasoning"]
+    },
+    {
+      "id": "test-019",
+      "category": "single_hop",
+      "query": "What was the name of the dice game where Yudhishthira lost everything?",
+      "expected_answer": "The game of dice at Hastinapura",
+      "expected_citations": ["Sabha Parva"],
+      "required_facts": [
+        "Yudhishthira lost kingdom, brothers, and Draupadi in dice game"
+      ],
+      "difficulty": "easy",
+      "tags": ["events", "gambling"]
+    },
+    {
+      "id": "test-020",
+      "category": "multi_hop",
+      "query": "What happened to the Kaurava brothers after the war?",
+      "expected_answer": "All 100 Kaurava brothers including Duryodhana died in the war",
+      "expected_citations": ["Shalya Parva", "Sauptika Parva"],
+      "required_facts": [
+        "Duryodhana was killed by Bhima",
+        "Remaining Kauravas were killed at night by Ashwatthama",
+        "All 100 brothers died"
+      ],
+      "difficulty": "medium",
+      "tags": ["war", "deaths", "outcomes"]
+    }
+  ],
+  "statistics": {
+    "total": 20,
+    "by_difficulty": {
+      "easy": 7,
+      "medium": 6,
+      "hard": 7
+    },
+    "by_category": {
+      "single_hop": 7,
+      "multi_hop": 6,
+      "complex_reasoning": 4,
+      "edge_cases": 3
+    }
+  }
+}

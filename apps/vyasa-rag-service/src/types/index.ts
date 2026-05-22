@@ -185,3 +185,63 @@ export interface IngestRequestInput {
   source_uri: string;
   sync_mode: 'FULL_SYNC' | 'INCREMENTAL';
 }
+
+/**
+ * Test case for evaluation
+ */
+export interface TestCase {
+  id: string;
+  category: 'single_hop' | 'multi_hop' | 'complex_reasoning' | 'edge_cases';
+  query: string;
+  expected_answer: string;
+  expected_citations: string[];
+  required_facts: string[];
+  difficulty: 'easy' | 'medium' | 'hard' | 'n/a';
+  tags: string[];
+}
+
+/**
+ * Evaluation metrics
+ */
+export interface EvaluationMetrics {
+  accuracy?: number;
+  citationPrecision?: number;
+  citationRecall?: number;
+  citationF1?: number;
+  completeness?: number;
+  relevance?: number;
+  conciseness?: number;
+  latencyMs: number;
+  tokensUsed: number;
+  iterationsUsed: number;
+}
+
+/**
+ * Evaluation result for a single test case
+ */
+export interface EvaluationResult {
+  testId: string;
+  query: string;
+  expectedAnswer: string;
+  actualAnswer: string;
+  metrics: EvaluationMetrics;
+  overallScore: number;
+  passed: boolean;
+  trace?: AgentStep[];
+  citations: Citation[];
+  timestamp: string;
+}
+
+/**
+ * Human feedback entry
+ */
+export interface HumanFeedback {
+  sessionId: string;
+  query: string;
+  response: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  helpful: boolean;
+  accurate: boolean;
+  comments?: string;
+  timestamp: string;
+}

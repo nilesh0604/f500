@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Vyasa RAG Service - Phase 6: Observability)
+
+- `infra/observability/` - CloudWatch dashboards, alarms, log queries
+  - `dashboard.json` - 10 CloudWatch dashboard widgets:
+    - Request volume, latency percentiles, error rates
+    - Bedrock token usage and latency by operation
+    - DynamoDB metrics, rate limiting, agent iterations
+    - Live error stream, slow query analysis
+  - `alarms.json` - 9 CloudWatch alarms with SNS notifications:
+    - Error rate, latency (p99), throttling
+    - Bedrock latency, token usage, agent max iterations
+    - DynamoDB throttling, circuit breaker, feedback score
+  - `log-insights-queries.md` - 12 pre-built queries for:
+    - Latency distribution, error analysis, agent performance
+    - Token usage, circuit breaker events, rate limiting
+  - `src/lib/metrics.ts` - Custom CloudWatch metrics publishing
+  - `src/lib/tracer.ts` - X-Ray tracing with annotations
+
+### Added (Vyasa RAG Service - Phase 5: Evaluation System)
+
+- `eval/` - Comprehensive evaluation framework
+  - `datasets/golden-dataset.json` - 20 curated test cases (single-hop, multi-hop, complex reasoning, edge cases)
+  - `metrics/evaluator.ts` - Evaluation metrics:
+    - Accuracy (35%): Keyword overlap with expected answer
+    - Citation F1 (20%): Precision/recall of citations
+    - Completeness (20%): Coverage of required facts
+    - Relevance (15%): Query term presence
+    - Conciseness (10%): Answer length appropriateness
+  - `runner.ts` - Evaluation execution with HTML/JSON reports
+  - `feedback.ts` - Human feedback collection (DynamoDB)
+  - `README.md` - Evaluation documentation
+  - Pass thresholds by difficulty (Easy: 75%, Medium: 70%, Hard: 65%)
+
 ### Added (Vyasa RAG Service - Phase 4: Testing)
 
 - **Test suite** for `vyasa-rag-service`:
