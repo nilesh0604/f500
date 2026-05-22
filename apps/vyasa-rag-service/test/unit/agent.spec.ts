@@ -3,7 +3,7 @@
  */
 
 import { runAgent, buildChatResponse } from '../../src/services/agent';
-import { AgentResult, AgentStep, Message } from '../../src/types';
+import { AgentResult, Message } from '../../src/types';
 
 // Mock dependencies
 jest.mock('../../src/services/bedrock-client');

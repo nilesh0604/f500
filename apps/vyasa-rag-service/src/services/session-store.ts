@@ -4,11 +4,7 @@
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import {
-  GetItemCommand,
-  PutItemCommand,
-  UpdateItemCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { Session, Message, SessionItem } from '../types';
 import { logger } from '../lib/logger';
@@ -53,9 +49,9 @@ export async function getOrCreateSession(sessionId?: string): Promise<Session> {
 export async function getSession(sessionId: string): Promise<Session | null> {
   return dynamodbCircuitBreaker.execute(async () => {
     const result = await ddbClient.send(
-      new GetItemCommand({
+      new GetCommand({
         TableName: SESSIONS_TABLE,
-        Key: { session_id: { S: sessionId } },
+        Key: { session_id: sessionId },
       })
     );
 
@@ -63,7 +59,7 @@ export async function getSession(sessionId: string): Promise<Session | null> {
       return null;
     }
 
-    const item = result.Item as unknown as SessionItem;
+    const item = result.Item as SessionItem;
     return JSON.parse(item.data);
   });
 }
@@ -81,14 +77,9 @@ export async function saveSession(session: Session): Promise<void> {
     };
 
     await ddbClient.send(
-      new PutItemCommand({
+      new PutCommand({
         TableName: SESSIONS_TABLE,
-        Item: {
-          session_id: { S: item.session_id },
-          data: { S: item.data },
-          ttl: { N: item.ttl.toString() },
-          updated_at: { S: item.updated_at },
-        },
+        Item: item as unknown as Record<string, unknown>,
       })
     );
   });

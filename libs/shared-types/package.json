@@ -1,0 +1,19 @@
+{
+  "name": "@orderflow/shared-types",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "require": "./src/index.js",
+      "types": "./src/index.d.ts"
+    },
+    "./rag": {
+      "import": "./src/rag/index.js",
+      "require": "./src/rag/index.js",
+      "types": "./src/rag/index.d.ts"
+    }
+  }
+}

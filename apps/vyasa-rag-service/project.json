@@ -16,7 +16,8 @@
         "tsConfig": "apps/vyasa-rag-service/tsconfig.app.json",
         "assets": ["apps/vyasa-rag-service/src/assets"],
         "generatePackageJson": true,
-        "format": ["cjs"]
+        "format": ["cjs"],
+        "webpackConfig": "apps/vyasa-rag-service/webpack.config.js"
       },
       "configurations": {
         "development": {

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Vyasa RAG Service - Phase 8: Deployment)
+
+- **Build configuration fixes:**
+  - Created `src/assets/` directory for build assets
+  - Added `webpack.config.js` for Lambda bundling
+  - Fixed `@orderflow/shared-types` package.json exports
+- **Created deployment scripts:**
+  - `scripts/populate-kb.sh` - Bedrock Knowledge Base population
+  - `DEPLOYMENT.md` - Complete deployment guide
+- **Deployment status:**
+  - npm install: ✅ Complete
+  - Build config: ✅ Complete
+  - Infrastructure: ⚠️ Deploy manually via CDK
+  - KB population: ⚠️ Run manually
+
 ### Added (Vyasa RAG Service - Phase 7: CI/CD)
 
 - `.github/workflows/` - GitHub Actions workflows:

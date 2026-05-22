@@ -63,7 +63,7 @@ describe('QueryPlanner', () => {
 
       for (const query of complexQueries) {
         jest.clearAllMocks();
-        const result = await decomposeQuery(query);
+        await decomposeQuery(query);
 
         // Complex queries should trigger LLM analysis
         expect(mockGenerate).toHaveBeenCalled();

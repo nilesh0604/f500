@@ -51,13 +51,14 @@ export async function retrieve(query: string): Promise<RetrievalResult[]> {
           response.retrievalResults?.map(result => ({
             content: result.content?.text || '',
             metadata: {
-              source:
-                result.metadata?.['x-amz-bedrock-kb-source-uri'] || 'unknown',
-              book: result.metadata?.['book'],
-              chapter: result.metadata?.['chapter'],
-              verse: result.metadata?.['verse'],
+              source: String(
+                result.metadata?.['x-amz-bedrock-kb-source-uri'] || 'unknown'
+              ),
+              book: String(result.metadata?.['book'] || ''),
+              chapter: String(result.metadata?.['chapter'] || ''),
+              verse: String(result.metadata?.['verse'] || ''),
               page: result.metadata?.['page']
-                ? parseInt(result.metadata['page'], 10)
+                ? parseInt(String(result.metadata['page']), 10)
                 : undefined,
             },
             score: result.score || 0,
@@ -115,15 +116,37 @@ export async function retrieveAndGenerate(
             chapter: citation.retrievedReferences?.[0]?.metadata?.['chapter'],
           })) || [];
 
+        // Extract token usage from response metadata or estimate
         const tokenUsage: TokenUsage = {
-          prompt_tokens: response.sessionAttributes?.['prompt_tokens']
-            ? parseInt(response.sessionAttributes['prompt_tokens'], 10)
+          prompt_tokens: (response as unknown as Record<string, unknown>)?.usage
+            ?.inputTokens
+            ? parseInt(
+                String(
+                  (response as unknown as Record<string, unknown>).usage
+                    .inputTokens
+                ),
+                10
+              )
             : 0,
-          completion_tokens: response.sessionAttributes?.['completion_tokens']
-            ? parseInt(response.sessionAttributes['completion_tokens'], 10)
+          completion_tokens: (response as unknown as Record<string, unknown>)
+            ?.usage?.outputTokens
+            ? parseInt(
+                String(
+                  (response as unknown as Record<string, unknown>).usage
+                    .outputTokens
+                ),
+                10
+              )
             : 0,
-          total_tokens: response.sessionAttributes?.['total_tokens']
-            ? parseInt(response.sessionAttributes['total_tokens'], 10)
+          total_tokens: (response as unknown as Record<string, unknown>)?.usage
+            ?.totalTokens
+            ? parseInt(
+                String(
+                  (response as unknown as Record<string, unknown>).usage
+                    .totalTokens
+                ),
+                10
+              )
             : 0,
         };
 

@@ -39,7 +39,7 @@ export class CircuitBreaker {
           logger.warn(`Circuit breaker '${this.name}' open, using fallback`, {
             context,
           });
-          return this.fallbackFn();
+          return this.fallbackFn() as Promise<T>;
         }
         throw error;
       }
@@ -118,13 +118,14 @@ export class CircuitBreaker {
 export const bedrockCircuitBreaker = new CircuitBreaker(
   'bedrock',
   { failureThreshold: 3, resetTimeoutMs: 30000, halfOpenMaxCalls: 2 },
-  async () => ({
-    answer: "I'm temporarily unable to search. Please try again shortly.",
-    citations: [],
-    context: '',
-    tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-    retrievedResults: [],
-  })
+  async () =>
+    Promise.resolve({
+      answer: "I'm temporarily unable to search. Please try again shortly.",
+      citations: [],
+      context: '',
+      tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      retrievedResults: [],
+    }) as Promise<unknown>
 );
 
 export const dynamodbCircuitBreaker = new CircuitBreaker('dynamodb', {

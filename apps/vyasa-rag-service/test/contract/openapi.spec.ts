@@ -4,6 +4,7 @@
  */
 
 import { handler } from '../../src/index';
+import type { LambdaResponse } from '../../src/types';
 
 describe('OpenAPI Contract Tests', () => {
   const createEvent = (
@@ -26,10 +27,13 @@ describe('OpenAPI Contract Tests', () => {
         message: 'Who was Karna?',
       });
 
-      const response = await handler(event as any, {} as any);
+      const response = (await handler(
+        event as any,
+        {} as any
+      )) as LambdaResponse;
       expect(response.statusCode).toBe(200);
 
-      const body = JSON.parse(response.body as string);
+      const body = JSON.parse(response.body);
 
       // Required fields per OpenAPI spec
       expect(body).toHaveProperty('session_id');
@@ -79,10 +83,13 @@ describe('OpenAPI Contract Tests', () => {
     it('should return 422 for invalid input', async () => {
       const event = createEvent('/chat', 'POST', {});
 
-      const response = await handler(event as any, {} as any);
+      const response = (await handler(
+        event as any,
+        {} as any
+      )) as LambdaResponse;
       expect(response.statusCode).toBe(422);
 
-      const body = JSON.parse(response.body as string);
+      const body = JSON.parse(response.body);
       expect(body.error).toBe('ValidationError');
       expect(body.message).toBeDefined();
     });
@@ -90,10 +97,13 @@ describe('OpenAPI Contract Tests', () => {
     it('should return 404 for unknown paths', async () => {
       const event = createEvent('/unknown', 'GET');
 
-      const response = await handler(event as any, {} as any);
+      const response = (await handler(
+        event as any,
+        {} as any
+      )) as LambdaResponse;
       expect(response.statusCode).toBe(404);
 
-      const body = JSON.parse(response.body as string);
+      const body = JSON.parse(response.body);
       expect(body.error).toBe('NotFound');
     });
   });
@@ -102,10 +112,13 @@ describe('OpenAPI Contract Tests', () => {
     it('should return response matching HealthResponse schema', async () => {
       const event = createEvent('/health', 'GET');
 
-      const response = await handler(event as any, {} as any);
+      const response = (await handler(
+        event as any,
+        {} as any
+      )) as LambdaResponse;
       expect(response.statusCode).toBe(200);
 
-      const body = JSON.parse(response.body as string);
+      const body = JSON.parse(response.body);
 
       // Required fields
       expect(body).toHaveProperty('status');
@@ -129,7 +142,10 @@ describe('OpenAPI Contract Tests', () => {
         message: 'Who was Karna?',
       });
 
-      const response = await handler(event as any, {} as any);
+      const response = (await handler(
+        event as any,
+        {} as any
+      )) as LambdaResponse;
       expect(response.statusCode).toBe(200);
 
       // Content-Type should be text/event-stream
@@ -137,7 +153,7 @@ describe('OpenAPI Contract Tests', () => {
       expect(response.headers['Content-Type']).toBe('text/event-stream');
 
       // Body should contain SSE events
-      const body = response.body as string;
+      const body = response.body;
       expect(body).toContain('event:');
       expect(body).toContain('data:');
     });
