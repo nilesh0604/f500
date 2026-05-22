@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Vyasa RAG Service - Phase 7: CI/CD)
+
+- `.github/workflows/` - GitHub Actions workflows:
+  - `vyasa-rag-ci.yml` - CI pipeline:
+    - Lint & type check
+    - Unit tests with coverage
+    - Build & package Lambda
+    - Security scan (npm audit, Snyk)
+    - Infrastructure validation (CDK synth/diff)
+  - `vyasa-rag-cd.yml` - CD pipeline:
+    - Deploy to staging on push to main
+    - Run evaluation on staging
+    - Deploy to production (manual approval)
+    - Smoke tests post-deployment
+    - Automatic rollback on failure
+    - Slack notifications
+  - `vyasa-rag-eval.yml` - Scheduled evaluation:
+    - Daily evaluation at 2 AM UTC
+    - Golden dataset pass rate checks
+    - Slack alerts on low pass rate (< 70%)
+    - Results artifact upload
+
 ### Added (Vyasa RAG Service - Phase 6: Observability)
 
 - `infra/observability/` - CloudWatch dashboards, alarms, log queries

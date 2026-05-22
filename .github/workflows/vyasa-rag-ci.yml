@@ -1,0 +1,167 @@
+name: Vyasa RAG - CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/vyasa-rag-service/**'
+      - 'libs/shared-types/**'
+      - 'package*.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'apps/vyasa-rag-service/**'
+      - 'libs/shared-types/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx nx lint vyasa-rag-service --parallel
+
+      - name: Type check
+        run: npx nx type-check vyasa-rag-service
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npx nx test vyasa-rag-service --coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./apps/vyasa-rag-service/coverage/lcov.info
+          flags: vyasa-rag
+          name: vyasa-rag-coverage
+
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint, test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npx nx build vyasa-rag-service
+
+      - name: Package Lambda
+        run: |
+          cd dist/apps/vyasa-rag-service
+          zip -r ../../vyasa-rag-lambda.zip .
+          cd ../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyasa-rag-lambda
+          path: dist/vyasa-rag-lambda.zip
+          retention-days: 5
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Run Snyk scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --file=package.json
+
+  infrastructure-validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: CDK Synth
+        run: npx nx synth infra
+        env:
+          AWS_REGION: us-east-1
+
+      - name: CDK Diff (check only)
+        run: npx nx diff infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        continue-on-error: true

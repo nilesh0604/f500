@@ -1,0 +1,135 @@
+name: Vyasa RAG - Evaluation
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to evaluate'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      sample_size:
+        description: 'Number of test cases to run (0 for all)'
+        required: false
+        default: '0'
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  evaluate:
+    name: Run Golden Dataset Evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set endpoint
+        id: endpoint
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+            echo "endpoint=https://api.example.com/vyasa" >> $GITHUB_OUTPUT
+          else
+            echo "endpoint=https://staging-api.example.com/vyasa" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Evaluation
+        run: |
+          SAMPLE_FLAG=""
+          if [ "${{ github.event.inputs.sample_size }}" != "0" ]; then
+            SAMPLE_FLAG="--sample ${{ github.event.inputs.sample_size }}"
+          fi
+
+          npx ts-node apps/vyasa-rag-service/eval/runner.ts \
+            apps/vyasa-rag-service/eval/datasets/golden-dataset.json \
+            eval-results.json \
+            --endpoint ${{ steps.endpoint.outputs.endpoint }} \
+            $SAMPLE_FLAG
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.event.inputs.environment || 'staging' }}-${{ github.run_id }}
+          path: |
+            eval-results.json
+            eval-results.html
+
+      - name: Check Pass Rate
+        id: pass_rate
+        run: |
+          PASS_RATE=$(jq -r '.summary.passRate' eval-results.json)
+          echo "pass_rate=$PASS_RATE" >> $GITHUB_OUTPUT
+          echo "PASS_RATE=$PASS_RATE" >> $GITHUB_ENV
+
+          if (( $(echo "$PASS_RATE < 0.70" | bc -l) )); then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Pass rate $PASS_RATE below threshold 70%" >> $GITHUB_STEP_SUMMARY
+          elif (( $(echo "$PASS_RATE < 0.80" | bc -l) )); then
+            echo "status=warning" >> $GITHUB_OUTPUT
+            echo "⚠️ Pass rate $PASS_RATE below target 80%" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Pass rate $PASS_RATE meets target" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Generate Report Summary
+        run: |
+          echo "## Evaluation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Pass Rate** | $(jq -r '.summary.passRate' eval-results.json | awk '{printf "%.1f%%", $1*100}') |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Avg Score** | $(jq -r '.summary.avgScore' eval-results.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Tests** | $(jq -r '.summary.total' eval-results.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Passed** | $(jq -r '.summary.passed' eval-results.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Failed** | $(jq -r '.summary.failed' eval-results.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Avg Latency** | $(jq -r '.summary.avgLatency' eval-results.json | awk '{printf "%.0fms", $1}') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results by Category" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          jq '.summary.byCategory' eval-results.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Post to Slack
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            Vyasa RAG Evaluation (${{ github.event.inputs.environment || 'staging' }})
+            Pass Rate: ${{ env.PASS_RATE }}
+            Status: ${{ steps.pass_rate.outputs.status }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Alert on Low Pass Rate
+        if: steps.pass_rate.outputs.status == 'failed'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: '🚨 Vyasa RAG evaluation FAILED - Pass rate below 70%'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL_ALERTS }}
