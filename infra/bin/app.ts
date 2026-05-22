@@ -12,6 +12,7 @@ import { MonitoringStack } from '../lib/monitoring-stack';
 import { ObservabilityStack } from '../lib/observability-stack';
 import { AppConfigStack } from '../lib/appconfig-stack';
 import { RollbackStack } from '../lib/rollback-stack';
+import { VyasaLambdaStack } from '../lib/vyasa-lambda-stack';
 
 const app = new cdk.App();
 
@@ -156,6 +157,13 @@ const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
   terminationProtection: config.envName === 'prod',
 });
 rollbackStack.addDependency(ecsStack);
+
+const vyasaStack = new VyasaLambdaStack(app, `${stackPrefix}-VyasaRag`, {
+  env,
+  config,
+  description: `OrderFlow ${envName} — Vyasa Intelligence Agentic RAG Service (Lambda + Bedrock)`,
+  terminationProtection: false, // Always allow deletion for cost control
+});
 
 cdk.Tags.of(app).add('Project', 'orderflow');
 cdk.Tags.of(app).add('Environment', envName);

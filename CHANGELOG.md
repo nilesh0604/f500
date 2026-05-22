@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Vyasa RAG Service - Phase 2: Infrastructure)
+
+- `infra/lib/vyasa-lambda-stack.ts`: CDK infrastructure stack
+  - Lambda function (Node.js 22, arm64, 1024MB, streaming enabled)
+  - Function URL with CORS for API access
+  - DynamoDB tables: sessions (TTL 7 days), rate-limits
+  - S3 buckets: corpus (Mahabharata chunks), prompts (versioned)
+  - IAM roles with least privilege
+  - CloudWatch alarms: error rate, p99 latency, cost budget ($8 threshold)
+- `libs/shared-types/src/rag/`: Shared TypeScript types
+  - `chat.types.ts`: ChatRequest, ChatResponse, Citation, TokenUsage, AgentStep, SSE events
+  - `session.types.ts`: Session, Message, RateLimit types
+- `infra/bin/app.ts`: Added VyasaLambdaStack to CDK app
+
 ### Added (Vyasa RAG Service - Phase 1: Governance)
 
 - `docs/rfc/004-vyasa-rag-service.md`: RFC for **agentic** serverless RAG service with ReAct loop, query decomposition, and self-reflection
