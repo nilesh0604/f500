@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Vyasa RAG Service - Phase 4: Testing)
+
+- **Test suite** for `vyasa-rag-service`:
+  - `test/__mocks__/aws-sdk.ts` - AWS SDK mocks (DynamoDB, Bedrock, S3)
+  - `test/unit/` - Unit tests for core services:
+    - `agent.spec.ts` - ReAct agent loop tests (7 test cases)
+    - `query-planner.spec.ts` - Query decomposition tests (5 test cases)
+    - `reflection.spec.ts` - Self-evaluation tests (6 test cases)
+    - `context-assembler.spec.ts` - Context filtering tests (5 test cases)
+    - `citation-extractor.spec.ts` - Citation deduplication tests (4 test cases)
+    - `session-store.spec.ts` - DynamoDB session tests (4 test cases)
+    - `validators.spec.ts` - Input validation tests (3 test cases)
+    - `circuit-breaker.spec.ts` - Fault tolerance tests (5 test cases)
+  - `test/integration/` - Integration tests:
+    - `chat-handler.spec.ts` - Handler integration tests
+  - `test/contract/` - Contract tests:
+    - `openapi.spec.ts` - OpenAPI schema compliance tests
+  - `test/fixtures/` - Test fixtures and mock data
+
+### Added (Vyasa RAG Service - Phase 3: Core Implementation)
+
+- `apps/vyasa-rag-service/` - Complete Lambda-based RAG service
+  - **Handlers**: `chat.ts`, `chat-stream.ts` (SSE), `health.ts`, `ingest.ts`
+  - **Agent Services**: `agent.ts` (ReAct loop), `query-planner.ts` (decomposition), `reflection.ts` (self-evaluation), `context-assembler.ts`, `citation-extractor.ts`
+  - **Core Services**: `bedrock-client.ts` (KB + LLM), `session-store.ts` (DynamoDB), `prompt-manager.ts` (S3)
+  - **Utilities**: `logger.ts`, `tracer.ts`, `circuit-breaker.ts`, `rate-limiter.ts`, `validators.ts`
+  - **Tests**: Unit tests (validators, circuit-breaker), integration tests (chat handler), fixtures
+  - **Config**: project.json, tsconfig files, jest.config.ts
+  - `CLAUDE.md` - Service documentation
+
 ### Added (Vyasa RAG Service - Phase 2: Infrastructure)
 
 - `infra/lib/vyasa-lambda-stack.ts`: CDK infrastructure stack

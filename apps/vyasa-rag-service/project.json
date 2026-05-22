@@ -1,0 +1,60 @@
+{
+  "name": "vyasa-rag-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/vyasa-rag-service/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "target": "node",
+        "compiler": "tsc",
+        "outputPath": "dist/apps/vyasa-rag-service",
+        "main": "apps/vyasa-rag-service/src/index.ts",
+        "tsConfig": "apps/vyasa-rag-service/tsconfig.app.json",
+        "assets": ["apps/vyasa-rag-service/src/assets"],
+        "generatePackageJson": true,
+        "format": ["cjs"]
+      },
+      "configurations": {
+        "development": {
+          "optimization": false,
+          "sourceMap": true
+        },
+        "production": {
+          "optimization": true,
+          "sourceMap": false
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "vyasa-rag-service:build"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "vyasa-rag-service:build:development"
+        },
+        "production": {
+          "buildTarget": "vyasa-rag-service:build:production"
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/apps/vyasa-rag-service"],
+      "options": {
+        "jestConfig": "apps/vyasa-rag-service/jest.config.ts"
+      }
+    }
+  },
+  "tags": ["backend", "lambda", "rag"]
+}
