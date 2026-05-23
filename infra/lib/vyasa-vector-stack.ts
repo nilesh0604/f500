@@ -109,6 +109,7 @@ export class VyasaVectorStack extends cdk.Stack {
       properties: {
         VectorBucketName: this.vectorBucketName,
         IndexName: this.vectorIndexName,
+        NonFilterableKeys: 'AMAZON_BEDROCK_TEXT,AMAZON_BEDROCK_METADATA',
       },
     });
 

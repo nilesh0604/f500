@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **S3 Vectors ingestion**: Corrected `nonFilterableMetadataKeys` from `AMAZON_BEDROCK_TEXT_CHUNK` to
+  the officially documented `AMAZON_BEDROCK_TEXT` — this resolved the persistent
+  `ValidationException: Filterable metadata must have at most 2048 bytes` error during ingestion.
+  Full Mahabharata corpus (2328 pages → 9,362 vectors) now indexed successfully.
+
 ### Added (S3 Vectors Migration — cost $350/mo → ~$0.07/mo)
 
 - **`infra/lib/vyasa-vector-stack.ts`**: New CDK stack replacing VyasaAossStack — creates S3 Vector
