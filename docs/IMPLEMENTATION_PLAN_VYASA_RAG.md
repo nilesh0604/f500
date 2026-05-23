@@ -1,46 +1,388 @@
 # Vyasa Intelligence RAG Service — Implementation Plan
 
-**Based on**: PRD `docs/PRD.md`  
-**Architecture**: Serverless cost-optimized (Lambda + Bedrock KB)  
-**Target Cost**: ~$3-5/month for 100 visits  
+**Version**: 1.1.0 (updated 2026-05-23)
+**Status**: ✅ **PRODUCTION — fully operational**
+**Based on**: PRD `docs/PRD.md`
+**Architecture**: Serverless cost-optimized (Lambda + Bedrock KB + S3 Vectors)
+**Actual Cost**: ~$0.57/month at 100 visits (vector store: ~$0.07/mo)
 **Compliance**: Fortune 500 SDLC standards
 
 ---
 
-## 1. Executive Summary
+## 0. Production Status
 
-### 1.1 Cost-Optimized Architecture Decision
+### 0.1 Live Resources (us-east-1)
 
-| Component          | Selected Service              | Monthly Cost    | Rationale                                             |
-| ------------------ | ----------------------------- | --------------- | ----------------------------------------------------- |
-| **Compute**        | AWS Lambda + Function URL     | ~$0 (free tier) | 100 visits/mo fits free tier; SSE streaming supported |
-| **Vector DB**      | Bedrock Knowledge Base        | ~$0-2           | No OpenSearch overhead; hybrid search included        |
-| **Embeddings**     | Amazon Titan V2 (via Bedrock) | ~$0.02          | Pay-per-use, 1024-dim vectors                         |
-| **LLM**            | Claude 3 Haiku (via Bedrock)  | ~$0.10          | Fast, cost-effective for RAG                          |
-| **Session Store**  | DynamoDB On-Demand            | ~$0.50          | Serverless, auto-scaling                              |
-| **Document Store** | S3 Standard                   | ~$0.10          | 100MB corpus storage                                  |
-| **Observability**  | CloudWatch Logs (7-day)       | ~$2-3           | Structured logging, X-Ray traces                      |
-| **Total**          |                               | **~$3-5/month** | 98% cheaper than ECS Fargate + OpenSearch             |
+| Resource             | ID / URL                                                 |
+| -------------------- | -------------------------------------------------------- |
+| **API Gateway**      | `https://t859xz8d3c.execute-api.us-east-1.amazonaws.com` |
+| **Bedrock KB**       | `JGDXZQCA1Y`                                             |
+| **Data Source**      | `5DGY6OL5YG`                                             |
+| **S3 Vector Bucket** | `vyasa-vectors-dev-947612421212`                         |
+| **Vector Index**     | `vyasa-index-dev` (9,362 vectors)                        |
+| **Corpus Bucket**    | `vyasa-rag-corpus-dev-947612421212`                      |
+| **Prompts Bucket**   | `vyasa-rag-prompts-dev-947612421212`                     |
+| **LLM Model**        | `amazon.nova-pro-v1:0`                                   |
+| **Embedding Model**  | `amazon.titan-embed-text-v2:0` (1024-dim)                |
 
-> **Throughput Note**: This architecture targets **~100 visits/month** (personal/learning use).
-> The PRD specifies 100 RPM sustained throughput (NFR-PERF-003) for a production scenario.
-> If 100 RPM is required, consider provisioned concurrency ($20-40/mo) and pre-warmed
-> Bedrock KB connections. The current plan optimizes for cost at low traffic.
+### 0.2 Test Results (2026-05-23)
 
-### 1.2 F500 Standards Checklist
+| Query                              | Retrieval Score | Result                                   |
+| ---------------------------------- | --------------- | ---------------------------------------- |
+| Cause of Kurukshetra war           | 0.563           | ✅ Accurate — dice game, exile, kingdom  |
+| Bhagavad Gita teachings            | 0.512           | ✅ Cites Gita Chapter II directly        |
+| Draupadi's humiliation             | 0.507           | ✅ Correct detail with section reference |
+| Multi-turn follow-up (Bhima's vow) | 0.536           | ✅ Context maintained across turns       |
+| Karna's birth story                | 0.547           | ✅ Correct characterization              |
+| Dice game — Yudhishthira stakes    | **0.605**       | ✅ Cites `Adi Parva, SECTION LIX/LX`     |
 
-| Standard               | Implementation                                                 |
-| ---------------------- | -------------------------------------------------------------- |
-| **ADR Required**       | ✅ `docs/adr/009-vyasa-serverless-architecture.md`             |
-| **RFC Required**       | ✅ `docs/rfc/004-vyasa-rag-service.md`                         |
-| **API Contract-First** | ✅ OpenAPI 3.1 in `docs/api/vyasa-rag.yaml`                    |
-| **IaC**                | ✅ CDK stack: `infra/lib/vyasa-lambda-stack.ts`                |
-| **Testing**            | ✅ Unit (Jest 80%), Integration, Contract tests                |
-| **Evaluation**         | ✅ Dataset, evaluators, LLM-as-judge (FR-EVAL-001–006)         |
-| **Observability**      | ✅ CloudWatch Logs + X-Ray + Structured JSON                   |
-| **Security**           | ✅ IAM roles, Secrets Manager, input validation, rate limiting |
-| **Reliability**        | ✅ Circuit breaker, fallback responses, 30s timeout            |
-| **CI/CD**              | ✅ GitHub Actions workflow                                     |
+**End-to-end latency**: ~3.7s per query (KB retrieval + Nova Pro generation)
+
+### 0.3 F500 Standards Checklist
+
+| Standard          | Implementation                                       | Status |
+| ----------------- | ---------------------------------------------------- | ------ |
+| **ADR**           | `docs/adr/009-vyasa-serverless-architecture.md`      | ✅     |
+| **RFC**           | `docs/rfc/004-vyasa-rag-service.md`                  | ✅     |
+| **API Contract**  | `docs/api/vyasa-rag.yaml` (OpenAPI 3.1)              | ✅     |
+| **IaC**           | CDK: `VyasaVectorStack` + `VyasaRagStack`            | ✅     |
+| **Testing**       | Unit (Jest 80%), Integration, Contract               | ✅     |
+| **Evaluation**    | 20-case golden dataset + evaluator                   | ✅     |
+| **Observability** | CloudWatch + X-Ray + structured JSON                 | ✅     |
+| **Security**      | IAM least-privilege, input validation, rate limiting | ✅     |
+| **Reliability**   | Circuit breaker, fallbacks, 30s timeout              | ✅     |
+| **CI/CD**         | GitHub Actions (`.github/workflows/`)                | ✅     |
+
+---
+
+## 1. Architecture
+
+### 1.1 Current Architecture (S3 Vectors — v1.1.0)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Client / Browser                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ POST /chat  { session_id, message }
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              API Gateway HTTP API (us-east-1)                   │
+│         https://t859xz8d3c.execute-api.us-east-1.amazonaws.com  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ Lambda proxy integration
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│           AWS Lambda  (Node.js 22, arm64, 1024MB, 30s)          │
+│                                                                 │
+│  chat.ts handler                                                │
+│    │                                                            │
+│    ├── validators.ts  (Zod — UUID session_id, message length)   │
+│    ├── rate-limiter.ts (DynamoDB token bucket)                  │
+│    ├── session-store.ts (DynamoDB get/create/save session)      │
+│    └── agent.ts  ◄── ReAct loop (max 3 iterations)             │
+│         │                                                       │
+│         ├── query-planner.ts  (LLM query decomposition)         │
+│         ├── bedrock-client.ts (KB retrieve + LLM generate)      │
+│         ├── context-assembler.ts (score threshold 0.75)         │
+│         ├── reflection.ts (answer quality self-evaluation)      │
+│         └── citation-extractor.ts (dedup + source mapping)     │
+└──────┬──────────────────┬──────────────────┬────────────────────┘
+       │                  │                  │
+       ▼                  ▼                  ▼
+ ┌──────────┐    ┌──────────────────┐  ┌──────────────┐
+ │ DynamoDB │    │  Bedrock KB      │  │  S3 (prompts)│
+ │ sessions │    │  JGDXZQCA1Y      │  │  system /    │
+ │ rate-    │    │                  │  │  agent /     │
+ │ limits   │    │  ┌────────────┐  │  │  reflection  │
+ └──────────┘    │  │ Titan V2   │  │  │  prompts     │
+                 │  │ Embed 1024d│  │  └──────────────┘
+                 │  └─────┬──────┘  │
+                 │        │ vectors │
+                 │        ▼         │
+                 │  ┌────────────┐  │
+                 │  │ S3 Vectors │  │
+                 │  │ 9,362 vecs │  │
+                 │  │ vyasa-index│  │
+                 │  └────────────┘  │
+                 └──────────────────┘
+                          │ ConverseCommand
+                          ▼
+                 ┌──────────────────┐
+                 │  Amazon Nova Pro │
+                 │  nova-pro-v1:0   │
+                 └──────────────────┘
+```
+
+### 1.2 Cost Breakdown (current)
+
+| Component          | Service                 | Monthly Cost       |
+| ------------------ | ----------------------- | ------------------ |
+| **Compute**        | Lambda (arm64, 1024MB)  | ~$0 (free tier)    |
+| **Vector Store**   | S3 Vectors              | ~$0.07             |
+| **Embeddings**     | Titan Embed V2          | ~$0.02             |
+| **LLM**            | Amazon Nova Pro         | ~$0.10–0.30        |
+| **Session Store**  | DynamoDB On-Demand      | ~$0.10             |
+| **Document Store** | S3 Standard (corpus)    | ~$0.05             |
+| **API**            | API Gateway HTTP        | ~$0.01             |
+| **Observability**  | CloudWatch Logs (7-day) | ~$0.02             |
+| **Total**          |                         | **~$0.37–0.57/mo** |
+
+> **vs. AOSS (v1.0)**: ~$350/mo (2 OCU minimum). **S3 Vectors saves ~$350/mo = 99.8% cost reduction.**
+
+### 1.3 Data Flow — Ingestion Pipeline
+
+```
+docs/Mahabharata (Unabridged in English).pdf  (19 MB, 2,328 pages)
+        │
+        ▼  POST /admin/ingest  { source_uri: "s3://corpus/mahabharata.pdf" }
+Lambda ingest.ts
+        │  StartIngestionJobCommand (clientToken: uuidv4)
+        ▼
+Bedrock KB Data Source (5DGY6OL5YG)
+        │
+        ├── PDF parsing (Bedrock default parser)
+        ├── Fixed-size chunking (~500 tokens, 20% overlap)
+        ├── Titan Embed V2 → 1024-dim float32 vectors
+        │
+        ▼
+S3 Vectors: vyasa-vectors-dev-947612421212 / vyasa-index-dev
+        │   nonFilterableMetadataKeys: [AMAZON_BEDROCK_TEXT, AMAZON_BEDROCK_METADATA]
+        │   distanceMetric: euclidean
+        │   9,362 vectors written
+        ▼
+Ingestion COMPLETE (job: NZMK8FJBRE, ~25 min for full corpus)
+```
+
+### 1.4 Data Flow — Query/Chat Pipeline
+
+```
+User: "What caused the Kurukshetra war?"
+        │
+        ▼
+API Gateway → Lambda chat.ts
+        │
+        ├── 1. Validate (Zod: UUID session_id, message ≤ 2000 chars)
+        ├── 2. Rate limit check (DynamoDB, 10 req/min per IP)
+        ├── 3. Get/create session (DynamoDB TTL 7 days)
+        │
+        ▼
+agent.ts — ReAct loop
+        │
+        ├── Step 1: THOUGHT — "Analyzing query..."
+        ├── Step 2: ACTION — query-planner.ts decomposes into sub-queries
+        ├── Step 3: ACTION — bedrock-client.ts: RetrieveCommand → KB (top-5 chunks)
+        ├── Step 4: OBSERVATION — "Retrieved 5 documents" (score ~0.55)
+        ├── Step 5: ACTION — ConverseCommand → Nova Pro (generate answer)
+        └── Step 6: REFLECTION — quality check (confidence: 0.9)
+        │
+        ▼
+Response:
+{
+  session_id, response, citations: [{title, book, chapter, score}],
+  token_usage: {prompt, completion, total}, agent_trace: [6 steps]
+}
+```
+
+---
+
+## 2. Infrastructure (CDK Stacks)
+
+### 2.1 Stack Overview
+
+```
+infra/bin/app.ts
+  │
+  ├── OrderFlow-Dev-VyasaVector   (VyasaVectorStack)
+  │     Lambda custom resource → s3vector-creator/index.mjs
+  │       Creates: S3 vector bucket + index (nonFilterableMetadataKeys configured)
+  │       Outputs: VectorBucketName, VectorIndexName, VectorIndexArn
+  │
+  └── OrderFlow-Dev-VyasaRag      (VyasaLambdaStack)
+        Lambda custom resource → bedrock-kb-creator/index.mjs
+          Creates: Bedrock KB + S3 Data Source (S3_VECTORS storage type)
+          Outputs: KnowledgeBaseId, DataSourceId
+        Lambda function (Node.js 22, arm64, 1024MB)
+        API Gateway HTTP API
+        DynamoDB: sessions, rate-limits
+        S3: corpus, prompts
+        IAM: bedrockKbRole, lambdaRole
+```
+
+### 2.2 Key CDK Files
+
+| File                                     | Purpose                                           |
+| ---------------------------------------- | ------------------------------------------------- |
+| `infra/lib/vyasa-vector-stack.ts`        | S3 Vectors bucket + index via custom resource     |
+| `infra/lib/s3vector-creator/index.mjs`   | Lambda: creates/updates/deletes S3 vector index   |
+| `infra/lib/bedrock-kb-creator/index.mjs` | Lambda: creates Bedrock KB + data source via SDK  |
+| `infra/lib/vyasa-lambda-stack.ts`        | Main RAG stack (Lambda, APIGW, DynamoDB, S3, IAM) |
+| `infra/bin/app.ts`                       | CDK app entrypoint — wires stacks together        |
+| `infra/config/environments.ts`           | Per-env config (dev/staging/prod)                 |
+
+### 2.3 Why Lambda Custom Resources?
+
+Both S3 Vectors and Bedrock KB (with S3_VECTORS) are too new for CloudFormation support:
+
+| Resource                                        | CloudFormation Support | Solution                                        |
+| ----------------------------------------------- | ---------------------- | ----------------------------------------------- |
+| S3 Vector bucket/index                          | ❌ Not supported       | Lambda CR using `@aws-sdk/client-s3vectors`     |
+| `AWS::Bedrock::KnowledgeBase` with `S3_VECTORS` | ❌ Schema rejects it   | Lambda CR using `@aws-sdk/client-bedrock-agent` |
+
+### 2.4 IAM Roles
+
+**`bedrockKbRole`** (assumed by `bedrock.amazonaws.com`):
+
+- `bedrock:InvokeModel` on Titan Embed V2
+- `s3:GetObject`, `s3:ListBucket` on corpus bucket
+- `s3vectors:PutVectors`, `GetVectors`, `DeleteVectors`, `QueryVectors`, `GetIndex` on index ARN
+
+**`lambdaRole`** (assumed by Lambda):
+
+- `bedrock-agent-runtime:Retrieve`, `RetrieveAndGenerate`
+- `bedrock-agent:StartIngestionJob`, `GetIngestionJob`
+- `bedrock-runtime:Converse`, `InvokeModel`
+- `dynamodb:GetItem`, `PutItem`, `UpdateItem` on sessions + rate-limits tables
+- `s3:GetObject`, `ListBucket` on prompts bucket
+
+---
+
+## 3. Application Structure
+
+```
+apps/vyasa-rag-service/src/
+├── handlers/
+│   ├── chat.ts              # POST /chat — main entry point
+│   ├── chat-stream.ts       # POST /chat/stream — SSE streaming
+│   ├── health.ts            # GET /health
+│   └── ingest.ts            # POST /admin/ingest — triggers Bedrock KB sync
+├── services/
+│   ├── agent.ts             # ReAct loop (max 3 iter, multi-turn context)
+│   ├── bedrock-client.ts    # Bedrock KB retrieve + Nova Pro generate
+│   ├── session-store.ts     # DynamoDB CRUD for sessions
+│   ├── prompt-manager.ts    # S3 prompt fetching with local fallback
+│   ├── query-planner.ts     # LLM-based query decomposition
+│   ├── context-assembler.ts # Score-threshold chunk filtering
+│   ├── citation-extractor.ts# Source dedup + citation mapping
+│   └── reflection.ts        # Answer quality self-evaluation
+├── lib/
+│   ├── logger.ts            # Winston structured JSON logger
+│   ├── tracer.ts            # X-Ray tracing
+│   ├── circuit-breaker.ts   # opossum circuit breaker (Bedrock/DynamoDB)
+│   ├── rate-limiter.ts      # DynamoDB token-bucket rate limiter
+│   └── validators.ts        # Zod schemas (ChatRequest, session_id UUID)
+└── index.ts                 # Lambda handler exports
+```
+
+---
+
+## 4. Key Implementation Decisions
+
+### 4.1 S3 Vectors `nonFilterableMetadataKeys`
+
+**Critical**: must be set at index creation — immutable after creation.
+
+```javascript
+metadataConfiguration: {
+  nonFilterableMetadataKeys: [
+    'AMAZON_BEDROCK_TEXT',     // chunk text — can be >>2KB
+    'AMAZON_BEDROCK_METADATA', // source metadata blob
+  ],
+}
+```
+
+> ⚠️ Using `AMAZON_BEDROCK_TEXT_CHUNK` (wrong) causes `ValidationException: Filterable metadata
+must have at most 2048 bytes` on every ingestion job. The correct key is `AMAZON_BEDROCK_TEXT`
+> per AWS docs at [knowledge-base-setup.html](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-setup.html).
+
+### 4.2 Model Selection
+
+| Model                          | Status     | Reason                                             |
+| ------------------------------ | ---------- | -------------------------------------------------- |
+| `anthropic.claude-3-haiku`     | ❌ Removed | Requires explicit account approval                 |
+| `amazon.nova-pro-v1:0`         | ✅ Active  | Available without approval; strong RAG performance |
+| `amazon.titan-embed-text-v2:0` | ✅ Active  | 1024-dim embeddings, pay-per-use                   |
+
+### 4.3 API Gateway vs Function URL
+
+Lambda Function URLs were blocked by an account-level public access policy. API Gateway HTTP API
+(`aws-apigatewayv2`) was used instead — adds ~$1/mo at 100 visits but resolves the 403 issue.
+
+### 4.4 Multi-Turn Context
+
+`agent.ts` passes last 6 messages (3 turns) formatted as `Human:`/`Assistant:` turns in the
+generation prompt. History section is omitted entirely when empty to avoid polluting the prompt.
+
+---
+
+## 5. Corpus Details
+
+| Property          | Value                                                    |
+| ----------------- | -------------------------------------------------------- |
+| **Source**        | `docs/Mahabharata (Unabridged in English).pdf`           |
+| **Size**          | 19 MB, 2,328 pages                                       |
+| **Translation**   | Kisari Mohan Ganguli (1883–1896), sacred-texts.com       |
+| **S3 location**   | `s3://vyasa-rag-corpus-dev-947612421212/mahabharata.pdf` |
+| **Chunking**      | Fixed-size, ~500 tokens, 20% overlap                     |
+| **Vectors**       | 9,362 × 1024-dim float32, euclidean distance             |
+| **Ingestion job** | `NZMK8FJBRE` — COMPLETE, ~25 min                         |
+
+---
+
+## 6. API Reference
+
+### POST /chat
+
+```json
+// Request
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",  // UUID, required
+  "message": "Who is Arjuna?"
+}
+
+// Response
+{
+  "session_id": "...",
+  "response": "Arjuna is a central character...",
+  "citations": [{ "title": "Mahabharata", "book": "Adi Parva", "chapter": "...", "score": 0.56 }],
+  "token_usage": { "prompt_tokens": 2463, "completion_tokens": 321, "total_tokens": 2784 },
+  "agent_trace": [
+    { "step": 1, "type": "thought", "content": "Analyzing query..." },
+    { "step": 2, "type": "action", "tool": "query-planner", ... },
+    { "step": 3, "type": "action", "tool": "retrieve", ... },
+    { "step": 4, "type": "observation", "content": "Retrieved 5 documents" },
+    { "step": 5, "type": "action", "tool": "generate", ... },
+    { "step": 6, "type": "reflection", "content": "Answer quality: complete (0.9)" }
+  ]
+}
+```
+
+### POST /admin/ingest
+
+```json
+// Request
+{ "source_uri": "s3://vyasa-rag-corpus-dev-947612421212/mahabharata.pdf" }
+
+// Response
+{ "job_id": "NZMK8FJBRE", "status": "STARTING", "message": "..." }
+```
+
+### GET /health
+
+```json
+{ "status": "healthy", "timestamp": "..." }
+```
+
+---
+
+## 7. Known Gaps & Future Work
+
+| Item                             | Priority | Notes                                                                               |
+| -------------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| Citation `book`/`chapter` empty  | Low      | Source metadata not structured by Bedrock; needs custom metadata file per S3 object |
+| `mahabharata-test.txt` in corpus | Low      | Test artifact; `aws s3 rm s3://vyasa-rag-corpus-dev-*/mahabharata-test.txt`         |
+| Streaming (`/chat/stream`)       | Medium   | SSE handler exists but not tested end-to-end                                        |
+| Provisioned concurrency          | Low      | Cold start ~500ms; acceptable at 100 visits/mo                                      |
+| Eval golden dataset pass rate    | Medium   | 20-case dataset in `eval/` not run against live KB yet                              |
 
 ---
 
