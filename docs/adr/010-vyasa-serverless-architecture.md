@@ -131,7 +131,7 @@ We will use a **serverless Lambda architecture** with the following components:
 - **Embeddings**: Amazon Titan Text Embeddings V2 (1024-dim)
 - **LLM**: Claude 3 Haiku (fast, cost-effective)
 - **Data source**: S3 corpus bucket
-- **Vector index**: RDS Aurora Serverless (cheaper than OpenSearch)
+- **Vector index**: AWS-managed default (OPENSEARCH_SERVERLESS via Bedrock KB — no standing cost)
 
 ### DynamoDB
 

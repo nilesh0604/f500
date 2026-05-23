@@ -6,7 +6,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { Session, Message, SessionItem } from '../types';
+import { Session, Message, SessionItem, AgentStep } from '../types';
 import { logger } from '../lib/logger';
 import { dynamodbCircuitBreaker } from '../lib/circuit-breaker';
 
@@ -91,7 +91,7 @@ export async function saveSession(session: Session): Promise<void> {
 export async function addMessageToSession(
   sessionId: string,
   message: Message,
-  agentTrace?: unknown[]
+  agentTrace?: AgentStep[]
 ): Promise<void> {
   return dynamodbCircuitBreaker.execute(async () => {
     const session = await getSession(sessionId);

@@ -4,8 +4,18 @@
  */
 
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { logger, createRequestLogger } from '../lib/logger';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  BedrockAgentClient,
+  StartIngestionJobCommand,
+  GetIngestionJobCommand,
+} from '@aws-sdk/client-bedrock-agent';
+import { createRequestLogger } from '../lib/logger';
 import { IngestRequestInput } from '../types';
+
+const bedrockAgentClient = new BedrockAgentClient({});
+const KB_ID = process.env.BEDROCK_KB_ID || '';
+const DS_ID = process.env.BEDROCK_DS_ID || '';
 
 export async function handler(
   event: APIGatewayProxyEventV2
@@ -51,27 +61,48 @@ export async function handler(
       mode: request.sync_mode,
     });
 
-    // Generate job ID
-    const jobId = `ingest-${Date.now()}`;
+    // Check if status query (GET-style via POST with job_id)
+    if (body.job_id) {
+      const statusResult = await bedrockAgentClient.send(
+        new GetIngestionJobCommand({
+          knowledgeBaseId: KB_ID,
+          dataSourceId: DS_ID,
+          ingestionJobId: body.job_id,
+        })
+      );
+      const job = statusResult.ingestionJob!;
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: job.ingestionJobId,
+          status: job.status,
+          stats: job.statistics,
+          started_at: job.startedAt,
+          updated_at: job.updatedAt,
+        }),
+      };
+    }
 
-    // In a full implementation, this would:
-    // 1. Start a Step Functions workflow or ECS task
-    // 2. Parse PDF/documents
-    // 3. Chunk text
-    // 4. Generate embeddings
-    // 5. Upload to S3 corpus bucket
-    // 6. Sync to Bedrock KB
+    // Start new ingestion job
+    const result = await bedrockAgentClient.send(
+      new StartIngestionJobCommand({
+        knowledgeBaseId: KB_ID,
+        dataSourceId: DS_ID,
+        clientToken: uuidv4(),
+      })
+    );
 
-    // For now, return accepted
+    const job = result.ingestionJob!;
+    requestLogger.info('Ingestion job started', { jobId: job.ingestionJobId });
+
     return {
       statusCode: 202,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        job_id: jobId,
-        status: 'PENDING',
-        estimated_completion: new Date(Date.now() + 3600000).toISOString(),
-        message:
-          'Ingestion job accepted. Bedrock KB sync requires manual trigger.',
+        job_id: job.ingestionJobId,
+        status: job.status,
+        message: 'Bedrock KB ingestion job started successfully.',
       }),
     };
   } catch (error) {

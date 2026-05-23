@@ -5,11 +5,19 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as cr from 'aws-cdk-lib/custom-resources';
+import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import * as apigwv2int from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as path from 'node:path';
 import { Construct } from 'constructs';
 import { EnvironmentConfig } from '../config/environments';
 
 export interface VyasaLambdaStackProps extends cdk.StackProps {
   readonly config: EnvironmentConfig;
+  readonly vectorIndexArn: string;
+  readonly vectorBucketName: string;
+  readonly vectorIndexName: string;
+  readonly bedrockKbRole: iam.IRole;
 }
 
 export class VyasaLambdaStack extends cdk.Stack {
@@ -63,17 +71,12 @@ export class VyasaLambdaStack extends cdk.Stack {
       tableName: `vyasa-rag-sessions-${config.envName}`,
       partitionKey: { name: 'session_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
       pointInTimeRecovery: config.envName === 'prod',
       removalPolicy:
         config.envName === 'prod'
           ? cdk.RemovalPolicy.RETAIN
           : cdk.RemovalPolicy.DESTROY,
-    });
-
-    // Enable TTL for session expiration (7 days)
-    this.sessionsTable.addLocalSecondaryIndex({
-      indexName: 'ttl-index',
-      sortKey: { name: 'ttl', type: dynamodb.AttributeType.NUMBER },
     });
 
     // DynamoDB table for rate limiting
@@ -88,6 +91,70 @@ export class VyasaLambdaStack extends cdk.Stack {
           : cdk.RemovalPolicy.DESTROY,
     });
 
+    const bedrockKbRole = props.bedrockKbRole;
+
+    // Lambda custom resource: creates Bedrock KB + data source via SDK
+    // (CloudFormation AWS::Bedrock::KnowledgeBase schema doesn't support S3_VECTORS yet)
+    const kbCreatorRole = new iam.Role(this, 'KbCreatorRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'service-role/AWSLambdaBasicExecutionRole'
+        ),
+      ],
+    });
+    kbCreatorRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'bedrock:CreateKnowledgeBase',
+          'bedrock:DeleteKnowledgeBase',
+          'bedrock:GetKnowledgeBase',
+          'bedrock:CreateDataSource',
+          'bedrock:DeleteDataSource',
+          'bedrock:ListDataSources',
+        ],
+        resources: ['*'],
+      })
+    );
+    kbCreatorRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ['iam:PassRole'],
+        resources: [bedrockKbRole.roleArn],
+      })
+    );
+
+    const kbCreatorFn = new lambda.Function(this, 'KbCreatorFn', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      role: kbCreatorRole,
+      timeout: cdk.Duration.minutes(10),
+      code: lambda.Code.fromAsset(path.join(__dirname, 'bedrock-kb-creator')),
+      environment: {
+        KB_NAME: `vyasa-rag-kb-${config.envName}`,
+        KB_ROLE_ARN: bedrockKbRole.roleArn,
+        EMBEDDING_MODEL_ARN: `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+        VECTOR_BUCKET_ARN: `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${props.vectorBucketName}`,
+        VECTOR_INDEX_ARN: props.vectorIndexArn,
+        CORPUS_BUCKET_ARN: this.corpusBucket.bucketArn,
+        DS_NAME: `vyasa-rag-corpus-${config.envName}`,
+      },
+    });
+
+    const kbProvider = new cr.Provider(this, 'KbProvider', {
+      onEventHandler: kbCreatorFn,
+    });
+
+    const kbResource = new cdk.CustomResource(this, 'VyasaKnowledgeBase', {
+      serviceToken: kbProvider.serviceToken,
+      properties: {
+        KbName: `vyasa-rag-kb-${config.envName}`,
+        VectorIndexArn: props.vectorIndexArn,
+      },
+    });
+
+    const kbId = kbResource.getAttString('KbId');
+    const dsId = kbResource.getAttString('DsId');
+
     // CloudWatch Log Group for Lambda
     const logGroup = new logs.LogGroup(this, 'LambdaLogGroup', {
       logGroupName: `/aws/lambda/vyasa-rag-${config.envName}`,
@@ -99,8 +166,8 @@ export class VyasaLambdaStack extends cdk.Stack {
     this.lambdaFunction = new lambda.Function(this, 'VyasaRagFunction', {
       functionName: `vyasa-rag-${config.envName}`,
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset('../../dist/apps/vyasa-rag-service'),
+      handler: 'main.handler',
+      code: lambda.Code.fromAsset('../dist/apps/vyasa-rag-service'),
       architecture: lambda.Architecture.ARM_64,
       memorySize: 1024,
       timeout: cdk.Duration.seconds(30),
@@ -110,9 +177,10 @@ export class VyasaLambdaStack extends cdk.Stack {
         SESSIONS_TABLE: this.sessionsTable.tableName,
         RATE_LIMITS_TABLE: this.rateLimitsTable.tableName,
         PROMPTS_BUCKET: this.promptsBucket.bucketName,
-        BEDROCK_KB_ID: '', // Will be set after KB creation
+        BEDROCK_KB_ID: kbId,
+        BEDROCK_DS_ID: dsId,
         BEDROCK_MODEL_ARN:
-          'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0',
+          'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0',
         EMBEDDING_MODEL_ARN:
           'arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0',
         MAX_AGENT_ITERATIONS: '3',
@@ -125,19 +193,30 @@ export class VyasaLambdaStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
     });
 
-    // Function URL for Lambda (streaming enabled)
-    const functionUrl = this.lambdaFunction.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE,
-      cors: {
-        allowedOrigins: ['*'],
-        allowedMethods: [lambda.HttpMethod.POST, lambda.HttpMethod.GET],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+    // API Gateway HTTP API (replaces Function URL — no public access block restriction)
+    const httpApi = new apigwv2.HttpApi(this, 'VyasaHttpApi', {
+      apiName: `vyasa-rag-api-${config.envName}`,
+      description: 'Vyasa RAG HTTP API',
+      corsPreflight: {
+        allowOrigins: ['*'],
+        allowMethods: [apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.POST],
+        allowHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
         maxAge: cdk.Duration.days(1),
       },
-      invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
     });
 
-    this.functionUrl = functionUrl.url;
+    const lambdaInt = new apigwv2int.HttpLambdaIntegration(
+      'VyasaLambdaInt',
+      this.lambdaFunction
+    );
+
+    httpApi.addRoutes({
+      path: '/{proxy+}',
+      methods: [apigwv2.HttpMethod.ANY],
+      integration: lambdaInt,
+    });
+
+    this.functionUrl = httpApi.apiEndpoint;
 
     // IAM permissions for Lambda
     // DynamoDB permissions
@@ -157,21 +236,12 @@ export class VyasaLambdaStack extends cdk.Stack {
           'bedrock:InvokeModelWithResponseStream',
           'bedrock:Retrieve',
           'bedrock:RetrieveAndGenerate',
+          'bedrock:StartIngestionJob',
+          'bedrock:GetIngestionJob',
         ],
         resources: ['*'],
       })
     );
-
-    // Bedrock Knowledge Base (managed vector store)
-    // Note: The KB is created separately and referenced by ID
-    // This stack creates the IAM role that the KB will assume
-    const bedrockKbRole = new iam.Role(this, 'BedrockKbRole', {
-      roleName: `vyasa-rag-kb-role-${config.envName}`,
-      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
-    });
-
-    // Allow KB to read from corpus bucket
-    this.corpusBucket.grantRead(bedrockKbRole);
 
     // CloudWatch Alarms for Lambda
     const errorMetric = new cloudwatch.Metric({
@@ -259,6 +329,18 @@ export class VyasaLambdaStack extends cdk.Stack {
       value: this.promptsBucket.bucketName,
       exportName: `${id}-PromptsBucketName`,
       description: 'S3 prompts bucket name',
+    });
+
+    new cdk.CfnOutput(this, 'KnowledgeBaseId', {
+      value: kbId,
+      exportName: `${id}-KnowledgeBaseId`,
+      description: 'Bedrock Knowledge Base ID (S3 Vectors store)',
+    });
+
+    new cdk.CfnOutput(this, 'DataSourceId', {
+      value: dsId,
+      exportName: `${id}-DataSourceId`,
+      description: 'Bedrock KB data source ID',
     });
 
     // Tags

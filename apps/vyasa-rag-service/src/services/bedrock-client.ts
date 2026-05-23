@@ -10,7 +10,8 @@ import {
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import {
   BedrockRuntimeClient,
-  InvokeModelCommand,
+  ConverseCommand,
+  ConverseStreamCommand,
 } from '@aws-sdk/client-bedrock-runtime';
 import { RAGResult, RetrievalResult, Citation, TokenUsage } from '../types';
 import { logger } from '../lib/logger';
@@ -21,9 +22,18 @@ const agentRuntimeClient = new BedrockAgentRuntimeClient({});
 const runtimeClient = new BedrockRuntimeClient({});
 
 const KB_ID = process.env.BEDROCK_KB_ID || '';
+
+interface BedrockUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
 const MODEL_ARN =
   process.env.BEDROCK_MODEL_ARN ||
-  'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0';
+  'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0';
+
+const MODEL_ID = MODEL_ARN.replace(/^arn:aws:bedrock:[^:]+::[^/]+\//, '');
 
 /**
  * Retrieve documents from Bedrock Knowledge Base
@@ -112,42 +122,22 @@ export async function retrieveAndGenerate(
             title:
               citation.retrievedReferences?.[0]?.content?.text?.slice(0, 100) ||
               'Unknown',
-            book: citation.retrievedReferences?.[0]?.metadata?.['book'],
-            chapter: citation.retrievedReferences?.[0]?.metadata?.['chapter'],
+            book:
+              citation.retrievedReferences?.[0]?.metadata?.['book'] != null
+                ? String(citation.retrievedReferences[0].metadata!['book'])
+                : undefined,
+            chapter:
+              citation.retrievedReferences?.[0]?.metadata?.['chapter'] != null
+                ? String(citation.retrievedReferences[0].metadata!['chapter'])
+                : undefined,
           })) || [];
 
         // Extract token usage from response metadata or estimate
+        const usage = (response as unknown as { usage?: BedrockUsage }).usage;
         const tokenUsage: TokenUsage = {
-          prompt_tokens: (response as unknown as Record<string, unknown>)?.usage
-            ?.inputTokens
-            ? parseInt(
-                String(
-                  (response as unknown as Record<string, unknown>).usage
-                    .inputTokens
-                ),
-                10
-              )
-            : 0,
-          completion_tokens: (response as unknown as Record<string, unknown>)
-            ?.usage?.outputTokens
-            ? parseInt(
-                String(
-                  (response as unknown as Record<string, unknown>).usage
-                    .outputTokens
-                ),
-                10
-              )
-            : 0,
-          total_tokens: (response as unknown as Record<string, unknown>)?.usage
-            ?.totalTokens
-            ? parseInt(
-                String(
-                  (response as unknown as Record<string, unknown>).usage
-                    .totalTokens
-                ),
-                10
-              )
-            : 0,
+          prompt_tokens: usage?.inputTokens ?? 0,
+          completion_tokens: usage?.outputTokens ?? 0,
+          total_tokens: usage?.totalTokens ?? 0,
         };
 
         return {
@@ -176,46 +166,35 @@ export async function generate(
       return bedrockCircuitBreaker.execute(async () => {
         logger.debug('Generating text', { promptLength: prompt.length });
 
-        const messages = [
-          {
-            role: 'user',
-            content: [{ type: 'text', text: prompt }],
-          },
-        ];
-
-        const body = {
-          anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 2048,
-          messages,
-          ...(systemPrompt && { system: systemPrompt }),
-        };
-
-        const command = new InvokeModelCommand({
-          modelId: MODEL_ARN.replace(
-            'arn:aws:bedrock:us-east-1::foundation-model/',
-            ''
-          ),
-          body: JSON.stringify(body),
-          contentType: 'application/json',
+        const command = new ConverseCommand({
+          modelId: MODEL_ID,
+          messages: [
+            {
+              role: 'user',
+              content: [{ text: prompt }],
+            },
+          ],
+          ...(systemPrompt && {
+            system: [{ text: systemPrompt }],
+          }),
+          inferenceConfig: { maxTokens: 2048 },
         });
 
         const response = await runtimeClient.send(command);
-        const responseBody = JSON.parse(
-          new TextDecoder().decode(response.body)
-        );
+        const text =
+          response.output?.message?.content
+            ?.map(b => ('text' in b ? b.text : ''))
+            .join('') || '';
 
         const tokenUsage: TokenUsage = {
-          prompt_tokens: responseBody.usage?.input_tokens || 0,
-          completion_tokens: responseBody.usage?.output_tokens || 0,
+          prompt_tokens: response.usage?.inputTokens || 0,
+          completion_tokens: response.usage?.outputTokens || 0,
           total_tokens:
-            (responseBody.usage?.input_tokens || 0) +
-            (responseBody.usage?.output_tokens || 0),
+            (response.usage?.inputTokens || 0) +
+            (response.usage?.outputTokens || 0),
         };
 
-        return {
-          text: responseBody.content?.[0]?.text || '',
-          tokenUsage,
-        };
+        return { text, tokenUsage };
       });
     },
     { promptLength: prompt.length }
@@ -231,46 +210,41 @@ export async function* generateStream(
 ): AsyncGenerator<string, { tokenUsage: TokenUsage }, unknown> {
   logger.debug('Generating text stream', { promptLength: prompt.length });
 
-  const body = {
-    anthropic_version: 'bedrock-2023-05-31',
-    max_tokens: 2048,
+  const command = new ConverseStreamCommand({
+    modelId: MODEL_ID,
     messages: [
       {
         role: 'user',
-        content: [{ type: 'text', text: prompt }],
+        content: [{ text: prompt }],
       },
     ],
-    ...(systemPrompt && { system: systemPrompt }),
-  };
-
-  const command = new InvokeModelCommand({
-    modelId: MODEL_ARN.replace(
-      'arn:aws:bedrock:us-east-1::foundation-model/',
-      ''
-    ),
-    body: JSON.stringify(body),
-    contentType: 'application/json',
+    ...(systemPrompt && {
+      system: [{ text: systemPrompt }],
+    }),
+    inferenceConfig: { maxTokens: 2048 },
   });
 
   const response = await runtimeClient.send(command);
+  let inputTokens = 0;
+  let outputTokens = 0;
 
-  // For non-streaming, just yield the full response
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  const text = responseBody.content?.[0]?.text || '';
-
-  // Yield chunks (simulate streaming)
-  const chunkSize = 20;
-  for (let i = 0; i < text.length; i += chunkSize) {
-    yield text.slice(i, i + chunkSize);
+  if (response.stream) {
+    for await (const event of response.stream) {
+      if (event.contentBlockDelta?.delta?.text) {
+        yield event.contentBlockDelta.delta.text;
+      }
+      if (event.metadata?.usage) {
+        inputTokens = event.metadata.usage.inputTokens || 0;
+        outputTokens = event.metadata.usage.outputTokens || 0;
+      }
+    }
   }
 
   return {
     tokenUsage: {
-      prompt_tokens: responseBody.usage?.input_tokens || 0,
-      completion_tokens: responseBody.usage?.output_tokens || 0,
-      total_tokens:
-        (responseBody.usage?.input_tokens || 0) +
-        (responseBody.usage?.output_tokens || 0),
+      prompt_tokens: inputTokens,
+      completion_tokens: outputTokens,
+      total_tokens: inputTokens + outputTokens,
     },
   };
 }

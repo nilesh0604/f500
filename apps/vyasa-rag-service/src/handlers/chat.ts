@@ -5,7 +5,7 @@
 
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatRequest, ChatResponse, LambdaResponse } from '../types';
+import { ChatResponse, LambdaResponse } from '../types';
 import { safeValidateChatRequest } from '../lib/validators';
 import {
   checkRateLimit,
@@ -18,7 +18,7 @@ import {
   getSessionMessages,
 } from '../services/session-store';
 import { runAgent, buildChatResponse } from '../services/agent';
-import { logger, createRequestLogger } from '../lib/logger';
+import { createRequestLogger } from '../lib/logger';
 
 export async function handler(
   event: APIGatewayProxyEventV2

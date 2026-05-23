@@ -5,6 +5,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as sns_subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 import { EnvironmentConfig } from '../config/environments';
 
@@ -101,7 +102,6 @@ export class RollbackStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(5),
       memorySize: 256,
       environment: {
-        AWS_REGION: this.region,
         SNS_ROLLBACK_TOPIC_ARN: this.rollbackTopic.topicArn,
         CLUSTER_NAME: clusterName,
         ORDER_SERVICE_NAME: orderServiceName,
@@ -158,19 +158,16 @@ export class RollbackStack extends cdk.Stack {
       }
     );
 
-    // Add Lambda action to alarms
+    // Add Lambda action to alarms (each needs unique ID)
     this.orderServiceAlarm.addAlarmAction(
       new cloudwatch_actions.LambdaAction(this.rollbackFunction)
     );
     this.notificationServiceAlarm.addAlarmAction(
-      new cloudwatch_actions.LambdaAction(this.rollbackFunction)
+      new cloudwatch_actions.SnsAction(this.rollbackTopic)
     );
 
     // Also notify SNS topic on alarm
     this.orderServiceAlarm.addAlarmAction(
-      new cloudwatch_actions.SnsAction(this.rollbackTopic)
-    );
-    this.notificationServiceAlarm.addAlarmAction(
       new cloudwatch_actions.SnsAction(this.rollbackTopic)
     );
 
@@ -199,10 +196,12 @@ export class RollbackStack extends cdk.Stack {
     );
 
     deploymentFailureAlarm.addAlarmAction(
-      new cloudwatch_actions.LambdaAction(this.rollbackFunction)
-    );
-    deploymentFailureAlarm.addAlarmAction(
       new cloudwatch_actions.SnsAction(this.rollbackTopic)
+    );
+
+    // Subscribe Lambda to SNS topic for all alarm notifications
+    this.rollbackTopic.addSubscription(
+      new sns_subscriptions.LambdaSubscription(this.rollbackFunction)
     );
 
     // Outputs

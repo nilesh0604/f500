@@ -6,25 +6,21 @@
 
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatRequest, StreamEvent } from '../types';
+import { StreamEvent } from '../types';
 import { safeValidateChatRequest } from '../lib/validators';
 import {
   checkRateLimit,
   checkGlobalRateLimit,
   getDefaultRateLimits,
 } from '../lib/rate-limiter';
-import {
-  getOrCreateSession,
-  addMessageToSession,
-  getSessionMessages,
-} from '../services/session-store';
+import { getOrCreateSession } from '../services/session-store';
 import { retrieve } from '../services/bedrock-client';
 import { assembleContext } from '../services/context-assembler';
 import { extractCitations } from '../services/citation-extractor';
 import { decomposeQuery } from '../services/query-planner';
 import { checkSufficiency } from '../services/reflection';
 import { getSystemPrompt } from '../services/prompt-manager';
-import { logger, createRequestLogger } from '../lib/logger';
+import { createRequestLogger } from '../lib/logger';
 import { generate } from '../services/bedrock-client';
 
 export async function handler(
@@ -110,7 +106,7 @@ export async function handler(
 async function generateStreamingResponse(
   query: string,
   sessionId: string,
-  requestLogger: ReturnType<typeof createRequestLogger>
+  _requestLogger: ReturnType<typeof createRequestLogger>
 ): Promise<string> {
   const events: StreamEvent[] = [];
 

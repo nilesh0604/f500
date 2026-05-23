@@ -5,14 +5,14 @@
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
-  GetItemCommand,
-  UpdateItemCommand,
-  PutItemCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { RateLimitCheck } from '../types';
 import { logger } from './logger';
 
-const ddbClient = new DynamoDBClient({});
+const ddbClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const RATE_LIMITS_TABLE =
   process.env.RATE_LIMITS_TABLE || 'vyasa-rag-rate-limits-dev';
 
@@ -113,9 +113,9 @@ async function getRateLimitEntry(
   key: string
 ): Promise<{ count: number } | null> {
   const result = await ddbClient.send(
-    new GetItemCommand({
+    new GetCommand({
       TableName: RATE_LIMITS_TABLE,
-      Key: { key: { S: key } },
+      Key: { key },
     })
   );
 
@@ -124,7 +124,7 @@ async function getRateLimitEntry(
   }
 
   return {
-    count: parseInt(result.Item.count.N || '0', 10),
+    count: parseInt(String(result.Item['count'] ?? '0'), 10),
   };
 }
 
@@ -138,9 +138,9 @@ async function incrementRateLimit(
   const ttl = Math.floor(Date.now() / 1000) + ttlSeconds;
 
   await ddbClient.send(
-    new UpdateItemCommand({
+    new UpdateCommand({
       TableName: RATE_LIMITS_TABLE,
-      Key: { key: { S: key } },
+      Key: { key },
       UpdateExpression:
         'SET #count = if_not_exists(#count, :zero) + :inc, #ttl = :ttl',
       ExpressionAttributeNames: {
@@ -148,9 +148,9 @@ async function incrementRateLimit(
         '#ttl': 'ttl',
       },
       ExpressionAttributeValues: {
-        ':zero': { N: '0' },
-        ':inc': { N: '1' },
-        ':ttl': { N: ttl.toString() },
+        ':zero': 0,
+        ':inc': 1,
+        ':ttl': ttl,
       },
     })
   );

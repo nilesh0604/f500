@@ -135,7 +135,7 @@ Examples:
  */
 export async function reformulateQuery(
   originalQuery: string,
-  previousResults: string[],
+  _previousResults: string[],
   missingInfo: string
 ): Promise<string> {
   const prompt = `The following question was asked: "${originalQuery}"

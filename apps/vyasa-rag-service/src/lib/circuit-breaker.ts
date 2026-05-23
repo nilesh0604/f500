@@ -19,7 +19,7 @@ export class CircuitBreaker {
       resetTimeoutMs: 30000,
       halfOpenMaxCalls: 3,
     },
-    private readonly fallbackFn?: <T>() => Promise<T>
+    private readonly fallbackFn?: () => Promise<unknown>
   ) {}
 
   /**
@@ -39,7 +39,7 @@ export class CircuitBreaker {
           logger.warn(`Circuit breaker '${this.name}' open, using fallback`, {
             context,
           });
-          return this.fallbackFn() as Promise<T>;
+          return this.fallbackFn() as unknown as Promise<T>;
         }
         throw error;
       }

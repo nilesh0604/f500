@@ -16,6 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@orderflow/shared-types": ["libs/shared-types/src/index.ts"],
+      "@orderflow/shared-types/rag": ["libs/shared-types/src/rag/index.ts"],
       "@orderflow/event-schemas": ["libs/event-schemas/src/index.ts"],
       "@orderflow/logger": ["libs/logger/src/index.ts"],
       "@orderflow/auth": ["libs/auth/src/index.ts"],

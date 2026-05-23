@@ -7,6 +7,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (S3 Vectors Migration — cost $350/mo → ~$0.07/mo)
+
+- **`infra/lib/vyasa-vector-stack.ts`**: New CDK stack replacing VyasaAossStack — creates S3 Vector
+  bucket + index via Lambda custom resource (`s3vector-creator`) using `@aws-sdk/client-s3vectors`
+- **`infra/lib/s3vector-creator/`**: Lambda asset that creates S3 vector bucket and index via SDK
+  (no CloudFormation support yet for S3 Vectors)
+- **`infra/lib/bedrock-kb-creator/`**: Lambda asset that creates Bedrock KB + S3 data source via
+  SDK (CloudFormation `AWS::Bedrock::KnowledgeBase` schema rejects `S3_VECTORS` storage type)
+
+### Changed (S3 Vectors Migration)
+
+- **`infra/lib/vyasa-lambda-stack.ts`**: Replaced `CfnKnowledgeBase`+`CfnDataSource` with
+  Lambda-backed custom resource (`KbCreatorFn`); removed `bedrock` CFN import; added `cr` +
+  `path` imports; `storageConfiguration` now `S3_VECTORS` via SDK
+- **`infra/bin/app.ts`**: Replaced `VyasaAossStack` with `VyasaVectorStack`; updated props
+  (`vectorIndexArn`, `vectorBucketName`, `vectorIndexName`)
+- **`apps/vyasa-rag-service/src/handlers/ingest.ts`**: Fixed `clientToken` to use `uuidv4()`
+  (Bedrock requires ≥ 33 chars; previous `ingest-${Date.now()}` was only 24 chars)
+
+### Removed
+
+- **`infra/lib/vyasa-aoss-stack.ts`**: AOSS stack deleted — was costing ~$350/mo for 2 OCU
+  minimum even at zero traffic
+
+### Added
+
+- **`infra/lib/vyasa-aoss-stack.ts`**: New CDK stack for AOSS collection, encryption/network/data
+  access policies, Bedrock KB IAM role, and Lambda-backed custom resource for AOSS vector index
+  pre-creation (`vyasa-index-dev`)
+- **`infra/lib/aoss-index-creator/index.mjs`**: Lambda handler for AOSS vector index creation
+  using manual SigV4 signing via Node.js built-in `crypto` and `https` modules
+- **`infra/lib/aoss-index-creator/package.json`**: ESM module declaration for asset Lambda
+- **`infra/lib/vyasa-lambda-stack.ts`**: Replaced Lambda Function URL with API Gateway HTTP API
+  (`aws-apigatewayv2` + `aws-apigatewayv2-integrations`) to bypass account-level Lambda public
+  access block; added `BEDROCK_DS_ID` env var and `bedrock:StartIngestionJob`/`GetIngestionJob`
+  IAM permissions
+- **`docs/prompts/`**: Uploaded `vyasa-system`, `vyasa-agent`, `vyasa-reflection` prompt files
+  to `vyasa-rag-prompts-dev-947612421212` S3 bucket
+
+### Changed
+
+- **`apps/vyasa-rag-service/src/services/bedrock-client.ts`**: Switched from `InvokeModelCommand`
+  with Anthropic-specific body format to `ConverseCommand`/`ConverseStreamCommand` (works with all
+  Bedrock models); default model changed from `anthropic.claude-3-haiku` to `amazon.nova-pro-v1:0`
+- **`apps/vyasa-rag-service/src/services/agent.ts`**: Fixed multi-turn context — truncated session
+  history to last 6 messages, formatted as Human/Assistant turns, made history section conditional
+- **`apps/vyasa-rag-service/src/handlers/ingest.ts`**: Replaced stub with real
+  `StartIngestionJobCommand` + `GetIngestionJobCommand` SDK calls via `@aws-sdk/client-bedrock-agent`
+- **`infra/bin/app.ts`**: Wired `VyasaAossStack` before `VyasaLambdaStack`; passes KB role and
+  collection ARN across stacks
+
+### Fixed
+
+- Bedrock KB `storageConfiguration` missing required AOSS subproperties (CloudFormation validation)
+- Circular dependency between AOSS and Lambda stacks (moved all KB role permissions to AOSS stack;
+  derived S3 bucket ARN deterministically)
+- Bedrock KB creation failing with `no such index` (custom resource pre-creates AOSS index)
+- `Runtime.ImportModuleError` — Lambda handler corrected from `index.handler` to `main.handler`
+- 403 Forbidden on Lambda Function URL due to account-level public access block (replaced with
+  API Gateway HTTP API)
+- Claude 3 Haiku `ResourceNotFoundException` — account requires model access approval; switched
+  to Amazon Nova Pro which is available without approval
+
+### Fixed (Vyasa RAG Service - Build & CDK Synth)
+
+- **`tsconfig.base.json`**: Added `@orderflow/shared-types/rag` path alias (subpath was missing,
+  caused `TS2307` module not found error)
+- **`src/lib/rate-limiter.ts`**: Fixed wrong `@aws-sdk/lib-dynamodb` command names
+  (`GetItemCommand`→`GetCommand`, `UpdateItemCommand`→`UpdateCommand`); switched to
+  `DynamoDBDocumentClient`; simplified DynamoDB-marshalled values
+- **`src/services/bedrock-client.ts`**: Added `BedrockUsage` interface; fixed `TS2339` unknown
+  property access on token usage; cast SDK `DocumentType` metadata to `string` for `Citation`
+- **`src/services/session-store.ts`**: Typed `agentTrace` param as `AgentStep[]` (was `unknown[]`)
+- **`src/lib/circuit-breaker.ts`**: Changed `fallbackFn` type to `() => Promise<unknown>` to
+  resolve generic constraint mismatch
+- **`src/services/agent.ts`**: Removed unused `reformulateQuery` and `traceAgentStep` imports
+- **`src/handlers/chat.ts`**, **`chat-stream.ts`**, **`ingest.ts`**: Removed unused imports
+  (`ChatRequest`, `logger`, `addMessageToSession`, `getSessionMessages`)
+- **`src/services/query-planner.ts`**: Prefixed unused `previousResults` param with `_`
+- **`infra/lib/vyasa-lambda-stack.ts`**: Fixed Lambda asset path (`../../` → `../`); removed
+  invalid LSI from `SessionsTable` (no sort key); added `timeToLiveAttribute: 'ttl'` directly
+- **`src/assets/.gitkeep`**: Added placeholder to resolve webpack assets glob warning
+- ✅ **`npx nx build vyasa-rag-service`**: Zero errors
+- ✅ **`npx cdk synth OrderFlow-Dev-VyasaRag`**: Template generated successfully
+
+### Changed (Vyasa RAG Service - Cost Optimization)
+
+- **`infra/lib/vyasa-lambda-stack.ts`**: Replaced incorrect RDS Aurora vector store reference
+  with Bedrock KB AWS-managed default vector store (`OPENSEARCH_SERVERLESS` via `CfnKnowledgeBase`)
+  — eliminates ~$43/mo Aurora Serverless v2 minimum standing cost
+- **`infra/lib/vyasa-lambda-stack.ts`**: Added `CfnKnowledgeBase` + `CfnDataSource` L1 constructs
+  directly in CDK stack; `BEDROCK_KB_ID` env var now auto-wired from `knowledgeBase.attrKnowledgeBaseId`
+- **`infra/lib/vyasa-lambda-stack.ts`**: Added Titan Embed V2 `bedrock:InvokeModel` permission
+  to KB IAM role; added `KnowledgeBaseId` and `DataSourceId` CFn outputs
+- **`docs/IMPLEMENTATION_PLAN_VYASA_RAG.md`**: Corrected §4.1 CDK stack description and Cost
+  Optimizations section — removed Aurora reference, documented managed vector store pricing
+  ($0 base + $0.10/1K queries)
+
 ### Added (Vyasa RAG Service - Phase 8: Deployment)
 
 - **Build configuration fixes:**

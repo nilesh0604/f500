@@ -12,13 +12,12 @@ import {
   Message,
 } from '../types';
 import { retrieve, generate } from './bedrock-client';
-import { decomposeQuery, reformulateQuery } from './query-planner';
+import { decomposeQuery } from './query-planner';
 import { assembleContext, mergeContexts } from './context-assembler';
 import { extractCitations, mergeCitations } from './citation-extractor';
 import { checkSufficiency, evaluateAnswer } from './reflection';
 import { getSystemPrompt, getAgentPrompt } from './prompt-manager';
 import { logger, logAgentStep } from '../lib/logger';
-import { traceAgentStep } from '../lib/tracer';
 
 const MAX_ITERATIONS = parseInt(process.env.MAX_AGENT_ITERATIONS || '3', 10);
 
@@ -141,21 +140,27 @@ export async function runAgent(
   const systemPrompt = await getSystemPrompt();
   const agentPrompt = await getAgentPrompt();
 
-  const chatHistory = sessionMessages
-    .map(m => `${m.role}: ${m.content}`)
+  // Keep last 6 messages (3 turns) to stay within context limits
+  const recentMessages = sessionMessages.slice(-6);
+  const chatHistory = recentMessages
+    .map(m => {
+      const role = m.role === 'user' ? 'Human' : 'Assistant';
+      return `${role}: ${m.content}`;
+    })
     .join('\n');
+
+  const historySection = chatHistory
+    ? `Previous conversation:\n${chatHistory}\n\n`
+    : '';
 
   const generationPrompt = `${agentPrompt}
 
-Chat History:
-${chatHistory}
-
-Retrieved Context:
-${finalContext}
+${historySection}Retrieved Context:
+${finalContext || 'No context retrieved from knowledge base.'}
 
 Question: ${query}
 
-Answer based on the context above. Cite sources using [Source: Title] format.`;
+Answer based on the retrieved context. If context is empty, answer from general knowledge and indicate that. Cite sources using [Source: Book, Chapter] format.`;
 
   const generationAction = 'Generating answer from retrieved context';
   trace.push({

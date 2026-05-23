@@ -235,7 +235,8 @@ Endpoints:
 // 3. Bedrock Knowledge Base
 //    - S3 data source (Mahabharata chunks)
 //    - Titan V2 embeddings (1024-dim)
-//    - Vector store: RDS Aurora (cheaper than OpenSearch for small corpus)
+//    - Vector store: AWS-managed default (OPENSEARCH_SERVERLESS via Bedrock KB)
+//      No standing compute cost — pay only per query ($0.10/1K queries)
 // 4. DynamoDB tables
 //    - sessions: TTL 7 days
 //    - rate-limits: per-IP counters
@@ -253,7 +254,8 @@ Endpoints:
 - Lambda: 1024MB memory (sweet spot for Bedrock latency)
 - No NAT Gateway (public subnet + strict security groups)
 - DynamoDB: On-demand mode (pay-per-request)
-- Bedrock KB: On-demand (no provisioned throughput)
+- Bedrock KB: AWS-managed default vector store — **no Aurora/OpenSearch standing cost**
+  (Aurora Serverless v2 minimum ~$43/mo; managed store: $0 base + $0.10/1K queries)
 - S3: Intelligent-Tiering (auto-archive unused chunks)
 
 ### 4.2 Shared Types: `libs/shared-types/src/rag/`
