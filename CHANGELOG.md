@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Vyasa Intelligence UI** (`apps/vyasa-ui`): Standalone React 18 + Vite + TailwindCSS
+  chat interface for the `vyasa-rag-service`.
+  - `src/services/vyasa.service.ts` — API client for `/chat`, `/chat/stream` (SSE), `/health`
+  - `src/hooks/useChat.ts` — state hook managing messages, sessions, streaming, abort
+  - `src/components/AgentSteps.tsx` — collapsible accordion of ReAct agent steps
+  - `src/components/MessageBubble.tsx` — user/assistant message rendering with streaming cursor
+  - `src/components/ChatInput.tsx` — auto-resizing textarea with quick-start suggestions
+  - `src/components/SessionSidebar.tsx` — session history sidebar with new-conversation button
+  - `src/components/ChatPage.tsx` — main chat layout with auto-scroll
+  - Dev server on port 4201; Vite proxy `/api` → `vyasa-rag-service`
+
 ### Fixed
 
 - **Answer Relevance evaluator rubric (Langfuse)**: The Langfuse LLM eval job
