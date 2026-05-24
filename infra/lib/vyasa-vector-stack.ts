@@ -88,7 +88,7 @@ export class VyasaVectorStack extends cdk.Stack {
     );
 
     const vectorFn = new lambda.Function(this, 'VectorCreatorFn', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       role: vectorLambdaRole,
       timeout: cdk.Duration.minutes(5),

@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] — 2026-05-24 — Lambda Runtime: Node.js 20 → 22 (AWS EOL Compliance)
+
+### Changed
+
+- **`infra/lib/vyasa-lambda-stack.ts`**: `KbCreatorFn` runtime upgraded `NODEJS_20_X` → `NODEJS_22_X`.
+- **`infra/lib/vyasa-vector-stack.ts`**: `VectorCreatorFn` runtime upgraded `NODEJS_20_X` → `NODEJS_22_X`.
+- **`infra/lib/rollback-stack.ts`**: `RollbackFunction` runtime upgraded `NODEJS_20_X` → `NODEJS_22_X`.
+- **`infra/package.json`**: `aws-cdk-lib` and `aws-cdk` upgraded `2.170.0` → `2.1124.1` so CDK-internal
+  custom resource provider framework functions (`KbProvider`, `VectorProvider`, `CustomS3AutoDeleteObjects`)
+  also adopt the Node.js 22 default runtime on next deploy.
+
+> **Reason**: AWS notified that Node.js 20.x Lambda runtime reaches EOL on 2026-04-30. Security patches
+> stopped; function creation blocked from 2026-08-31; updates blocked from 2026-09-30.
+> All 5 affected `us-east-1` functions resolved via CDK code + version bump.
+
+---
+
 ## [1.1.0] — 2026-05-23 — Vyasa RAG: S3 Vectors Migration + Ingestion Fix
 
 > **Status**: ✅ PRODUCTION — 9,362 vectors indexed, chat endpoint live, ~$0.07/mo vector cost

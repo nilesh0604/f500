@@ -292,7 +292,7 @@ export class SecurityStack extends cdk.Stack {
         autoDeleteObjects: true,
       });
 
-      new cdk.CfnOutput(this, 'WafAccessLogsBucket', {
+      new cdk.CfnOutput(this, 'WafAccessLogsBucketOutput', {
         value: wafAccessLogsBucket.bucketName,
         exportName: `${id}-WafAccessLogsBucket`,
         description: 'WAF access logs S3 bucket',

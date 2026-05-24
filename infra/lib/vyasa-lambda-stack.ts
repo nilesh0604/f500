@@ -124,7 +124,7 @@ export class VyasaLambdaStack extends cdk.Stack {
     );
 
     const kbCreatorFn = new lambda.Function(this, 'KbCreatorFn', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       role: kbCreatorRole,
       timeout: cdk.Duration.minutes(10),

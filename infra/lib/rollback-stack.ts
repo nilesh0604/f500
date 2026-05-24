@@ -95,7 +95,7 @@ export class RollbackStack extends cdk.Stack {
     // Rollback Lambda function
     this.rollbackFunction = new lambda.Function(this, 'RollbackFunction', {
       functionName: `orderflow-${config.envName}-auto-rollback`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset('./lib/rollback'),
       role: rollbackRole,
