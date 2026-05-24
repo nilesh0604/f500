@@ -42,9 +42,18 @@ export class VyasaUiStack extends cdk.Stack {
     });
     this.uiBucketName = uiBucket.bucketName;
 
+    // CloudFront access logging requires ACLs on the log bucket.
+    // objectOwnership BUCKET_OWNER_PREFERRED + disabling BlockPublicAcls
+    // allows CloudFront's log delivery principal to write via ACL.
     const accessLogsBucket = new s3.Bucket(this, 'VyasaUiAccessLogsBucket', {
       bucketName: `vyasa-ui-access-logs-${config.envName}-${this.account}`,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        ignorePublicAcls: false,
+        blockPublicPolicy: true,
+        restrictPublicBuckets: true,
+      }),
       encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
@@ -88,14 +97,32 @@ export class VyasaUiStack extends cdk.Stack {
       originAccessControl: oac,
     });
 
-    // Strip the https:// prefix from apiEndpoint for HttpOrigin
-    const apiHost = apiEndpoint.replace(/^https?:\/\//, '');
+    // Strip the https:// prefix at CloudFormation resolution time.
+    // apiEndpoint is a cross-stack CFn token, so JS .replace() won't work —
+    // Fn.select(1, Fn.split('://', url)) yields the hostname reliably.
+    const apiHost = cdk.Fn.select(1, cdk.Fn.split('://', apiEndpoint));
 
     const apiOrigin = new origins.HttpOrigin(apiHost, {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
       connectionAttempts: 3,
       connectionTimeout: cdk.Duration.seconds(10),
       readTimeout: cdk.Duration.seconds(60),
+    });
+
+    // CloudFront Function: rewrite /api/foo -> /foo before forwarding to
+    // the API Gateway origin. The Lambda routes have no /api prefix.
+    const apiRewriteFn = new cloudfront.Function(this, 'ApiPrefixRewrite', {
+      functionName: `vyasa-api-rewrite-${config.envName}`,
+      code: cloudfront.FunctionCode.fromInline(
+        `
+function handler(event) {
+  var request = event.request;
+  request.uri = request.uri.replace(/^\\/api/, '') || '/';
+  return request;
+}
+      `.trim()
+      ),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
     });
 
     const distribution = new cloudfront.Distribution(
@@ -129,6 +156,12 @@ export class VyasaUiStack extends cdk.Stack {
             cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
             originRequestPolicy:
               cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+            functionAssociations: [
+              {
+                function: apiRewriteFn,
+                eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+              },
+            ],
           },
         },
         errorResponses: [
