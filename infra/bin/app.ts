@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { environments } from '../config/environments';
+import { config } from '../config/environments';
 import { NetworkStack } from '../lib/network-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { EventStack } from '../lib/event-stack';
@@ -18,27 +18,18 @@ import { VyasaUiStack } from '../lib/vyasa-ui-stack';
 
 const app = new cdk.App();
 
-const envName = app.node.tryGetContext('env') ?? 'dev';
-const config = environments[envName];
-
-if (!config) {
-  throw new Error(
-    `Unknown environment: "${envName}". Valid values: ${Object.keys(environments).join(', ')}`
-  );
-}
-
 const env: cdk.Environment = {
   account: config.account || process.env.CDK_DEFAULT_ACCOUNT,
   region: config.region || process.env.CDK_DEFAULT_REGION,
 };
 
-const stackPrefix = `OrderFlow-${config.envName.charAt(0).toUpperCase() + config.envName.slice(1)}`;
+const stackPrefix = 'OrderFlow';
 
 const networkStack = new NetworkStack(app, `${stackPrefix}-Network`, {
   env,
   config,
-  description: `OrderFlow ${envName} — VPC, subnets, security groups`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — VPC, subnets, security groups',
+  terminationProtection: true,
 });
 
 const databaseStack = new DatabaseStack(app, `${stackPrefix}-Database`, {
@@ -47,24 +38,24 @@ const databaseStack = new DatabaseStack(app, `${stackPrefix}-Database`, {
   vpc: networkStack.vpc,
   dbSecurityGroup: networkStack.dbSecurityGroup,
   redisSecurityGroup: networkStack.redisSecurityGroup,
-  description: `OrderFlow ${envName} — RDS PostgreSQL & ElastiCache Redis`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — RDS PostgreSQL & ElastiCache Redis',
+  terminationProtection: true,
 });
 databaseStack.addDependency(networkStack);
 
 const eventStack = new EventStack(app, `${stackPrefix}-Events`, {
   env,
   config,
-  description: `OrderFlow ${envName} — EventBridge, SQS queues, DLQs`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — EventBridge, SQS queues, DLQs',
+  terminationProtection: true,
 });
 
 const securityStack = new SecurityStack(app, `${stackPrefix}-Security`, {
   env,
   config,
   vpc: networkStack.vpc,
-  description: `OrderFlow ${envName} — WAF, Secrets Manager, IAM roles`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — WAF, Secrets Manager, IAM roles',
+  terminationProtection: true,
 });
 securityStack.addDependency(networkStack);
 securityStack.addDependency(databaseStack);
@@ -82,8 +73,8 @@ const ecsStack = new ECSStack(app, `${stackPrefix}-ECS`, {
   orderStatusChangedQueue: eventStack.orderStatusChangedQueue,
   eventBusName: eventStack.eventBus.eventBusName,
   jwtSecret: securityStack.jwtSecret,
-  description: `OrderFlow ${envName} — ECS Fargate cluster, services, ALB`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — ECS Fargate cluster, services, ALB',
+  terminationProtection: true,
 });
 ecsStack.addDependency(networkStack);
 ecsStack.addDependency(databaseStack);
@@ -94,8 +85,8 @@ const cdnStack = new CDNStack(app, `${stackPrefix}-CDN`, {
   env,
   config,
   albDnsName: ecsStack.albDnsName,
-  description: `OrderFlow ${envName} — CloudFront CDN, S3 frontend bucket`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — CloudFront CDN, S3 frontend bucket',
+  terminationProtection: true,
 });
 cdnStack.addDependency(ecsStack);
 
@@ -111,8 +102,8 @@ const monitoringStack = new MonitoringStack(app, `${stackPrefix}-Monitoring`, {
   orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
   orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
   orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
-  description: `OrderFlow ${envName} — CloudWatch dashboards, alarms`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — CloudWatch dashboards, alarms',
+  terminationProtection: true,
 });
 monitoringStack.addDependency(ecsStack);
 monitoringStack.addDependency(databaseStack);
@@ -134,8 +125,8 @@ const observabilityStack = new ObservabilityStack(
     orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
     orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
     orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
-    description: `OrderFlow ${envName} — Phase 6 Observability (X-Ray, Synthetics, SLO alarms)`,
-    terminationProtection: config.envName === 'prod',
+    description: 'OrderFlow — Observability (X-Ray, Synthetics, SLO alarms)',
+    terminationProtection: true,
   }
 );
 observabilityStack.addDependency(ecsStack);
@@ -145,8 +136,8 @@ observabilityStack.addDependency(eventStack);
 const appConfigStack = new AppConfigStack(app, `${stackPrefix}-AppConfig`, {
   env,
   config,
-  description: `OrderFlow ${envName} — AppConfig feature flags and dynamic config`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — AppConfig feature flags and dynamic config',
+  terminationProtection: true,
 });
 
 const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
@@ -155,8 +146,8 @@ const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
   clusterName: ecsStack.clusterName,
   orderServiceName: ecsStack.orderServiceName,
   notificationServiceName: ecsStack.notificationServiceName,
-  description: `OrderFlow ${envName} — Auto-rollback Lambda and CloudWatch alarms`,
-  terminationProtection: config.envName === 'prod',
+  description: 'OrderFlow — Auto-rollback Lambda and CloudWatch alarms',
+  terminationProtection: true,
 });
 rollbackStack.addDependency(ecsStack);
 
@@ -166,7 +157,7 @@ const vyasaVectorStack = new VyasaVectorStack(
   {
     env,
     config,
-    description: `OrderFlow ${envName} — Vyasa S3 Vectors store (deploy before VyasaRag)`,
+    description: 'OrderFlow — Vyasa S3 Vectors store',
     terminationProtection: false,
   }
 );
@@ -178,7 +169,8 @@ const vyasaStack = new VyasaLambdaStack(app, `${stackPrefix}-VyasaRag`, {
   vectorBucketName: vyasaVectorStack.vectorBucketName,
   vectorIndexName: vyasaVectorStack.vectorIndexName,
   bedrockKbRole: vyasaVectorStack.bedrockKbRole,
-  description: `OrderFlow ${envName} — Vyasa Intelligence Agentic RAG Service (Lambda + Bedrock)`,
+  description:
+    'OrderFlow — Vyasa Intelligence Agentic RAG Service (Lambda + Bedrock)',
   terminationProtection: false,
 });
 vyasaStack.addDependency(vyasaVectorStack);
@@ -187,11 +179,11 @@ const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
   env,
   config,
   apiEndpoint: vyasaStack.functionUrl,
-  description: `OrderFlow ${envName} — Vyasa Intelligence UI (S3 + CloudFront)`,
+  description: 'OrderFlow — Vyasa Intelligence UI (S3 + CloudFront)',
   terminationProtection: false,
 });
 vyasaUiStack.addDependency(vyasaStack);
 
 cdk.Tags.of(app).add('Project', 'orderflow');
-cdk.Tags.of(app).add('Environment', envName);
+cdk.Tags.of(app).add('Environment', 'prod');
 cdk.Tags.of(app).add('ManagedBy', 'cdk');

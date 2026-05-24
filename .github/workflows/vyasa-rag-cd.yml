@@ -8,18 +8,9 @@ on:
       - 'infra/lib/vyasa-lambda-stack.ts'
       - 'libs/shared-types/**'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'staging'
-        type: choice
-        options:
-          - staging
-          - production
 
 concurrency:
-  group: vyasa-rag-deploy-${{ github.event.inputs.environment || 'staging' }}
+  group: vyasa-rag-deploy
   cancel-in-progress: false
 
 env:
@@ -27,115 +18,12 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  deploy-staging:
-    name: Deploy to Staging
+  deploy:
+    name: Build & Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
-    environment:
-      name: staging
-      url: https://staging-api.example.com/vyasa
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npx nx build vyasa-rag-service
-
-      - name: Deploy to Staging
-        run: npx nx deploy infra --stack OrderFlow-Staging-VyasaRag
-        env:
-          DEPLOYMENT_ENVIRONMENT: staging
-
-      - name: Run Smoke Tests
-        run: |
-          sleep 30  # Wait for deployment to propagate
-          curl -f https://staging-api.example.com/vyasa/health || exit 1
-        continue-on-error: true
-
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        if: always()
-        with:
-          status: ${{ job.status }}
-          text: 'Vyasa RAG deployed to staging'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  evaluation-staging:
-    name: Run Evaluation (Staging)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: deploy-staging
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run Evaluation
-        run: |
-          npx ts-node apps/vyasa-rag-service/eval/runner.ts \
-            apps/vyasa-rag-service/eval/datasets/golden-dataset.json \
-            eval-results-staging.json \
-            --endpoint https://staging-api.example.com/vyasa
-
-      - name: Check Pass Rate
-        run: |
-          PASS_RATE=$(jq -r '.summary.passRate' eval-results-staging.json)
-          echo "Pass rate: $PASS_RATE"
-          if (( $(echo "$PASS_RATE < 0.70" | bc -l) )); then
-            echo "Pass rate below threshold 70%"
-            exit 1
-          fi
-
-      - name: Upload Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: eval-results-staging
-          path: eval-results-staging.json
-
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [deploy-staging, evaluation-staging]
-    if: github.ref == 'refs/heads/main' && (github.event.inputs.environment == 'production' || github.event_name == 'push')
     environment:
       name: production
-      url: https://api.example.com/vyasa
 
     steps:
       - name: Checkout
@@ -144,8 +32,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js
@@ -160,51 +48,27 @@ jobs:
       - name: Build
         run: npx nx build vyasa-rag-service
 
-      - name: Deploy to Production
-        run: npx nx deploy infra --stack OrderFlow-Prod-VyasaRag
-        env:
-          DEPLOYMENT_ENVIRONMENT: production
-
-      - name: Run Smoke Tests
+      - name: Deploy CDK stacks
         run: |
-          sleep 30
-          curl -f https://api.example.com/vyasa/health || exit 1
+          cd infra
+          npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag \
+            --require-approval never
+
+      - name: Smoke test
+        run: |
+          ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name OrderFlow-VyasaRag \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaRag-FunctionUrl`].OutputValue' \
+            --output text)
+          sleep 20
+          curl -sf "${ENDPOINT}/health" -o /dev/null || exit 1
+          echo "Smoke test passed: ${ENDPOINT}"
 
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
         if: always()
+        continue-on-error: true
         with:
           status: ${{ job.status }}
-          text: 'Vyasa RAG deployed to production'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL_PROD }}
-
-  rollback-on-failure:
-    name: Rollback (if needed)
-    runs-on: ubuntu-latest
-    needs: deploy-production
-    if: failure()
-    environment: production
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Rollback Lambda to previous version
-        run: |
-          aws lambda update-alias \
-            --function-name vyasa-rag-service \
-            --name live \
-            --function-version $(aws lambda get-alias --function-name vyasa-rag-service --name live --query 'RoutingConfig.AdditionalVersionWeights.{}' --output text | head -1) \
-            --routing-config '{}'
-        continue-on-error: true
-
-      - name: Notify Rollback
-        uses: 8398a7/action-slack@v3
-        with:
-          status: failure
-          text: 'Vyasa RAG deployment failed - rollback attempted'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL_PROD }}
+          text: 'Vyasa RAG deployed'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}

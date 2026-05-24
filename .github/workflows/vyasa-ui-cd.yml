@@ -91,27 +91,26 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Deploy CDK stack (production)
+      - name: Deploy CDK stack
         run: |
           cd infra
-          npx cdk deploy OrderFlow-Prod-VyasaUi \
-            --require-approval never \
-            --context env=prod
+          npx cdk deploy OrderFlow-VyasaUi \
+            --require-approval never
 
       - name: Get stack outputs
         id: stack
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name OrderFlow-Prod-VyasaUi \
-            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-Prod-VyasaUi-UiBucketName`].OutputValue' \
+            --stack-name OrderFlow-VyasaUi \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-UiBucketName`].OutputValue' \
             --output text)
           DIST_ID=$(aws cloudformation describe-stacks \
-            --stack-name OrderFlow-Prod-VyasaUi \
-            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-Prod-VyasaUi-DistributionId`].OutputValue' \
+            --stack-name OrderFlow-VyasaUi \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-DistributionId`].OutputValue' \
             --output text)
           DOMAIN=$(aws cloudformation describe-stacks \
-            --stack-name OrderFlow-Prod-VyasaUi \
-            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-Prod-VyasaUi-DistributionDomain`].OutputValue' \
+            --stack-name OrderFlow-VyasaUi \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-DistributionDomain`].OutputValue' \
             --output text)
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
           echo "distribution-id=$DIST_ID" >> $GITHUB_OUTPUT

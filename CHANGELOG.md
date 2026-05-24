@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ADR-011: Cost optimisation — single env + right-sizing** (`docs/adr/ADR-011-single-env-cost-optimisation.md`):
+  - RDS downsized `db.t3.medium` Multi-AZ → `db.t3.small` Single-AZ, 100 GB → 50 GB (saves ~$160/mo)
+  - ECS `desiredCount` + `minCapacity` lowered from 2 → 1 per service (saves ~$65/mo)
+  - Combined with single-env + NAT GW + CloudFront changes: **~$265/mo total saving**
+  - Expected monthly: $689–898 vs previous $954–1,148
+  - ⚠️ RDS modification on next `cdk deploy` will cause ~1–5 min DB downtime
+
+- **Single-environment infrastructure** — removed dev/staging/pre-prod configs, one `prod` environment:
+  - `infra/config/environments.ts` — replaced `environments` map with a single exported `config` object; 1 NAT GW (cost saving), Multi-AZ RDS, `PriceClass_100` CloudFront
+  - `infra/bin/app.ts` — removed `env` context lookup; imports `config` directly; stack prefix is now `OrderFlow` (was `OrderFlow-Prod-*`)
+  - `.github/workflows/vyasa-rag-cd.yml` — collapsed staging + evaluation + production pipeline to a single `deploy` job; deploys `OrderFlow-VyasaVector` + `OrderFlow-VyasaRag`
+  - `.github/workflows/vyasa-ui-cd.yml` — updated all stack name references from `OrderFlow-Prod-VyasaUi` → `OrderFlow-VyasaUi`, removed `--context env=prod` flag
+
+- **AWS Infrastructure Cost Analysis** (`docs/AWS_COST_ANALYSIS.md`):
+  - Full per-environment monthly cost breakdown across all 13 CDK stacks
+  - Covers OrderFlow (ECS/RDS/Redis/ALB/WAF) and Vyasa Intelligence (Lambda/Bedrock/S3Vectors/CloudFront)
+  - Bedrock Nova Pro inference identified as dominant variable cost ($25–500/month depending on env)
+  - Optimization recommendations: RAG response caching, VPC Gateway Endpoints, ECS scheduled scaling, reduced ingestion jobs
+  - Quick-wins checklist and AWS Budgets alert recommendations
+
 - **Vyasa UI — S3 + CloudFront Production Deployment**:
   - `infra/lib/vyasa-ui-stack.ts` — new CDK stack: private S3 bucket (OAC),
     CloudFront distribution with `/api/*` behaviour proxied to the Vyasa RAG
