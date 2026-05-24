@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Answer Relevance evaluator rubric (Langfuse)**: The Langfuse LLM eval job
+  "Answer Relevance" used a noncommittal flag where `0 = committal (good)` and
+  `1 = noncommittal (bad)`, storing the raw value as the score — inverting the
+  metric so all good answers scored `0`.
+  - Added `apps/vyasa-rag-service/eval/langfuse/answer-relevance.ts` with
+    `calculateAnswerRelevance()` that returns `1` for committal/relevant answers
+    and `0` for noncommittal ones.
+  - `run-experiment.ts` now posts a corrected `Answer Relevance` score (source:
+    `API`) via `langfuse.score()` on each trace, overriding the inverted eval
+    job score for future experiment runs.
+
+### Added
+
+- **Langfuse Integration for RAG Evaluation**: New evaluation framework to run experiments
+  against live API (production or local dev server) and capture baseline scores.
+  - `apps/vyasa-rag-service/eval/langfuse/client.ts` - Langfuse client initialization
+  - `apps/vyasa-rag-service/eval/langfuse/upload-dataset.ts` - Upload golden dataset to Langfuse
+  - `apps/vyasa-rag-service/eval/langfuse/task-adapter.ts` - Bridge RAG API to Langfuse format
+  - `apps/vyasa-rag-service/eval/langfuse/run-experiment.ts` - Execute evaluation experiments
+  - Supports both production API Gateway and local dev server (`EVAL_LOCAL=true`)
+  - **MCP Server**: Added Langfuse MCP server to `.mcp.json` for direct result access in Windsurf
+  - Environment variables: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`,
+    `LANGFUSE_MCP_AUTH`, `VYASA_API_ENDPOINT`, `VYASA_API_KEY`, `VYASA_API_TIMEOUT`, `EVAL_LOCAL`
+
 ---
 
 ## [1.1.1] — 2026-05-24 — Lambda Runtime: Node.js 20 → 22 (AWS EOL Compliance)

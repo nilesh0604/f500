@@ -23,6 +23,12 @@
         "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
         "JIRA_EMAIL": "${JIRA_EMAIL}"
       }
+    },
+    "langfuse": {
+      "url": "https://cloud.langfuse.com/api/public/mcp",
+      "headers": {
+        "Authorization": "Basic cGstbGYtYmRhY2VlNmItZWE2Yy00MGYxLTk2ZmMtOTVkMjYxOTFlZTEwOnNrLWxmLTZkYTUyOWU5LWU4M2UtNGIwYi04ZjJiLWQ4OWQ3Nzk2ZmEzYQ=="
+      }
     }
   }
 }

@@ -75,6 +75,7 @@
     "express-rate-limit": "^7.4.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "langfuse": "^3.38.20",
     "morgan": "^1.10.0",
     "opossum": "^8.3.0",
     "prisma": "^5.22.0",
