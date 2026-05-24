@@ -1,0 +1,157 @@
+name: Vyasa UI - Deploy
+
+# Triggers on changes to the UI source or its CDK stack.
+# No staging environment — single AWS account, deploy straight to prod.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/vyasa-ui/**'
+      - 'infra/lib/vyasa-ui-stack.ts'
+  workflow_dispatch:
+
+concurrency:
+  group: vyasa-ui-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '22'
+
+jobs:
+  build:
+    name: Build Vyasa UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/vyasa-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/vyasa-ui
+
+      - name: Set artifact name
+        id: meta
+        run: echo "artifact-name=vyasa-ui-dist-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: npm run build
+        working-directory: apps/vyasa-ui
+        env:
+          VITE_API_BASE_PATH: /api
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact-name }}
+          path: apps/vyasa-ui/dist/
+          retention-days: 3
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build
+    environment:
+      name: production
+      url: https://vyasa.example.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # TODO: migrate to GitHub OIDC + IAM role (aws-actions/configure-aws-credentials
+      # with role-to-assume) to eliminate long-lived static keys.
+      # Single AWS account (947612421212 / Nilesh_Shinde) — same credentials as
+      # all other workflows in this repo.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Deploy CDK stack (production)
+        run: |
+          cd infra
+          npx cdk deploy OrderFlow-Prod-VyasaUi \
+            --require-approval never \
+            --context env=prod
+
+      - name: Get stack outputs
+        id: stack
+        run: |
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name OrderFlow-Prod-VyasaUi \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-Prod-VyasaUi-UiBucketName`].OutputValue' \
+            --output text)
+          DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name OrderFlow-Prod-VyasaUi \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-Prod-VyasaUi-DistributionId`].OutputValue' \
+            --output text)
+          DOMAIN=$(aws cloudformation describe-stacks \
+            --stack-name OrderFlow-Prod-VyasaUi \
+            --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-Prod-VyasaUi-DistributionDomain`].OutputValue' \
+            --output text)
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+          echo "distribution-id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: apps/vyasa-ui/dist
+
+      - name: Sync assets to S3
+        run: |
+          aws s3 sync apps/vyasa-ui/dist/ s3://${{ steps.stack.outputs.bucket }} \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+          aws s3 cp apps/vyasa-ui/dist/index.html \
+            s3://${{ steps.stack.outputs.bucket }}/index.html \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.stack.outputs.distribution-id }} \
+            --paths "/*"
+
+      - name: Smoke test
+        run: |
+          sleep 30
+          curl -sf "https://${{ steps.stack.outputs.domain }}" -o /dev/null || exit 1
+          echo "Smoke test passed: https://${{ steps.stack.outputs.domain }}"
+
+      # TODO: set up SLACK_WEBHOOK_URL secret in GitHub repo settings before
+      # enabling Slack notifications. See deploy-production.yml for reference.
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        if: always()
+        continue-on-error: true
+        with:
+          status: ${{ job.status }}
+          text: 'Vyasa UI deployed to production — https://${{ steps.stack.outputs.domain }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}

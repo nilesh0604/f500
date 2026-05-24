@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Vyasa UI — S3 + CloudFront Production Deployment**:
+  - `infra/lib/vyasa-ui-stack.ts` — new CDK stack: private S3 bucket (OAC),
+    CloudFront distribution with `/api/*` behaviour proxied to the Vyasa RAG
+    API Gateway endpoint, SPA 403/404 → `index.html` fallback, HTTP/2+3,
+    TLS 1.2+, security headers, access-log bucket, per-env price class.
+  - `infra/bin/app.ts` — `VyasaUiStack` registered as `${stackPrefix}-VyasaUi`,
+    dependent on `VyasaLambdaStack` for the `functionUrl` output.
+  - `.github/workflows/vyasa-ui-cd.yml` — CI/CD pipeline: build → deploy CDK
+    (staging) → S3 sync with immutable cache headers → CloudFront invalidation
+    → smoke test → deploy to production with same pattern.
+
 - **Vyasa Intelligence UI** (`apps/vyasa-ui`): Standalone React 18 + Vite + TailwindCSS
   chat interface for the `vyasa-rag-service`.
   - `src/services/vyasa.service.ts` — API client for `/chat`, `/chat/stream` (SSE), `/health`

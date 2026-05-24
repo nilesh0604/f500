@@ -14,6 +14,7 @@ import { AppConfigStack } from '../lib/appconfig-stack';
 import { RollbackStack } from '../lib/rollback-stack';
 import { VyasaLambdaStack } from '../lib/vyasa-lambda-stack';
 import { VyasaVectorStack } from '../lib/vyasa-vector-stack';
+import { VyasaUiStack } from '../lib/vyasa-ui-stack';
 
 const app = new cdk.App();
 
@@ -181,6 +182,15 @@ const vyasaStack = new VyasaLambdaStack(app, `${stackPrefix}-VyasaRag`, {
   terminationProtection: false,
 });
 vyasaStack.addDependency(vyasaVectorStack);
+
+const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
+  env,
+  config,
+  apiEndpoint: vyasaStack.functionUrl,
+  description: `OrderFlow ${envName} — Vyasa Intelligence UI (S3 + CloudFront)`,
+  terminationProtection: false,
+});
+vyasaUiStack.addDependency(vyasaStack);
 
 cdk.Tags.of(app).add('Project', 'orderflow');
 cdk.Tags.of(app).add('Environment', envName);
