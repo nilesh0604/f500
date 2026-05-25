@@ -74,45 +74,38 @@ export class VyasaLambdaStack extends cdk.Stack {
       ) as s3.Bucket;
     }
 
-    if (config.envName === 'prod') {
-      // DynamoDB table for sessions (with TTL)
-      this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
-        tableName: `vyasa-rag-sessions-${config.envName}`,
-        partitionKey: {
-          name: 'session_id',
-          type: dynamodb.AttributeType.STRING,
-        },
-        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-        timeToLiveAttribute: 'ttl',
-        pointInTimeRecovery: true,
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-      });
+    // DynamoDB table for sessions (with TTL)
+    this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
+      tableName: `vyasa-rag-sessions-${config.envName}`,
+      partitionKey: {
+        name: 'session_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
+      pointInTimeRecovery: config.envName === 'prod',
+      removalPolicy:
+        config.envName === 'prod'
+          ? cdk.RemovalPolicy.RETAIN
+          : cdk.RemovalPolicy.DESTROY,
+    });
 
-      // DynamoDB table for rate limiting
-      this.rateLimitsTable = new dynamodb.Table(this, 'RateLimitsTable', {
-        tableName: `vyasa-rag-rate-limits-${config.envName}`,
-        partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
-        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-        timeToLiveAttribute: 'ttl',
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-      });
-    } else {
-      this.sessionsTable = dynamodb.Table.fromTableName(
-        this,
-        'SessionsTable',
-        `vyasa-rag-sessions-${config.envName}`
-      ) as dynamodb.Table;
-      this.rateLimitsTable = dynamodb.Table.fromTableName(
-        this,
-        'RateLimitsTable',
-        `vyasa-rag-rate-limits-${config.envName}`
-      ) as dynamodb.Table;
-    }
+    // DynamoDB table for rate limiting
+    this.rateLimitsTable = new dynamodb.Table(this, 'RateLimitsTable', {
+      tableName: `vyasa-rag-rate-limits-${config.envName}`,
+      partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
+      removalPolicy:
+        config.envName === 'prod'
+          ? cdk.RemovalPolicy.RETAIN
+          : cdk.RemovalPolicy.DESTROY,
+    });
 
     const bedrockKbRole = props.bedrockKbRole;
 
     const existingKbIds: Record<string, { kbId: string; dsId: string }> = {
-      dev: { kbId: 'JGDXZQCA1Y', dsId: '5DGY6OL5YG' },
+      dev: { kbId: 'OYAKPT9RLA', dsId: 'B2VQSKC6IS' },
     };
 
     let kbId: string;
