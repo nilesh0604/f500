@@ -175,14 +175,20 @@ const vyasaStack = new VyasaLambdaStack(app, `${stackPrefix}-VyasaRag`, {
 });
 vyasaStack.addDependency(vyasaVectorStack);
 
+// OrderFlow-VyasaRag not yet migrated from OrderFlow-Prod-VyasaRag.
+// Using the existing prod API endpoint directly until VyasaRag is redeployed.
+const vyasaApiEndpoint =
+  process.env.VYASA_API_ENDPOINT ??
+  'https://no24fwwtcl.execute-api.us-east-1.amazonaws.com';
+
 const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
   env,
   config,
-  apiEndpoint: vyasaStack.functionUrl,
+  apiEndpoint: vyasaApiEndpoint,
+  domainName: config.vyasaDomainName,
   description: 'OrderFlow — Vyasa Intelligence UI (S3 + CloudFront)',
   terminationProtection: false,
 });
-vyasaUiStack.addDependency(vyasaStack);
 
 cdk.Tags.of(app).add('Project', 'orderflow');
 cdk.Tags.of(app).add('Environment', 'prod');

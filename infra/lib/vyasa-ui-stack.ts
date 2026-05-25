@@ -4,12 +4,14 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
 import { EnvironmentConfig } from '../config/environments';
 
 export interface VyasaUiStackProps extends cdk.StackProps {
   readonly config: EnvironmentConfig;
   readonly apiEndpoint: string;
+  readonly domainName?: string;
 }
 
 export class VyasaUiStack extends cdk.Stack {
@@ -20,10 +22,9 @@ export class VyasaUiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: VyasaUiStackProps) {
     super(scope, id, props);
 
-    const { config, apiEndpoint } = props;
+    const { config, apiEndpoint, domainName } = props;
 
     const uiBucket = new s3.Bucket(this, 'VyasaUiBucket', {
-      bucketName: `vyasa-ui-${config.envName}-${this.account}`,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
@@ -46,7 +47,6 @@ export class VyasaUiStack extends cdk.Stack {
     // objectOwnership BUCKET_OWNER_PREFERRED + disabling BlockPublicAcls
     // allows CloudFront's log delivery principal to write via ACL.
     const accessLogsBucket = new s3.Bucket(this, 'VyasaUiAccessLogsBucket', {
-      bucketName: `vyasa-ui-access-logs-${config.envName}-${this.account}`,
       objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
       blockPublicAccess: new s3.BlockPublicAccess({
         blockPublicAcls: false,
@@ -55,8 +55,7 @@ export class VyasaUiStack extends cdk.Stack {
         restrictPublicBuckets: true,
       }),
       encryption: s3.BucketEncryption.S3_MANAGED,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
       lifecycleRules: [
         {
           id: 'expire-logs',
@@ -112,7 +111,7 @@ export class VyasaUiStack extends cdk.Stack {
     // CloudFront Function: rewrite /api/foo -> /foo before forwarding to
     // the API Gateway origin. The Lambda routes have no /api prefix.
     const apiRewriteFn = new cloudfront.Function(this, 'ApiPrefixRewrite', {
-      functionName: `vyasa-api-rewrite-${config.envName}`,
+      functionName: `vyasa-api-rewrite-${config.envName}-v2`,
       code: cloudfront.FunctionCode.fromInline(
         `
 function handler(event) {
@@ -124,6 +123,13 @@ function handler(event) {
       ),
       runtime: cloudfront.FunctionRuntime.JS_2_0,
     });
+
+    const certificate = domainName
+      ? new acm.Certificate(this, 'VyasaUiCertificate', {
+          domainName,
+          validation: acm.CertificateValidation.fromDns(),
+        })
+      : undefined;
 
     const distribution = new cloudfront.Distribution(
       this,
@@ -137,6 +143,8 @@ function handler(event) {
         logFilePrefix: 'cf-access-logs/',
         httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
         minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+        domainNames: domainName ? [domainName] : undefined,
+        certificate,
         defaultBehavior: {
           origin: s3Origin,
           viewerProtocolPolicy:
@@ -185,9 +193,9 @@ function handler(event) {
     this.distributionDomainName = distribution.distributionDomainName;
 
     new logs.LogGroup(this, 'VyasaUiDeployLogGroup', {
-      logGroupName: `/vyasa/ui-deploy-${config.envName}`,
+      logGroupName: `/vyasa/ui-deploy-${config.envName}-v2`,
       retention: config.logRetentionDays as logs.RetentionDays,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     new cdk.CfnOutput(this, 'VyasaUiDistributionId', {

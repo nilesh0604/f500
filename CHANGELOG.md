@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Custom domain `vyasa.nshinde.xyz` for Vyasa UI CloudFront distribution** (`docs/adr/ADR-012-custom-domain-cloudfront.md`):
+  - `infra/config/environments.ts` — added `vyasaDomainName?: string` to `EnvironmentConfig` interface; set to `vyasa.nshinde.xyz` in prod config
+  - `infra/lib/vyasa-ui-stack.ts` — added `domainName` prop; ACM cert with DNS validation; `domainNames` + `certificate` on CloudFront distribution; renamed CF function + log group to avoid orphan conflicts; removed fixed bucket names
+  - `infra/bin/app.ts` — passes `config.vyasaDomainName` to `VyasaUiStack`; hardcoded API endpoint from `OrderFlow-Prod-VyasaRag` (cross-stack export workaround)
+  - New CloudFront distribution: `EP5RB7V8B8LOQ` / `d3qhic431njv7c.cloudfront.net`
+  - DNS: `vyasa CNAME → d3qhic431njv7c.cloudfront.net` in Namecheap
+  - Note: `.xyz` blocked by corp DNS on managed devices — use CloudFront URL for testing
+
 - **ADR-011: Cost optimisation — single env + right-sizing** (`docs/adr/ADR-011-single-env-cost-optimisation.md`):
   - RDS downsized `db.t3.medium` Multi-AZ → `db.t3.small` Single-AZ, 100 GB → 50 GB (saves ~$160/mo)
   - ECS `desiredCount` + `minCapacity` lowered from 2 → 1 per service (saves ~$65/mo)

@@ -35,6 +35,7 @@ export interface EnvironmentConfig {
   readonly cloudFrontPriceClass: string;
   readonly domainName?: string;
   readonly certificateArn?: string;
+  readonly vyasaDomainName?: string;
 
   readonly logRetentionDays: number;
   readonly enableDetailedMonitoring: boolean;
@@ -49,7 +50,7 @@ export interface EnvironmentConfig {
 export const config: EnvironmentConfig = {
   envName: 'prod',
   account: process.env.CDK_DEFAULT_ACCOUNT ?? '',
-  region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
+  region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1', // ACM certs for CloudFront require us-east-1
 
   vpcCidr: '10.0.0.0/16',
   maxAzs: 2,
@@ -81,6 +82,7 @@ export const config: EnvironmentConfig = {
   sqsMessageRetentionDays: 14,
 
   cloudFrontPriceClass: 'PriceClass_100',
+  vyasaDomainName: 'vyasa.nshinde.xyz',
   logRetentionDays: 90,
   enableDetailedMonitoring: true,
 
