@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dev sandbox deployed to `us-east-1`** — Vyasa-only stack at near-zero cost:
+  - `OrderFlow-dev-VyasaVector` — S3 Vectors bucket + index for Bedrock KB
+  - `OrderFlow-dev-VyasaRag` — Lambda + API Gateway (`https://lkbzhoe1pj.execute-api.us-east-1.amazonaws.com`)
+  - `OrderFlow-dev-VyasaUi` — CloudFront + S3 (`https://d2j5xbveesoc8s.cloudfront.net`)
+  - References existing DynamoDB tables and S3 buckets via `fromTableName`/`fromBucketName` (dev env)
+  - Hardcoded Bedrock KB ID `JGDXZQCA1Y` for dev (skips custom resource creation)
+  - `infra/bin/app.ts` — env-prefixed stack names (`OrderFlow-dev-*` for dev, `OrderFlow` for prod); wired VyasaUi API endpoint directly to VyasaRag stack output
+
+### Removed
+
+- **All prod stacks deleted** — `OrderFlow-VyasaUi`, `OrderFlow-Prod-VyasaRag`, `OrderFlow-Prod-VyasaVector`, `OrderFlow-Prod-VyasaUi` removed from `us-east-1`
+- **All `us-east-2` stacks deleted** — `OrderFlow-VyasaUi`, `OrderFlow-VyasaVector`, `OrderFlow-Network` removed (previous failed cross-region attempt)
+- **Orphaned dev stacks deleted** — `OrderFlow-Dev-VyasaRag`, `OrderFlow-Dev-VyasaVector` removed from `us-east-1`
+
+---
+
 - **Sandbox cost reduction plan** (`docs/SANDBOX_COST_REDUCTION_PLAN.md`): Dev config targeting ~$38/month (from ~$170/month):
   - `infra/config/environments.ts` — added 8 optional fields to `EnvironmentConfig` interface (`enableRedis`, `enableNotificationSvc`, `skipObservability`, `skipMonitoring`, `skipRollback`, `skipAppConfig`, `skipCdn`, `usePublicSubnets`); renamed `config` export to `prodConfig`; added `devConfig` (256/512 ECS, db.t3.micro 20 GB, no NAT GW, no Redis, no notification-svc, 7-day log retention); added `getConfig()` selector keyed on `CDK_ENV` env var; `config` re-exported via `getConfig()` for backward compatibility
   - `infra/lib/database-stack.ts` — wrapped ElastiCache Redis resources in `if (config.enableRedis !== false)` guard; emits `RedisEndpoint` CfnOutput only when Redis is created; sets `redisEndpoint`/`redisPort` to empty strings when disabled

@@ -46,7 +46,7 @@ const prodConfig: EnvironmentConfig = {
 const devConfig: EnvironmentConfig = {
   envName: 'dev',
   account: process.env.CDK_DEFAULT_ACCOUNT ?? '',
-  region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
+  region: 'us-east-1',
 
   vpcCidr: '10.1.0.0/16',
   maxAzs: 2,

@@ -33,127 +33,157 @@ export class VyasaLambdaStack extends cdk.Stack {
 
     const { config } = props;
 
-    // S3 Bucket for Mahabharata corpus (knowledge base data source)
-    this.corpusBucket = new s3.Bucket(this, 'CorpusBucket', {
-      bucketName: `vyasa-rag-corpus-${config.envName}-${this.account}`,
-      versioned: true,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      intelligentTieringConfigurations: [
-        {
-          name: 'ArchiveOldChunks',
-          archiveAccessTierTime: cdk.Duration.days(90),
-          deepArchiveAccessTierTime: cdk.Duration.days(180),
+    const corpusBucketName = `vyasa-rag-corpus-${config.envName}-${this.account}`;
+    const promptsBucketName = `vyasa-rag-prompts-${config.envName}-${this.account}`;
+
+    if (config.envName === 'prod') {
+      // S3 Bucket for Mahabharata corpus (knowledge base data source)
+      this.corpusBucket = new s3.Bucket(this, 'CorpusBucket', {
+        bucketName: corpusBucketName,
+        versioned: true,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        intelligentTieringConfigurations: [
+          {
+            name: 'ArchiveOldChunks',
+            archiveAccessTierTime: cdk.Duration.days(90),
+            deepArchiveAccessTierTime: cdk.Duration.days(180),
+          },
+        ],
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
+
+      // S3 Bucket for versioned prompts (system, ReAct, reflection)
+      this.promptsBucket = new s3.Bucket(this, 'PromptsBucket', {
+        bucketName: promptsBucketName,
+        versioned: true,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
+    } else {
+      this.corpusBucket = s3.Bucket.fromBucketName(
+        this,
+        'CorpusBucket',
+        corpusBucketName
+      ) as s3.Bucket;
+      this.promptsBucket = s3.Bucket.fromBucketName(
+        this,
+        'PromptsBucket',
+        promptsBucketName
+      ) as s3.Bucket;
+    }
+
+    if (config.envName === 'prod') {
+      // DynamoDB table for sessions (with TTL)
+      this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
+        tableName: `vyasa-rag-sessions-${config.envName}`,
+        partitionKey: {
+          name: 'session_id',
+          type: dynamodb.AttributeType.STRING,
         },
-      ],
-      removalPolicy:
-        config.envName === 'prod'
-          ? cdk.RemovalPolicy.RETAIN
-          : cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: config.envName !== 'prod',
-    });
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        timeToLiveAttribute: 'ttl',
+        pointInTimeRecovery: true,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
 
-    // S3 Bucket for versioned prompts (system, ReAct, reflection)
-    this.promptsBucket = new s3.Bucket(this, 'PromptsBucket', {
-      bucketName: `vyasa-rag-prompts-${config.envName}-${this.account}`,
-      versioned: true,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy:
-        config.envName === 'prod'
-          ? cdk.RemovalPolicy.RETAIN
-          : cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: config.envName !== 'prod',
-    });
-
-    // DynamoDB table for sessions (with TTL)
-    this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
-      tableName: `vyasa-rag-sessions-${config.envName}`,
-      partitionKey: { name: 'session_id', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: 'ttl',
-      pointInTimeRecovery: config.envName === 'prod',
-      removalPolicy:
-        config.envName === 'prod'
-          ? cdk.RemovalPolicy.RETAIN
-          : cdk.RemovalPolicy.DESTROY,
-    });
-
-    // DynamoDB table for rate limiting
-    this.rateLimitsTable = new dynamodb.Table(this, 'RateLimitsTable', {
-      tableName: `vyasa-rag-rate-limits-${config.envName}`,
-      partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: 'ttl',
-      removalPolicy:
-        config.envName === 'prod'
-          ? cdk.RemovalPolicy.RETAIN
-          : cdk.RemovalPolicy.DESTROY,
-    });
+      // DynamoDB table for rate limiting
+      this.rateLimitsTable = new dynamodb.Table(this, 'RateLimitsTable', {
+        tableName: `vyasa-rag-rate-limits-${config.envName}`,
+        partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        timeToLiveAttribute: 'ttl',
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
+    } else {
+      this.sessionsTable = dynamodb.Table.fromTableName(
+        this,
+        'SessionsTable',
+        `vyasa-rag-sessions-${config.envName}`
+      ) as dynamodb.Table;
+      this.rateLimitsTable = dynamodb.Table.fromTableName(
+        this,
+        'RateLimitsTable',
+        `vyasa-rag-rate-limits-${config.envName}`
+      ) as dynamodb.Table;
+    }
 
     const bedrockKbRole = props.bedrockKbRole;
 
-    // Lambda custom resource: creates Bedrock KB + data source via SDK
-    // (CloudFormation AWS::Bedrock::KnowledgeBase schema doesn't support S3_VECTORS yet)
-    const kbCreatorRole = new iam.Role(this, 'KbCreatorRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          'service-role/AWSLambdaBasicExecutionRole'
-        ),
-      ],
-    });
-    kbCreatorRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          'bedrock:CreateKnowledgeBase',
-          'bedrock:DeleteKnowledgeBase',
-          'bedrock:GetKnowledgeBase',
-          'bedrock:CreateDataSource',
-          'bedrock:DeleteDataSource',
-          'bedrock:ListDataSources',
+    const existingKbIds: Record<string, { kbId: string; dsId: string }> = {
+      dev: { kbId: 'JGDXZQCA1Y', dsId: '5DGY6OL5YG' },
+    };
+
+    let kbId: string;
+    let dsId: string;
+
+    if (existingKbIds[config.envName]) {
+      kbId = existingKbIds[config.envName].kbId;
+      dsId = existingKbIds[config.envName].dsId;
+    } else {
+      // Lambda custom resource: creates Bedrock KB + data source via SDK
+      // (CloudFormation AWS::Bedrock::KnowledgeBase schema doesn't support S3_VECTORS yet)
+      const kbCreatorRole = new iam.Role(this, 'KbCreatorRole', {
+        assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            'service-role/AWSLambdaBasicExecutionRole'
+          ),
         ],
-        resources: ['*'],
-      })
-    );
-    kbCreatorRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ['iam:PassRole'],
-        resources: [bedrockKbRole.roleArn],
-      })
-    );
+      });
+      kbCreatorRole.addToPolicy(
+        new iam.PolicyStatement({
+          actions: [
+            'bedrock:CreateKnowledgeBase',
+            'bedrock:DeleteKnowledgeBase',
+            'bedrock:GetKnowledgeBase',
+            'bedrock:CreateDataSource',
+            'bedrock:DeleteDataSource',
+            'bedrock:ListDataSources',
+          ],
+          resources: ['*'],
+        })
+      );
+      kbCreatorRole.addToPolicy(
+        new iam.PolicyStatement({
+          actions: ['iam:PassRole'],
+          resources: [bedrockKbRole.roleArn],
+        })
+      );
 
-    const kbCreatorFn = new lambda.Function(this, 'KbCreatorFn', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'index.handler',
-      role: kbCreatorRole,
-      timeout: cdk.Duration.minutes(10),
-      code: lambda.Code.fromAsset(path.join(__dirname, 'bedrock-kb-creator')),
-      environment: {
-        KB_NAME: `vyasa-rag-kb-${config.envName}`,
-        KB_ROLE_ARN: bedrockKbRole.roleArn,
-        EMBEDDING_MODEL_ARN: `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
-        VECTOR_BUCKET_ARN: `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${props.vectorBucketName}`,
-        VECTOR_INDEX_ARN: props.vectorIndexArn,
-        CORPUS_BUCKET_ARN: this.corpusBucket.bucketArn,
-        DS_NAME: `vyasa-rag-corpus-${config.envName}`,
-      },
-    });
+      const kbCreatorFn = new lambda.Function(this, 'KbCreatorFn', {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: 'index.handler',
+        role: kbCreatorRole,
+        timeout: cdk.Duration.minutes(10),
+        code: lambda.Code.fromAsset(path.join(__dirname, 'bedrock-kb-creator')),
+        environment: {
+          KB_NAME: `vyasa-rag-kb-${config.envName}`,
+          KB_ROLE_ARN: bedrockKbRole.roleArn,
+          EMBEDDING_MODEL_ARN: `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+          VECTOR_BUCKET_ARN: `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${props.vectorBucketName}`,
+          VECTOR_INDEX_ARN: props.vectorIndexArn,
+          CORPUS_BUCKET_ARN: this.corpusBucket.bucketArn,
+          DS_NAME: `vyasa-rag-corpus-${config.envName}`,
+        },
+      });
 
-    const kbProvider = new cr.Provider(this, 'KbProvider', {
-      onEventHandler: kbCreatorFn,
-    });
+      const kbProvider = new cr.Provider(this, 'KbProvider', {
+        onEventHandler: kbCreatorFn,
+      });
 
-    const kbResource = new cdk.CustomResource(this, 'VyasaKnowledgeBase', {
-      serviceToken: kbProvider.serviceToken,
-      properties: {
-        KbName: `vyasa-rag-kb-${config.envName}`,
-        VectorIndexArn: props.vectorIndexArn,
-      },
-    });
+      const kbResource = new cdk.CustomResource(this, 'VyasaKnowledgeBase', {
+        serviceToken: kbProvider.serviceToken,
+        properties: {
+          KbName: `vyasa-rag-kb-${config.envName}`,
+          VectorIndexArn: props.vectorIndexArn,
+        },
+      });
 
-    const kbId = kbResource.getAttString('KbId');
-    const dsId = kbResource.getAttString('DsId');
+      kbId = kbResource.getAttString('KbId');
+      dsId = kbResource.getAttString('DsId');
+    }
 
     // CloudWatch Log Group for Lambda
     const logGroup = new logs.LogGroup(this, 'LambdaLogGroup', {
@@ -179,10 +209,8 @@ export class VyasaLambdaStack extends cdk.Stack {
         PROMPTS_BUCKET: this.promptsBucket.bucketName,
         BEDROCK_KB_ID: kbId,
         BEDROCK_DS_ID: dsId,
-        BEDROCK_MODEL_ARN:
-          'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0',
-        EMBEDDING_MODEL_ARN:
-          'arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0',
+        BEDROCK_MODEL_ARN: `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
+        EMBEDDING_MODEL_ARN: `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
         MAX_AGENT_ITERATIONS: '3',
         SESSION_TTL_DAYS: '7',
         RATE_LIMIT_PER_MINUTE: '10',

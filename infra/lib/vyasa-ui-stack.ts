@@ -65,6 +65,7 @@ export class VyasaUiStack extends cdk.Stack {
     });
 
     const oac = new cloudfront.S3OriginAccessControl(this, 'VyasaUiOAC', {
+      originAccessControlName: `vyasa-ui-oac-${config.envName}`,
       description: `Vyasa UI ${config.envName} OAC`,
     });
 

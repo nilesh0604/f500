@@ -16,7 +16,8 @@ const env: cdk.Environment = {
   region: config.region || process.env.CDK_DEFAULT_REGION,
 };
 
-const stackPrefix = 'OrderFlow';
+const stackPrefix =
+  config.envName === 'prod' ? 'OrderFlow' : `OrderFlow-${config.envName}`;
 
 // Network stack (kept for VPC if needed by other services)
 const networkStack = new NetworkStack(app, `${stackPrefix}-Network`, {
@@ -52,11 +53,8 @@ const vyasaStack = new VyasaLambdaStack(app, `${stackPrefix}-VyasaRag`, {
 });
 vyasaStack.addDependency(vyasaVectorStack);
 
-// OrderFlow-VyasaRag not yet migrated from OrderFlow-Prod-VyasaRag.
-// Using the existing prod API endpoint directly until VyasaRag is redeployed.
 const vyasaApiEndpoint =
-  process.env.VYASA_API_ENDPOINT ??
-  'https://no24fwwtcl.execute-api.us-east-1.amazonaws.com';
+  process.env.VYASA_API_ENDPOINT ?? vyasaStack.functionUrl;
 
 // Vyasa UI stack
 const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
