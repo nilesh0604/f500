@@ -18,7 +18,7 @@ describe('NetworkStack', () => {
 
   it('creates a VPC with correct CIDR', () => {
     template.hasResourceProperties('AWS::EC2::VPC', {
-      CidrBlock: '10.0.0.0/16',
+      CidrBlock: '10.1.0.0/16',
       EnableDnsHostnames: true,
       EnableDnsSupport: true,
     });
@@ -28,8 +28,8 @@ describe('NetworkStack', () => {
     template.resourceCountIs('AWS::EC2::Subnet', 6);
   });
 
-  it('creates a NAT gateway for dev (1 NAT)', () => {
-    template.resourceCountIs('AWS::EC2::NatGateway', 1);
+  it('creates no NAT gateway for dev (0 NAT)', () => {
+    template.resourceCountIs('AWS::EC2::NatGateway', 0);
   });
 
   it('creates ALB security group with port 80 and 443 ingress', () => {

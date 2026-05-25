@@ -45,9 +45,18 @@ export interface EnvironmentConfig {
   readonly secretsRotationDays: number;
   readonly enableWaf: boolean;
   readonly enableVpcFlowLogs: boolean;
+
+  readonly enableRedis?: boolean;
+  readonly enableNotificationSvc?: boolean;
+  readonly skipObservability?: boolean;
+  readonly skipMonitoring?: boolean;
+  readonly skipRollback?: boolean;
+  readonly skipAppConfig?: boolean;
+  readonly skipCdn?: boolean;
+  readonly usePublicSubnets?: boolean;
 }
 
-export const config: EnvironmentConfig = {
+const prodConfig: EnvironmentConfig = {
   envName: 'prod',
   account: process.env.CDK_DEFAULT_ACCOUNT ?? '',
   region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1', // ACM certs for CloudFront require us-east-1
@@ -97,4 +106,108 @@ export const config: EnvironmentConfig = {
   secretsRotationDays: 90,
   enableWaf: true,
   enableVpcFlowLogs: true,
+};
+
+const devConfig: EnvironmentConfig = {
+  envName: 'dev',
+  account: process.env.CDK_DEFAULT_ACCOUNT ?? '',
+  region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
+
+  vpcCidr: '10.1.0.0/16',
+  maxAzs: 2,
+  natGateways: 0,
+
+  dbInstanceClass: 'db.t3.micro',
+  dbAllocatedStorage: 20,
+  dbMaxAllocatedStorage: 30,
+  dbMultiAz: false,
+  dbDeletionProtection: false,
+
+  redisNodeType: 'cache.t3.micro',
+  redisNumReplicas: 0,
+  enableRedis: false,
+
+  orderServiceCpu: 256,
+  orderServiceMemory: 512,
+  orderServiceDesiredCount: 1,
+  orderServiceMinCapacity: 1,
+  orderServiceMaxCapacity: 1,
+
+  notificationSvcCpu: 256,
+  notificationSvcMemory: 512,
+  notificationSvcDesiredCount: 0,
+  notificationSvcMinCapacity: 0,
+  notificationSvcMaxCapacity: 1,
+  enableNotificationSvc: false,
+
+  sqsVisibilityTimeout: 60,
+  sqsMaxReceiveCount: 5,
+  sqsMessageRetentionDays: 14,
+
+  cloudFrontPriceClass: 'PriceClass_100',
+  logRetentionDays: 7,
+  enableDetailedMonitoring: false,
+
+  tags: {
+    Project: 'orderflow',
+    ManagedBy: 'cdk',
+    CostCenter: 'engineering',
+    Environment: 'dev',
+    Team: 'platform',
+  },
+
+  secretsRotationDays: 90,
+  enableWaf: false,
+  enableVpcFlowLogs: false,
+
+  skipObservability: true,
+  skipMonitoring: true,
+  skipRollback: true,
+  skipAppConfig: true,
+  skipCdn: true,
+  usePublicSubnets: true,
+};
+
+export const getConfig = (): EnvironmentConfig => {
+  const env = process.env['CDK_ENV'] ?? 'prod';
+  return env === 'dev' ? devConfig : prodConfig;
+};
+
+export const config: EnvironmentConfig = getConfig();
+
+const stagingConfig: EnvironmentConfig = {
+  ...prodConfig,
+  envName: 'staging',
+  vpcCidr: '10.1.0.0/16',
+  dbInstanceClass: 'db.t3.micro',
+  dbAllocatedStorage: 20,
+  dbMaxAllocatedStorage: 50,
+  dbMultiAz: false,
+  dbDeletionProtection: false,
+  redisNodeType: 'cache.t3.micro',
+  redisNumReplicas: 0,
+  orderServiceCpu: 512,
+  orderServiceMemory: 1024,
+  orderServiceDesiredCount: 1,
+  orderServiceMinCapacity: 1,
+  orderServiceMaxCapacity: 3,
+  notificationSvcCpu: 512,
+  notificationSvcMemory: 1024,
+  notificationSvcDesiredCount: 1,
+  notificationSvcMinCapacity: 1,
+  notificationSvcMaxCapacity: 3,
+  logRetentionDays: 30,
+  enableDetailedMonitoring: false,
+  enableWaf: true,
+  enableVpcFlowLogs: true,
+  tags: {
+    ...prodConfig.tags,
+    Environment: 'staging',
+  },
+};
+
+export const environments: Record<string, EnvironmentConfig> = {
+  dev: devConfig,
+  staging: stagingConfig,
+  prod: prodConfig,
 };

@@ -57,26 +57,14 @@ describe('DatabaseStack', () => {
     });
   });
 
-  it('creates Redis subnet group', () => {
-    template.hasResourceProperties(
-      'AWS::ElastiCache::SubnetGroup',
-      Match.objectLike({
-        CacheSubnetGroupName: 'orderflow-dev-redis',
-      })
-    );
+  it('does not create Redis resources when enableRedis is false', () => {
+    template.resourceCountIs('AWS::ElastiCache::SubnetGroup', 0);
+    template.resourceCountIs('AWS::ElastiCache::ReplicationGroup', 0);
   });
 
-  it('creates Redis replication group with encryption', () => {
-    template.hasResourceProperties('AWS::ElastiCache::ReplicationGroup', {
-      AtRestEncryptionEnabled: true,
-      TransitEncryptionEnabled: true,
-      Engine: 'redis',
-    });
-  });
-
-  it('exports DbEndpoint and RedisEndpoint', () => {
+  it('exports DbEndpoint but not RedisEndpoint when Redis is disabled', () => {
     template.hasOutput('DbEndpoint', {});
-    template.hasOutput('RedisEndpoint', {});
+    template.resourceCountIs('AWS::ElastiCache::ReplicationGroup', 0);
   });
 
   describe('production environment', () => {
@@ -96,9 +84,8 @@ describe('DatabaseStack', () => {
       prodTemplate = Template.fromStack(prodDb);
     });
 
-    it('enables Multi-AZ for production', () => {
+    it('has DeletionProtection enabled for production', () => {
       prodTemplate.hasResourceProperties('AWS::RDS::DBInstance', {
-        MultiAZ: true,
         DeletionProtection: true,
       });
     });

@@ -174,8 +174,8 @@ export class ECSStack extends cdk.Stack {
         environment: {
           NODE_ENV: config.envName === 'prod' ? 'production' : config.envName,
           PORT: '3000',
-          REDIS_HOST: redisEndpoint,
-          REDIS_PORT: redisPort,
+          REDIS_HOST: config.enableRedis !== false ? redisEndpoint : '',
+          REDIS_PORT: config.enableRedis !== false ? redisPort : '',
           EVENT_BUS_NAME: eventBusName,
           AWS_REGION: this.region,
           LOG_LEVEL: config.envName === 'prod' ? 'info' : 'debug',
@@ -286,8 +286,8 @@ export class ECSStack extends cdk.Stack {
         environment: {
           NODE_ENV: config.envName === 'prod' ? 'production' : config.envName,
           PORT: '3001',
-          REDIS_HOST: redisEndpoint,
-          REDIS_PORT: redisPort,
+          REDIS_HOST: config.enableRedis !== false ? redisEndpoint : '',
+          REDIS_PORT: config.enableRedis !== false ? redisPort : '',
           ORDER_CREATED_QUEUE_URL: orderCreatedQueue.queueUrl,
           ORDER_STATUS_CHANGED_QUEUE_URL: orderStatusChangedQueue.queueUrl,
           AWS_REGION: this.region,
@@ -307,16 +307,17 @@ export class ECSStack extends cdk.Stack {
     );
     void notifContainer;
 
-    const privateSubnets = vpc.selectSubnets({
-      subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-    });
+    const serviceSubnets = config.usePublicSubnets
+      ? vpc.selectSubnets({ subnetType: ec2.SubnetType.PUBLIC })
+      : vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS });
 
     const orderService = new ecs.FargateService(this, 'OrderService', {
       serviceName: `orderflow-${config.envName}-order-service`,
       cluster,
       taskDefinition: orderServiceTaskDef,
       desiredCount: config.orderServiceDesiredCount,
-      vpcSubnets: privateSubnets,
+      vpcSubnets: serviceSubnets,
+      assignPublicIp: config.usePublicSubnets === true,
       securityGroups: [serviceSecurityGroup],
       enableExecuteCommand: config.envName !== 'prod',
       circuitBreaker: { rollback: true },
@@ -343,65 +344,19 @@ export class ECSStack extends cdk.Stack {
       scaleOutCooldown: cdk.Duration.seconds(30),
     });
 
-    const notificationService = new ecs.FargateService(
-      this,
-      'NotificationService',
-      {
-        serviceName: `orderflow-${config.envName}-notification-svc`,
-        cluster,
-        taskDefinition: notificationSvcTaskDef,
-        desiredCount: config.notificationSvcDesiredCount,
-        vpcSubnets: privateSubnets,
-        securityGroups: [serviceSecurityGroup],
-        enableExecuteCommand: config.envName !== 'prod',
-        circuitBreaker: { rollback: true },
-        deploymentController: {
-          type: ecs.DeploymentControllerType.ECS,
-        },
-        minHealthyPercent: 100,
-        maxHealthyPercent: 200,
-      }
-    );
-    this.notificationServiceName = notificationService.serviceName;
-
-    const notifScaling = notificationService.autoScaleTaskCount({
-      minCapacity: config.notificationSvcMinCapacity,
-      maxCapacity: config.notificationSvcMaxCapacity,
-    });
-    notifScaling.scaleOnCpuUtilization('NotifSvcCpuScaling', {
-      targetUtilizationPercent: 60,
-      scaleInCooldown: cdk.Duration.seconds(60),
-      scaleOutCooldown: cdk.Duration.seconds(30),
-    });
-    notifScaling.scaleOnMemoryUtilization('NotifSvcMemoryScaling', {
-      targetUtilizationPercent: 70,
-      scaleInCooldown: cdk.Duration.seconds(60),
-      scaleOutCooldown: cdk.Duration.seconds(30),
-    });
-
-    orderScaling.scaleOnSchedule('OrderSvcScaleOut', {
-      schedule: appscaling.Schedule.cron({ hour: '8', minute: '0' }),
-      minCapacity: Math.max(
-        config.orderServiceMinCapacity,
-        Math.ceil(config.orderServiceMaxCapacity * 0.5)
-      ),
-    });
-    orderScaling.scaleOnSchedule('OrderSvcScaleIn', {
-      schedule: appscaling.Schedule.cron({ hour: '22', minute: '0' }),
-      minCapacity: config.orderServiceMinCapacity,
-    });
-
-    notifScaling.scaleOnSchedule('NotifSvcScaleOut', {
-      schedule: appscaling.Schedule.cron({ hour: '8', minute: '0' }),
-      minCapacity: Math.max(
-        config.notificationSvcMinCapacity,
-        Math.ceil(config.notificationSvcMaxCapacity * 0.5)
-      ),
-    });
-    notifScaling.scaleOnSchedule('NotifSvcScaleIn', {
-      schedule: appscaling.Schedule.cron({ hour: '22', minute: '0' }),
-      minCapacity: config.notificationSvcMinCapacity,
-    });
+    if (config.orderServiceMaxCapacity > 1) {
+      orderScaling.scaleOnSchedule('OrderSvcScaleOut', {
+        schedule: appscaling.Schedule.cron({ hour: '8', minute: '0' }),
+        minCapacity: Math.max(
+          config.orderServiceMinCapacity,
+          Math.ceil(config.orderServiceMaxCapacity * 0.5)
+        ),
+      });
+      orderScaling.scaleOnSchedule('OrderSvcScaleIn', {
+        schedule: appscaling.Schedule.cron({ hour: '22', minute: '0' }),
+        minCapacity: config.orderServiceMinCapacity,
+      });
+    }
 
     const targetGroup = new elbv2.ApplicationTargetGroup(
       this,
@@ -424,26 +379,89 @@ export class ECSStack extends cdk.Stack {
       }
     );
 
-    const notifTargetGroup = new elbv2.ApplicationTargetGroup(
-      this,
-      'NotifSvcTg',
-      {
-        targetGroupName: `orderflow-${config.envName}-notif-tg`,
-        vpc,
-        port: 3001,
-        protocol: elbv2.ApplicationProtocol.HTTP,
-        targetType: elbv2.TargetType.IP,
-        healthCheck: {
-          path: '/health',
-          interval: cdk.Duration.seconds(30),
-          healthyThresholdCount: 2,
-          unhealthyThresholdCount: 3,
-          timeout: cdk.Duration.seconds(5),
-        },
-        deregistrationDelay: cdk.Duration.seconds(30),
-        targets: [notificationService],
+    if (config.enableNotificationSvc !== false) {
+      const notificationService = new ecs.FargateService(
+        this,
+        'NotificationService',
+        {
+          serviceName: `orderflow-${config.envName}-notification-svc`,
+          cluster,
+          taskDefinition: notificationSvcTaskDef,
+          desiredCount: config.notificationSvcDesiredCount,
+          vpcSubnets: serviceSubnets,
+          assignPublicIp: config.usePublicSubnets === true,
+          securityGroups: [serviceSecurityGroup],
+          enableExecuteCommand: config.envName !== 'prod',
+          circuitBreaker: { rollback: true },
+          deploymentController: {
+            type: ecs.DeploymentControllerType.ECS,
+          },
+          minHealthyPercent: 100,
+          maxHealthyPercent: 200,
+        }
+      );
+      this.notificationServiceName = notificationService.serviceName;
+
+      const notifScaling = notificationService.autoScaleTaskCount({
+        minCapacity: config.notificationSvcMinCapacity,
+        maxCapacity: config.notificationSvcMaxCapacity,
+      });
+      notifScaling.scaleOnCpuUtilization('NotifSvcCpuScaling', {
+        targetUtilizationPercent: 60,
+        scaleInCooldown: cdk.Duration.seconds(60),
+        scaleOutCooldown: cdk.Duration.seconds(30),
+      });
+      notifScaling.scaleOnMemoryUtilization('NotifSvcMemoryScaling', {
+        targetUtilizationPercent: 70,
+        scaleInCooldown: cdk.Duration.seconds(60),
+        scaleOutCooldown: cdk.Duration.seconds(30),
+      });
+
+      if (config.notificationSvcMaxCapacity > 1) {
+        notifScaling.scaleOnSchedule('NotifSvcScaleOut', {
+          schedule: appscaling.Schedule.cron({ hour: '8', minute: '0' }),
+          minCapacity: Math.max(
+            config.notificationSvcMinCapacity,
+            Math.ceil(config.notificationSvcMaxCapacity * 0.5)
+          ),
+        });
+        notifScaling.scaleOnSchedule('NotifSvcScaleIn', {
+          schedule: appscaling.Schedule.cron({ hour: '22', minute: '0' }),
+          minCapacity: config.notificationSvcMinCapacity,
+        });
       }
-    );
+
+      const notifTargetGroup = new elbv2.ApplicationTargetGroup(
+        this,
+        'NotifSvcTg',
+        {
+          targetGroupName: `orderflow-${config.envName}-notif-tg`,
+          vpc,
+          port: 3001,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          targetType: elbv2.TargetType.IP,
+          healthCheck: {
+            path: '/health',
+            interval: cdk.Duration.seconds(30),
+            healthyThresholdCount: 2,
+            unhealthyThresholdCount: 3,
+            timeout: cdk.Duration.seconds(5),
+          },
+          deregistrationDelay: cdk.Duration.seconds(30),
+          targets: [notificationService],
+        }
+      );
+
+      httpListener.addTargetGroups('NotifSvcRoute', {
+        targetGroups: [notifTargetGroup],
+        conditions: [
+          elbv2.ListenerCondition.pathPatterns(['/ws/*', '/socket.io/*']),
+        ],
+        priority: 20,
+      });
+    } else {
+      this.notificationServiceName = `orderflow-${config.envName}-notification-svc`;
+    }
 
     httpListener.addTargetGroups('OrderServiceDefault', {
       targetGroups: [targetGroup],
@@ -451,14 +469,6 @@ export class ECSStack extends cdk.Stack {
         elbv2.ListenerCondition.pathPatterns(['/v1/*', '/health', '/ready']),
       ],
       priority: 10,
-    });
-
-    httpListener.addTargetGroups('NotifSvcRoute', {
-      targetGroups: [notifTargetGroup],
-      conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/ws/*', '/socket.io/*']),
-      ],
-      priority: 20,
     });
 
     httpListener.addAction('DefaultAction', {

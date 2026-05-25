@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { config } from '../config/environments';
+import { getConfig } from '../config/environments';
 import { NetworkStack } from '../lib/network-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { EventStack } from '../lib/event-stack';
@@ -17,6 +17,8 @@ import { VyasaVectorStack } from '../lib/vyasa-vector-stack';
 import { VyasaUiStack } from '../lib/vyasa-ui-stack';
 
 const app = new cdk.App();
+
+const config = getConfig();
 
 const env: cdk.Environment = {
   account: config.account || process.env.CDK_DEFAULT_ACCOUNT,
@@ -81,75 +83,89 @@ ecsStack.addDependency(databaseStack);
 ecsStack.addDependency(eventStack);
 ecsStack.addDependency(securityStack);
 
-const cdnStack = new CDNStack(app, `${stackPrefix}-CDN`, {
-  env,
-  config,
-  albDnsName: ecsStack.albDnsName,
-  description: 'OrderFlow — CloudFront CDN, S3 frontend bucket',
-  terminationProtection: true,
-});
-cdnStack.addDependency(ecsStack);
-
-const monitoringStack = new MonitoringStack(app, `${stackPrefix}-Monitoring`, {
-  env,
-  config,
-  orderServiceName: ecsStack.orderServiceName,
-  notificationServiceName: ecsStack.notificationServiceName,
-  clusterName: ecsStack.clusterName,
-  albFullName: ecsStack.albFullName,
-  dbIdentifier: databaseStack.dbIdentifier,
-  orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
-  orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
-  orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
-  orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
-  description: 'OrderFlow — CloudWatch dashboards, alarms',
-  terminationProtection: true,
-});
-monitoringStack.addDependency(ecsStack);
-monitoringStack.addDependency(databaseStack);
-monitoringStack.addDependency(eventStack);
-
-const observabilityStack = new ObservabilityStack(
-  app,
-  `${stackPrefix}-Observability`,
-  {
+if (!config.skipCdn) {
+  const cdnStack = new CDNStack(app, `${stackPrefix}-CDN`, {
     env,
     config,
+    albDnsName: ecsStack.albDnsName,
+    description: 'OrderFlow — CloudFront CDN, S3 frontend bucket',
+    terminationProtection: true,
+  });
+  cdnStack.addDependency(ecsStack);
+}
+
+if (!config.skipMonitoring) {
+  const monitoringStack = new MonitoringStack(
+    app,
+    `${stackPrefix}-Monitoring`,
+    {
+      env,
+      config,
+      orderServiceName: ecsStack.orderServiceName,
+      notificationServiceName: ecsStack.notificationServiceName,
+      clusterName: ecsStack.clusterName,
+      albFullName: ecsStack.albFullName,
+      dbIdentifier: databaseStack.dbIdentifier,
+      orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
+      orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
+      orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
+      orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
+      description: 'OrderFlow — CloudWatch dashboards, alarms',
+      terminationProtection: true,
+    }
+  );
+  monitoringStack.addDependency(ecsStack);
+  monitoringStack.addDependency(databaseStack);
+  monitoringStack.addDependency(eventStack);
+}
+
+if (!config.skipObservability) {
+  const observabilityStack = new ObservabilityStack(
+    app,
+    `${stackPrefix}-Observability`,
+    {
+      env,
+      config,
+      orderServiceName: ecsStack.orderServiceName,
+      notificationServiceName: ecsStack.notificationServiceName,
+      clusterName: ecsStack.clusterName,
+      albFullName: ecsStack.albFullName,
+      albDnsName: ecsStack.albDnsName,
+      dbIdentifier: databaseStack.dbIdentifier,
+      orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
+      orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
+      orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
+      orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
+      description: 'OrderFlow — Observability (X-Ray, Synthetics, SLO alarms)',
+      terminationProtection: true,
+    }
+  );
+  observabilityStack.addDependency(ecsStack);
+  observabilityStack.addDependency(databaseStack);
+  observabilityStack.addDependency(eventStack);
+}
+
+if (!config.skipAppConfig) {
+  new AppConfigStack(app, `${stackPrefix}-AppConfig`, {
+    env,
+    config,
+    description: 'OrderFlow — AppConfig feature flags and dynamic config',
+    terminationProtection: true,
+  });
+}
+
+if (!config.skipRollback) {
+  const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
+    env,
+    config,
+    clusterName: ecsStack.clusterName,
     orderServiceName: ecsStack.orderServiceName,
     notificationServiceName: ecsStack.notificationServiceName,
-    clusterName: ecsStack.clusterName,
-    albFullName: ecsStack.albFullName,
-    albDnsName: ecsStack.albDnsName,
-    dbIdentifier: databaseStack.dbIdentifier,
-    orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
-    orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
-    orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
-    orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
-    description: 'OrderFlow — Observability (X-Ray, Synthetics, SLO alarms)',
+    description: 'OrderFlow — Auto-rollback Lambda and CloudWatch alarms',
     terminationProtection: true,
-  }
-);
-observabilityStack.addDependency(ecsStack);
-observabilityStack.addDependency(databaseStack);
-observabilityStack.addDependency(eventStack);
-
-const appConfigStack = new AppConfigStack(app, `${stackPrefix}-AppConfig`, {
-  env,
-  config,
-  description: 'OrderFlow — AppConfig feature flags and dynamic config',
-  terminationProtection: true,
-});
-
-const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
-  env,
-  config,
-  clusterName: ecsStack.clusterName,
-  orderServiceName: ecsStack.orderServiceName,
-  notificationServiceName: ecsStack.notificationServiceName,
-  description: 'OrderFlow — Auto-rollback Lambda and CloudWatch alarms',
-  terminationProtection: true,
-});
-rollbackStack.addDependency(ecsStack);
+  });
+  rollbackStack.addDependency(ecsStack);
+}
 
 const vyasaVectorStack = new VyasaVectorStack(
   app,
@@ -191,5 +207,5 @@ const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
 });
 
 cdk.Tags.of(app).add('Project', 'orderflow');
-cdk.Tags.of(app).add('Environment', 'prod');
+cdk.Tags.of(app).add('Environment', config.envName);
 cdk.Tags.of(app).add('ManagedBy', 'cdk');

@@ -97,49 +97,55 @@ export class DatabaseStack extends cdk.Stack {
     this.dbPort = dbInstance.instanceEndpoint.port.toString();
     this.dbIdentifier = dbInstance.instanceIdentifier;
 
-    const redisSubnetGroup = new elasticache.CfnSubnetGroup(
-      this,
-      'RedisSubnetGroup',
-      {
-        description: `OrderFlow ${config.envName} Redis subnet group`,
-        subnetIds: isolatedSubnets.subnetIds,
-        cacheSubnetGroupName: `orderflow-${config.envName}-redis`,
-      }
-    );
+    if (config.enableRedis !== false) {
+      const redisSubnetGroup = new elasticache.CfnSubnetGroup(
+        this,
+        'RedisSubnetGroup',
+        {
+          description: `OrderFlow ${config.envName} Redis subnet group`,
+          subnetIds: isolatedSubnets.subnetIds,
+          cacheSubnetGroupName: `orderflow-${config.envName}-redis`,
+        }
+      );
 
-    const redisCluster = new elasticache.CfnReplicationGroup(
-      this,
-      'RedisCluster',
-      {
-        replicationGroupDescription: `OrderFlow ${config.envName} Redis`,
-        numCacheClusters: config.redisNumReplicas + 1,
-        cacheNodeType: config.redisNodeType,
-        engine: 'redis',
-        engineVersion: '7.1',
-        cacheSubnetGroupName: redisSubnetGroup.ref,
-        securityGroupIds: [redisSecurityGroup.securityGroupId],
-        atRestEncryptionEnabled: true,
-        transitEncryptionEnabled: true,
-        automaticFailoverEnabled: config.redisNumReplicas > 0,
-        multiAzEnabled: config.redisNumReplicas > 0,
-        autoMinorVersionUpgrade: true,
-        snapshotRetentionLimit: config.envName === 'prod' ? 7 : 1,
-      }
-    );
-    redisCluster.addDependency(redisSubnetGroup);
+      const redisCluster = new elasticache.CfnReplicationGroup(
+        this,
+        'RedisCluster',
+        {
+          replicationGroupDescription: `OrderFlow ${config.envName} Redis`,
+          numCacheClusters: config.redisNumReplicas + 1,
+          cacheNodeType: config.redisNodeType,
+          engine: 'redis',
+          engineVersion: '7.1',
+          cacheSubnetGroupName: redisSubnetGroup.ref,
+          securityGroupIds: [redisSecurityGroup.securityGroupId],
+          atRestEncryptionEnabled: true,
+          transitEncryptionEnabled: true,
+          automaticFailoverEnabled: config.redisNumReplicas > 0,
+          multiAzEnabled: config.redisNumReplicas > 0,
+          autoMinorVersionUpgrade: true,
+          snapshotRetentionLimit: config.envName === 'prod' ? 7 : 1,
+        }
+      );
+      redisCluster.addDependency(redisSubnetGroup);
 
-    this.redisEndpoint = redisCluster.attrPrimaryEndPointAddress;
-    this.redisPort = redisCluster.attrPrimaryEndPointPort;
+      this.redisEndpoint = redisCluster.attrPrimaryEndPointAddress;
+      this.redisPort = redisCluster.attrPrimaryEndPointPort;
+
+      new cdk.CfnOutput(this, 'RedisEndpoint', {
+        value: this.redisEndpoint,
+        exportName: `${id}-RedisEndpoint`,
+        description: 'ElastiCache Redis endpoint',
+      });
+    } else {
+      this.redisEndpoint = '';
+      this.redisPort = '';
+    }
 
     new cdk.CfnOutput(this, 'DbEndpoint', {
       value: this.dbEndpoint,
       exportName: `${id}-DbEndpoint`,
       description: 'RDS PostgreSQL endpoint',
-    });
-    new cdk.CfnOutput(this, 'RedisEndpoint', {
-      value: this.redisEndpoint,
-      exportName: `${id}-RedisEndpoint`,
-      description: 'ElastiCache Redis endpoint',
     });
     new cdk.CfnOutput(this, 'DbSecretArn', {
       value: this.dbSecret.secretArn,
