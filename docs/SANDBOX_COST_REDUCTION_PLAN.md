@@ -234,6 +234,72 @@ curl http://<ALB_DNS>/v1/orders
 
 ---
 
+## Current Deployed Infrastructure (as of 2026-05-25)
+
+**Region:** `us-east-1` | **Account:** `947612421212` | **Env:** `dev`
+
+### Active CloudFormation Stacks
+
+| Stack                       | Key Resources                                                                                                                             | Purpose                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `OrderFlow-dev-VyasaVector` | S3 Vectors bucket (`vyasa-vectors-dev-947612421212`), index (`vyasa-index-dev`), IAM role (`vyasa-rag-kb-role-dev`)                       | Vector storage for Bedrock KB |
+| `OrderFlow-dev-VyasaRag`    | Lambda (`vyasa-rag-dev`), API Gateway (`lkbzhoe1pj`), DynamoDB (`vyasa-rag-sessions-dev`, `vyasa-rag-rate-limits-dev`), CloudWatch alarms | RAG backend                   |
+| `OrderFlow-dev-VyasaUi`     | S3 bucket, CloudFront (`E1W56P4E23UU5Y` / `d2j5xbveesoc8s.cloudfront.net`), OAC, CF Function                                              | Frontend hosting              |
+
+### Endpoints
+
+| Service           | URL                                                           |
+| ----------------- | ------------------------------------------------------------- |
+| **Frontend (UI)** | https://d2j5xbveesoc8s.cloudfront.net                         |
+| **Backend (API)** | https://lkbzhoe1pj.execute-api.us-east-1.amazonaws.com        |
+| **Health check**  | https://lkbzhoe1pj.execute-api.us-east-1.amazonaws.com/health |
+
+### External Resources (not in stacks, referenced by ID)
+
+| Resource            | ID                                   | Notes                                         |
+| ------------------- | ------------------------------------ | --------------------------------------------- |
+| Bedrock KB          | `OYAKPT9RLA`                         | S3 Vectors storage, Titan Embed v2            |
+| Bedrock Data Source | `B2VQSKC6IS`                         | Points to `vyasa-rag-corpus-dev-947612421212` |
+| S3 corpus bucket    | `vyasa-rag-corpus-dev-947612421212`  | Retained from previous stack                  |
+| S3 prompts bucket   | `vyasa-rag-prompts-dev-947612421212` | Retained from previous stack                  |
+
+### Estimated Monthly Cost
+
+| Resource                          | Free Tier                   | Monthly Cost    | Notes                                     |
+| --------------------------------- | --------------------------- | --------------- | ----------------------------------------- |
+| Lambda (1024 MB, ARM64)           | 1M requests + 400K GB-sec   | **$0.00**       | ~100 requests/month well within free tier |
+| API Gateway HTTP                  | 1M requests                 | **$0.00**       | Covered by free tier                      |
+| DynamoDB (on-demand)              | 25 RCU/WCU + 25GB           | **$0.00**       | Minimal reads/writes                      |
+| S3 (corpus + prompts + UI)        | 5GB + 20K GET               | **~$0.05**      | Small static files                        |
+| CloudFront                        | 1TB transfer + 10M requests | **$0.00**       | Covered by free tier                      |
+| S3 Vectors                        | —                           | **~$0.25**      | Storage for vector index                  |
+| Bedrock Nova Pro (inference)      | —                           | **~$0.50–5.00** | Pay-per-token; depends on usage           |
+| Bedrock Titan Embed (embeddings)  | —                           | **~$0.01**      | Minimal at 100 req/month                  |
+| CloudWatch Logs (7-day retention) | 5GB ingest                  | **$0.00**       | Minimal volume                            |
+| **TOTAL**                         |                             | **~$1–6/month** | At 100 requests/month                     |
+
+### Deployment Commands
+
+```bash
+export CDK_ENV=dev
+cd infra && npx cdk deploy OrderFlow-dev-VyasaRag OrderFlow-dev-VyasaUi --require-approval broadening
+
+# Build & sync UI
+cd apps/vyasa-ui && npm run build
+aws s3 sync dist/ s3://orderflow-dev-vyasaui-vyasauibucket7b9068a5-eegjs5vw5mij --delete
+aws cloudfront create-invalidation --distribution-id E1W56P4E23UU5Y --paths "/*"
+```
+
+---
+
+## Previous Plan (Superseded)
+
+The original plan below targeted ~$38/month with ECS/RDS/order-service right-sizing.
+The actual implementation went further — **removed all ECS/RDS/Redis/ALB** and deployed
+a serverless-only Vyasa RAG stack at **~$1–6/month**.
+
+---
+
 ## Optional Further Savings (if needed)
 
 | Option                                            | Saves     | Trade-off                                           |
