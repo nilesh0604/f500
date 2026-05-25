@@ -1,55 +1,16 @@
 # Docker Compose for OrderFlow Local Development
-# Includes: PostgreSQL, Redis, LocalStack (AWS emulation), and both services
+# Includes: LocalStack (AWS emulation) for Vyasa services
 
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:16-alpine
-    container_name: orderflow-postgres
-    hostname: postgres
-    environment:
-      POSTGRES_USER: orderflow
-      POSTGRES_PASSWORD: orderflow
-      POSTGRES_DB: orderflow_dev
-    ports:
-      - '5433:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U orderflow -d orderflow_dev']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - orderflow-network
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: orderflow-redis
-    hostname: redis
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      - orderflow-network
-
   # LocalStack (AWS Services Emulation)
   localstack:
     image: localstack/localstack:3.8.1
     container_name: orderflow-localstack
     hostname: localstack
     environment:
-      - SERVICES=sqs,events,secretsmanager
+      - SERVICES=s3,bedrock
       - DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
@@ -61,7 +22,6 @@ services:
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock'
       - localstack_data:/var/lib/localstack
-      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
       interval: 10s
@@ -70,78 +30,7 @@ services:
     networks:
       - orderflow-network
 
-  # Order Service
-  order-service:
-    build:
-      context: .
-      dockerfile: apps/order-service/Dockerfile.prod
-    container_name: orderflow-order-service
-    hostname: order-service
-    environment:
-      NODE_ENV: development
-      PORT: 3001
-      DATABASE_URL: postgresql://orderflow:orderflow@postgres:5432/orderflow_dev
-      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
-      JWT_ACCESS_EXPIRES_IN: 15m
-      JWT_REFRESH_EXPIRES_IN: 7d
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      EVENT_BUS_NAME: orderflow-event-bus
-      LOCALSTACK_ENDPOINT: http://localstack:4566
-      CORS_ORIGIN: http://localhost:4200
-    ports:
-      - '3001:3001'
-    depends_on:
-      postgres:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    networks:
-      - orderflow-network
-    healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:3001/health']
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-  # Notification Service
-  notification-svc:
-    build:
-      context: .
-      dockerfile: apps/notification-svc/Dockerfile.prod
-    container_name: orderflow-notification-svc
-    hostname: notification-svc
-    environment:
-      NODE_ENV: development
-      PORT: 3002
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      SQS_QUEUE_URL: http://localstack:4566/000000000000/orderflow-notifications
-      LOCALSTACK_ENDPOINT: http://localstack:4566
-      CORS_ORIGIN: http://localhost:4200
-    ports:
-      - '3002:3002'
-    depends_on:
-      localstack:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - orderflow-network
-    healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:3002/health']
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
 volumes:
-  postgres_data:
-  redis_data:
   localstack_data:
 
 networks:

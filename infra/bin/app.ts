@@ -3,15 +3,6 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { getConfig } from '../config/environments';
 import { NetworkStack } from '../lib/network-stack';
-import { DatabaseStack } from '../lib/database-stack';
-import { EventStack } from '../lib/event-stack';
-import { SecurityStack } from '../lib/security-stack';
-import { ECSStack } from '../lib/ecs-stack';
-import { CDNStack } from '../lib/cdn-stack';
-import { MonitoringStack } from '../lib/monitoring-stack';
-import { ObservabilityStack } from '../lib/observability-stack';
-import { AppConfigStack } from '../lib/appconfig-stack';
-import { RollbackStack } from '../lib/rollback-stack';
 import { VyasaLambdaStack } from '../lib/vyasa-lambda-stack';
 import { VyasaVectorStack } from '../lib/vyasa-vector-stack';
 import { VyasaUiStack } from '../lib/vyasa-ui-stack';
@@ -27,146 +18,15 @@ const env: cdk.Environment = {
 
 const stackPrefix = 'OrderFlow';
 
+// Network stack (kept for VPC if needed by other services)
 const networkStack = new NetworkStack(app, `${stackPrefix}-Network`, {
   env,
   config,
   description: 'OrderFlow — VPC, subnets, security groups',
-  terminationProtection: true,
+  terminationProtection: false,
 });
 
-const databaseStack = new DatabaseStack(app, `${stackPrefix}-Database`, {
-  env,
-  config,
-  vpc: networkStack.vpc,
-  dbSecurityGroup: networkStack.dbSecurityGroup,
-  redisSecurityGroup: networkStack.redisSecurityGroup,
-  description: 'OrderFlow — RDS PostgreSQL & ElastiCache Redis',
-  terminationProtection: true,
-});
-databaseStack.addDependency(networkStack);
-
-const eventStack = new EventStack(app, `${stackPrefix}-Events`, {
-  env,
-  config,
-  description: 'OrderFlow — EventBridge, SQS queues, DLQs',
-  terminationProtection: true,
-});
-
-const securityStack = new SecurityStack(app, `${stackPrefix}-Security`, {
-  env,
-  config,
-  vpc: networkStack.vpc,
-  description: 'OrderFlow — WAF, Secrets Manager, IAM roles',
-  terminationProtection: true,
-});
-securityStack.addDependency(networkStack);
-securityStack.addDependency(databaseStack);
-
-const ecsStack = new ECSStack(app, `${stackPrefix}-ECS`, {
-  env,
-  config,
-  vpc: networkStack.vpc,
-  albSecurityGroup: networkStack.albSecurityGroup,
-  serviceSecurityGroup: networkStack.serviceSecurityGroup,
-  dbSecret: databaseStack.dbSecret,
-  redisEndpoint: databaseStack.redisEndpoint,
-  redisPort: databaseStack.redisPort,
-  orderCreatedQueue: eventStack.orderCreatedQueue,
-  orderStatusChangedQueue: eventStack.orderStatusChangedQueue,
-  eventBusName: eventStack.eventBus.eventBusName,
-  jwtSecret: securityStack.jwtSecret,
-  description: 'OrderFlow — ECS Fargate cluster, services, ALB',
-  terminationProtection: true,
-});
-ecsStack.addDependency(networkStack);
-ecsStack.addDependency(databaseStack);
-ecsStack.addDependency(eventStack);
-ecsStack.addDependency(securityStack);
-
-if (!config.skipCdn) {
-  const cdnStack = new CDNStack(app, `${stackPrefix}-CDN`, {
-    env,
-    config,
-    albDnsName: ecsStack.albDnsName,
-    description: 'OrderFlow — CloudFront CDN, S3 frontend bucket',
-    terminationProtection: true,
-  });
-  cdnStack.addDependency(ecsStack);
-}
-
-if (!config.skipMonitoring) {
-  const monitoringStack = new MonitoringStack(
-    app,
-    `${stackPrefix}-Monitoring`,
-    {
-      env,
-      config,
-      orderServiceName: ecsStack.orderServiceName,
-      notificationServiceName: ecsStack.notificationServiceName,
-      clusterName: ecsStack.clusterName,
-      albFullName: ecsStack.albFullName,
-      dbIdentifier: databaseStack.dbIdentifier,
-      orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
-      orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
-      orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
-      orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
-      description: 'OrderFlow — CloudWatch dashboards, alarms',
-      terminationProtection: true,
-    }
-  );
-  monitoringStack.addDependency(ecsStack);
-  monitoringStack.addDependency(databaseStack);
-  monitoringStack.addDependency(eventStack);
-}
-
-if (!config.skipObservability) {
-  const observabilityStack = new ObservabilityStack(
-    app,
-    `${stackPrefix}-Observability`,
-    {
-      env,
-      config,
-      orderServiceName: ecsStack.orderServiceName,
-      notificationServiceName: ecsStack.notificationServiceName,
-      clusterName: ecsStack.clusterName,
-      albFullName: ecsStack.albFullName,
-      albDnsName: ecsStack.albDnsName,
-      dbIdentifier: databaseStack.dbIdentifier,
-      orderCreatedQueueName: eventStack.orderCreatedQueue.queueName,
-      orderCreatedDlqName: eventStack.orderCreatedDlq.queueName,
-      orderStatusChangedQueueName: eventStack.orderStatusChangedQueue.queueName,
-      orderStatusChangedDlqName: eventStack.orderStatusChangedDlq.queueName,
-      description: 'OrderFlow — Observability (X-Ray, Synthetics, SLO alarms)',
-      terminationProtection: true,
-    }
-  );
-  observabilityStack.addDependency(ecsStack);
-  observabilityStack.addDependency(databaseStack);
-  observabilityStack.addDependency(eventStack);
-}
-
-if (!config.skipAppConfig) {
-  new AppConfigStack(app, `${stackPrefix}-AppConfig`, {
-    env,
-    config,
-    description: 'OrderFlow — AppConfig feature flags and dynamic config',
-    terminationProtection: true,
-  });
-}
-
-if (!config.skipRollback) {
-  const rollbackStack = new RollbackStack(app, `${stackPrefix}-Rollback`, {
-    env,
-    config,
-    clusterName: ecsStack.clusterName,
-    orderServiceName: ecsStack.orderServiceName,
-    notificationServiceName: ecsStack.notificationServiceName,
-    description: 'OrderFlow — Auto-rollback Lambda and CloudWatch alarms',
-    terminationProtection: true,
-  });
-  rollbackStack.addDependency(ecsStack);
-}
-
+// Vyasa Vector Store stack
 const vyasaVectorStack = new VyasaVectorStack(
   app,
   `${stackPrefix}-VyasaVector`,
@@ -178,6 +38,7 @@ const vyasaVectorStack = new VyasaVectorStack(
   }
 );
 
+// Vyasa RAG Lambda stack
 const vyasaStack = new VyasaLambdaStack(app, `${stackPrefix}-VyasaRag`, {
   env,
   config,
@@ -197,6 +58,7 @@ const vyasaApiEndpoint =
   process.env.VYASA_API_ENDPOINT ??
   'https://no24fwwtcl.execute-api.us-east-1.amazonaws.com';
 
+// Vyasa UI stack
 const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
   env,
   config,
