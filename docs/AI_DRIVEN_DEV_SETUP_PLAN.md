@@ -14,6 +14,8 @@
 5. [Phase E — Operator Script](#phase-e--operator-script-ties-it-all-together)
 6. [Execution Order & Priority](#execution-order--priority)
 7. [What You Get After Each Phase](#what-you-get-after-each-phase)
+8. [5-Section Agentic Workflow (Optimized)](#5-section-agentic-workflow-optimized)
+9. [Status Tracking](#status-tracking)
 
 ---
 
@@ -54,46 +56,54 @@ it, Claude doesn't know the tech stack, standards, or domain rules.
 
 Key sections to include (based on what already exists in this project):
 
-- Architecture: Nx monorepo, ECS Fargate, SQS+EventBridge, Angular 18 frontend
+- Architecture: Nx monorepo, ECS Fargate, SQS+EventBridge, Angular 18 frontend + Vyasa RAG (Lambda + Bedrock)
 - Language standards: Node 22, TypeScript strict, Express 4.x, Zod validation
-- Existing libs: `@orderflow/logger`, `@orderflow/auth`, `@orderflow/event-schemas`, `@orderflow/http-client`
+- Existing libs: `@orderflow/shared-types`, `@orderflow/event-schemas`, `@orderflow/logger`, `@orderflow/auth`, `@orderflow/http-client`, `@orderflow/testing-utils`
 - Code standards: OWASP Top 10, Conventional Commits, 80% test coverage gate
 - Forbidden: `aws-sdk v2` (already in deps — flag this!), `any` type, force push
 - Compaction protection block
+- Environment: Single `prod` environment (per ADR-011) — no dev/staging
+
+> **⚠️ Stale line in `CLAUDE.md` line 25:** Still says `Environments: dev → staging → pre-prod → prod` but project uses only `prod`. Update this to match `infra/config/environments.ts`.
 
 ---
 
 ### A.3 — Create per-service `CLAUDE.md` files
 
-**Why:** When Claude works inside `apps/order-service/`, it loads the service-scoped file automatically
-— domain rules, DB schema, SQS topics, local dev commands.
+**Why:** When Claude works inside a service directory, it loads the service-scoped file automatically
+— domain rules, API contracts, local dev commands.
+
+> **Note:** The original plan referenced `order-service`, `notification-svc`, and `web` —
+> those apps were planned but not yet scaffolded. The actual apps in the repo are
+> `vyasa-rag-service` and `vyasa-ui`.
 
 **Files needed:**
 
-**`apps/order-service/CLAUDE.md`**
+**`apps/vyasa-rag-service/CLAUDE.md`** ✅ (exists)
 
-- Domain: orders CRUD, auth (register/login/delete), idempotency keys, audit trail
-- DB: Prisma + PostgreSQL, schema location, migration commands
-- Events: publishes `OrderCreated`, `OrderStatusChanged` to EventBridge
-- Local dev: `docker compose up`, `npm run dev`
+- Domain: Agentic RAG service — ReAct loop, query planner, self-reflection
+- Infra: Lambda + API Gateway, Bedrock KB (S3 Vectors), DynamoDB sessions
+- Model: Amazon Nova Pro (`amazon.nova-pro-v1:0`)
+- Local dev: `npm run dev` (Express wrapper), eval scripts
 
-**`apps/notification-svc/CLAUDE.md`**
+**`apps/vyasa-ui/CLAUDE.md`** ❌ (not yet created)
 
-- Domain: SQS consumer, Socket.IO WebSocket push
-- Consumes: `OrderCreated`, `OrderStatusChanged` from SQS
-- Local dev commands
+- React 18 + Vite + TailwindCSS chat interface
+- SSE streaming support, session management sidebar
+- Vite proxy `/api` → `vyasa-rag-service`
+- Dev server on port 4201
 
-**`apps/web/CLAUDE.md`**
+**`infra/CLAUDE.md`** ✅ (exists)
 
-- Angular 18, NgRx Signal Store, `@orderflow/*` shared libs usage
-- 3 screens: Login, Order List, Order Detail
-- API base: proxied via `/v1` in dev
-
-**`infra/CLAUDE.md`**
-
-- CDK TypeScript stacks, environments config
+- CDK TypeScript stacks, single `prod` environment config
 - Stack names, existing stacks list
 - `npm run cdk:diff` before any changes
+
+**Future (when scaffolded):**
+
+- `apps/order-service/CLAUDE.md` — orders CRUD, Prisma + PostgreSQL, EventBridge
+- `apps/notification-svc/CLAUDE.md` — SQS consumer, Socket.IO WebSocket push
+- `apps/web/CLAUDE.md` — Angular 18, NgRx Signal Store, 3 screens
 
 ---
 
@@ -137,21 +147,33 @@ the system level — Claude cannot override these.
 ```yaml
 deny:
   - pattern: 'git push --force'
-    reason: 'Force push blocked — branch protection enforced'
+    reason: 'Force push blocked — branch protection enforced on main'
+  - pattern: 'git push -f'
+    reason: 'Force push blocked — branch protection enforced on main'
   - pattern: 'cdk destroy'
-    reason: 'Infrastructure destruction requires manual approval'
+    reason: 'Infrastructure destruction requires manual approval outside agents'
   - pattern: 'DROP TABLE'
-    reason: 'Destructive DB operations blocked in agents'
+    reason: 'Destructive DB operations blocked in agent context'
+  - pattern: 'DROP COLUMN'
+    reason: 'Destructive DB migrations blocked — require human review'
   - pattern: 'rm -rf'
     reason: 'Recursive deletion blocked'
-  - pattern: 'process.env.*=*'
-    reason: 'Env var mutation blocked'
+  - pattern: 'process.env.*='
+    reason: 'Env var mutation blocked — use AWS Secrets Manager or SSM'
+  - pattern: 'npm publish'
+    reason: 'Package publishing requires manual human approval'
+  - pattern: 'prisma migrate reset'
+    reason: 'Database reset blocked — would destroy all data'
 
 allow_with_confirmation:
   - pattern: 'cdk deploy'
-    reason: 'Require human to confirm before deploying infra'
+    reason: 'Require human to confirm before deploying infrastructure'
   - pattern: 'prisma migrate deploy'
-    reason: 'Require human to confirm before running migrations'
+    reason: 'Require human to confirm before running DB migrations'
+  - pattern: 'prisma db push'
+    reason: 'Require human to confirm before schema push'
+  - pattern: 'git push origin'
+    reason: 'Confirm branch and target before pushing'
 ```
 
 ---
@@ -160,17 +182,22 @@ allow_with_confirmation:
 
 **File:** `agents/orchestrator/instructions.md`
 
-This is the entry point for any autonomous task. Structure:
+This is the entry point for any autonomous task. Current implementation is an 8-step pipeline:
 
 ```
-1. Read ticket/issue from input variable
-2. Check .cloud/permissions.yaml
+1. Parse ticket (extract acceptance criteria, affected services)
+2. Create feature branch
 3. Call design-agent  → wait → verify TDD.md created
-4. Call code-agent    → wait → verify tests pass
-5. Call test-agent    → wait → verify coverage threshold
-6. Call deploy-agent  → open PR with correct labels
-7. Post summary to Slack (if MCP configured)
+4. Call code-agent    → wait → verify lint + tests pass (max 2 retries)
+5. Call test-agent    → wait → verify 80% coverage (max 1 retry)
+6. Update changelog   → via skills/update-changelog/skill.md
+7. Call deploy-agent  → open PR with correct labels
+8. Report summary     → ticket, branch, PR URL, coverage, changed files
 ```
+
+> **Evolution note:** The 5-Section Agentic Workflow (below) is the target architecture
+> that adds a dedicated requirements analysis phase and human review gates. The
+> current orchestrator will be updated to align with that model.
 
 ---
 
@@ -231,17 +258,17 @@ Each is a focused, constrained `instructions.md`:
 
 Reusable sub-tasks any agent can call:
 
-**`skills/create-test-file/skill.md`**
+**`skills/create-test-file/skill.md`** ✅
 Template for Jest test files in this project (imports, describe blocks, AAA pattern, mock patterns for
 `@orderflow/logger`)
 
-**`skills/generate-prisma-migration/skill.md`**
-How to safely create Prisma migrations in this project
+**`skills/generate-prisma-migration/skill.md`** ❌ (not created — Prisma not yet in active use)
+How to safely create Prisma migrations in this project. Deferred until `order-service` is scaffolded.
 
-**`skills/update-changelog/skill.md`**
+**`skills/update-changelog/skill.md`** ✅
 How to update `CHANGELOG.md` following Keep a Changelog format (already used in this project)
 
-**`skills/open-pr/skill.md`**
+**`skills/open-pr/skill.md`** ✅
 PR creation using GitHub MCP with the existing PR template at `.github/PULL_REQUEST_TEMPLATE.md`
 
 ---
@@ -255,21 +282,34 @@ _Estimated effort: 1 hour | Needs API tokens_
 ```json
 {
   "mcpServers": {
-    "github": { "...existing config..." },
-    "aws-unified": { "...existing config..." },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "aws-unified": {
+      "command": "npx",
+      "args": ["-y", "@aws/mcp-unified"],
+      "env": {
+        "AWS_REGION": "${AWS_REGION}",
+        "AWS_PROFILE": "${AWS_PROFILE}"
+      }
+    },
     "jira": {
       "command": "npx",
       "args": ["-y", "@anthropic-ai/mcp-server-jira"],
       "env": {
-        "JIRA_URL": "https://yourcompany.atlassian.net",
-        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
+        "JIRA_URL": "${JIRA_URL}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
+        "JIRA_EMAIL": "${JIRA_EMAIL}"
       }
     },
-    "slack": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-slack"],
-      "env": {
-        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}"
+    "langfuse": {
+      "url": "https://cloud.langfuse.com/api/public/mcp",
+      "headers": {
+        "Authorization": "Basic <base64-encoded-credentials>"
       }
     }
   }
@@ -278,10 +318,13 @@ _Estimated effort: 1 hour | Needs API tokens_
 
 **Tokens needed:**
 
-- Jira API token: `https://id.atlassian.com/manage-profile/security/api-tokens`
-- Slack Bot token: Create app at `https://api.slack.com/apps`, add `chat:write` scope
+- GitHub PAT: `https://github.com/settings/tokens`
+- Jira API token + email: `https://id.atlassian.com/manage-profile/security/api-tokens`
+- Langfuse: Public + Secret key from Langfuse project settings (Base64-encoded as `pk:sk`)
+- AWS: Profile configured via `aws configure` or SSO
 
-> **Note:** Add `.mcp.json` to `.gitignore` if it contains references to secret env var names.
+> **Note:** Slack MCP was originally planned but replaced by Langfuse MCP for RAG evaluation
+> observability. Slack can be added later if notification integration is needed.
 
 ---
 
@@ -293,9 +336,12 @@ _Estimated effort: 1–2 hours | Needs Bedrock setup_
 
 ```
 AWS Console → Bedrock → Model access → Request access:
-  - anthropic.claude-sonnet-4-20250514-v1:0
-  - anthropic.claude-opus-4-20250514-v1:0
+  - us.anthropic.claude-sonnet-4-5-20250929-v1:0  (used in llm-security-scan.yml)
+  - amazon.nova-pro-v1:0                          (used in vyasa-rag-service)
 ```
+
+> **Note:** Claude Opus is available but not actively used. Amazon Nova Pro is the
+> primary model for RAG inference due to no-approval-required access.
 
 ### D.2 — Create IAM role for GitHub Actions → Bedrock
 
@@ -404,27 +450,236 @@ claude -p agents/orchestrator/instructions.md \
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **A** (Brain)       | Every Claude session in Windsurf instantly knows the full project context — no re-explaining stack, patterns, or standards |
 | **B** (Agents)      | Can run `claude -p agents/orchestrator/instructions.md --var TICKET="..."` and get autonomous PR generation                |
-| **C** (MCPs)        | Orchestrator can read Jira tickets itself and post Slack notifications — no manual copy-paste                              |
+| **C** (MCPs)        | Orchestrator can read Jira tickets itself + Langfuse observability for RAG eval — no manual copy-paste                     |
 | **D** (Security CI) | Every PR gets AI security review via Bedrock — no code leaves your AWS VPC                                                 |
 | **E** (Script)      | One command: `./scripts/ai-dev.sh JIRA-456` → PR opened autonomously                                                       |
 
 ---
 
+## 5-Section Agentic Workflow (Optimized)
+
+> **Goal:** Token-efficient, accuracy-optimized pipeline with natural human checkpoints.
+>
+> **Status:** Target architecture — partially implemented. The current orchestrator
+> (Phase B.2) uses the 8-step linear pipeline. This section defines the evolution path.
+
+### Overview
+
+Replaces the linear 8-step pipeline with 5 specialized sections. Each section is a self-contained agentic flow with defined inputs, outputs, and human review gates.
+
+### Section 1: Requirements Analysis
+
+| Aspect       | Details                                                                       |
+| ------------ | ----------------------------------------------------------------------------- |
+| **Agent**    | `requirements-agent` ❌ **not yet created**                                   |
+| **Input**    | Jira ticket (fetched via Jira MCP)                                            |
+| **Output**   | `docs/features/TICKET/requirements.md`                                        |
+| **Model**    | Claude Sonnet (deep reasoning on ambiguous requirements)                      |
+| **Contents** | Problem statement, constraints, user stories, acceptance criteria, edge cases |
+
+**Why separate from Technical Design:** Prevents token waste. If requirements are wrong, technical design will be wrong too. Clean input = better output.
+
+**TODO:** Create `agents/requirements-agent/instructions.md` with read-only permissions (Jira MCP + file read/write to `docs/` only).
+
+🚪 **Human Gate:** Review requirements accuracy before proceeding to design.
+
+---
+
+### Section 2: Technical Design
+
+| Aspect       | Details                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| **Agent**    | `design-agent` (existing)                                                                              |
+| **Input**    | Approved `requirements.md`                                                                             |
+| **Output**   | `docs/features/TICKET/TDD.md`                                                                          |
+| **Model**    | Claude Sonnet (system interaction reasoning)                                                           |
+| **Contents** | API contract diff, DB schema changes, Mermaid sequence diagram, rollback plan, security considerations |
+
+**Guardrail:** Read-only agent — no git, npm, or file writes outside docs folder.
+
+🚪 **Human Gate:** Review TDD (API contract, schema design, rollback plan) before implementation.
+
+---
+
+### Section 3: Implementation
+
+| Aspect       | Details                                               |
+| ------------ | ----------------------------------------------------- |
+| **Agent**    | `code-agent` (existing)                               |
+| **Input**    | Approved `TDD.md`                                     |
+| **Output**   | Source files + unit test skeletons                    |
+| **Model**    | Sonnet (complex logic), Haiku (boilerplate/templates) |
+| **Approach** | Strict TDD: failing test → implementation → refactor  |
+
+**Safety Layer:** `hooks/pre-tool.sh` runs before every file write:
+
+- Blocks force push, `cdk destroy`, `prisma migrate reset`
+- Secret pattern detection (AWS keys, RSA keys, passwords)
+- Blocks `.env` file writes
+
+**Post-write:** `hooks/post-tool.sh` auto-lints with ESLint.
+
+**Checkpoint (optional):** Skeleton + interfaces only → human confirms structure matches TDD → full implementation.
+
+🚪 **Human Gate:** Spot-check implementation vs TDD, run locally.
+
+---
+
+### Section 4: Testing & Validation
+
+| Aspect              | Details                                            |
+| ------------------- | -------------------------------------------------- |
+| **Unit Tests**      | `test-agent` generates tests to reach 80% coverage |
+| **Integration**     | Existing CI workflows (`integration-tests.yml`)    |
+| **Static Analysis** | ESLint, TypeScript type check (CI)                 |
+| **Security Scan**   | `llm-security-scan.yml` (Claude via Bedrock on PR) |
+| **Model**           | Sonnet for test generation                         |
+
+**Why no dedicated "Code Review" agent:** Style → ESLint (deterministic). Security → Bedrock workflow. Logic review → human reviews PR diff directly. No token waste on deterministic checks.
+
+🚪 **Human Gate:** Review coverage report + CI status.
+
+---
+
+### Section 5: Deployment
+
+| Aspect         | Details                                                                            |
+| -------------- | ---------------------------------------------------------------------------------- |
+| **Approach A** | `deploy-agent` with Claude Haiku (cheapest model — pure scripting)                 |
+| **Approach B** | Direct MCP calls from bash (no LLM — maximum efficiency)                           |
+| **Actions**    | Git stage → commit (Conventional Commits) → push → open PR via GitHub MCP          |
+| **Output**     | PR opened with title `[TICKET-123] description`, body with summary + test evidence |
+
+**Skill reference:** `skills/open-pr/skill.md`
+
+🚪 **Human Gate:** Review PR diff + security findings → merge.
+
+---
+
+### Token Efficiency Improvements
+
+| Technique                                   | Savings                                                  |
+| ------------------------------------------- | -------------------------------------------------------- |
+| Separate requirements → design calls        | ~30% — design agent gets clean input, not raw Jira noise |
+| Haiku for deployment (scripting only)       | ~60% vs Sonnet — no reasoning needed                     |
+| Skip code-review agent (use CI gates)       | 100% of that section's tokens                            |
+| Human gates prevent bad-context propagation | Saves re-running downstream agents                       |
+| Direct MCP calls for deterministic tasks    | 100% LLM tokens eliminated                               |
+
+---
+
+### Workflow Diagram
+
+```mermaid
+flowchart TD
+    S1["Section 1: Requirements Analysis\nAgent: requirements-agent\nOutput: requirements.md"]
+    G1{{"HUMAN GATE: Review requirements"}}
+    S2["Section 2: Technical Design\nAgent: design-agent\nOutput: TDD.md"]
+    G2{{"HUMAN GATE: Review TDD"}}
+    S3["Section 3: Implementation\nAgent: code-agent\nHooks: pre-tool.sh, post-tool.sh\nOutput: Source + unit tests"]
+    G3{{"HUMAN GATE: Spot-check locally"}}
+    S4["Section 4: Testing & Validation\nCI: unit, integration, ESLint, type check\nCI: llm-security-scan.yml (Bedrock)"]
+    G4{{"HUMAN GATE: Review coverage + CI"}}
+    S5["Section 5: Deployment\nAgent: deploy-agent (Haiku)\nOutput: Commit + PR opened"]
+    G5{{"HUMAN GATE: Review PR + merge"}}
+
+    S1 --> G1 --> S2 --> G2 --> S3 --> G3 --> S4 --> G4 --> S5 --> G5
+```
+
+### Implementation Readiness
+
+| Section | Agent                | Status                          |
+| ------- | -------------------- | ------------------------------- |
+| 1       | `requirements-agent` | Not yet created                 |
+| 2       | `design-agent`       | Exists (`agents/design-agent/`) |
+| 3       | `code-agent`         | Exists (`agents/code-agent/`)   |
+| 4       | `test-agent`         | Exists (`agents/test-agent/`)   |
+| 5       | `deploy-agent`       | Exists (`agents/deploy-agent/`) |
+
+<details>
+<summary>ASCII fallback (for terminals without Mermaid support)</summary>
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ SECTION 1: Requirements Analysis                                    │
+│ Output: requirements.md                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ 🚪 HUMAN GATE: Review requirements                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│ SECTION 2: Technical Design                                         │
+│ Output: TDD.md                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ 🚪 HUMAN GATE: Review TDD                                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ SECTION 3: Implementation                                           │
+│ Output: Source + unit tests                                         │
+│ Hooks: pre-tool.sh (security), post-tool.sh (lint)                 │
+├─────────────────────────────────────────────────────────────────────┤
+│ 🚪 HUMAN GATE: Spot-check locally                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│ SECTION 4: Testing & Validation                                       │
+│ CI: unit tests, integration tests, ESLint, type check                 │
+│ CI: llm-security-scan.yml (Bedrock Claude review)                  │
+├─────────────────────────────────────────────────────────────────────┤
+│ 🚪 HUMAN GATE: Review coverage + CI status                         │
+├─────────────────────────────────────────────────────────────────────┤
+│ SECTION 5: Deployment                                               │
+│ Output: Commit + PR opened                                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ 🚪 HUMAN GATE: Review PR diff + security findings → MERGE            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+</details>
+
+---
+
 ## Status Tracking
+
+### Phase A — Project Brain
 
 - [x] A.1 — `.claudeignore`
 - [x] A.2 — Root `CLAUDE.md`
-- [x] A.3 — Per-service `CLAUDE.md` files (order-service, notification-svc, web, infra)
+  - [ ] ⚠️ Fix stale environments line (line 25 still says dev → staging → pre-prod → prod)
+- [x] A.3 — Per-service `CLAUDE.md` files
+  - [x] `apps/vyasa-rag-service/CLAUDE.md`
+  - [x] `infra/CLAUDE.md`
+  - [ ] `apps/vyasa-ui/CLAUDE.md` — not yet created
+  - [ ] `apps/order-service/CLAUDE.md` — deferred (service not scaffolded)
+  - [ ] `apps/notification-svc/CLAUDE.md` — deferred (service not scaffolded)
+  - [ ] `apps/web/CLAUDE.md` — deferred (service not scaffolded)
 - [x] A.4 — Global `~/.claude/CLAUDE.md` (updated existing file)
+
+### Phase B — Agent Infrastructure
+
 - [x] B.1 — `.cloud/permissions.yaml`
-- [x] B.2 — `agents/orchestrator/instructions.md`
+- [x] B.2 — `agents/orchestrator/instructions.md` (8-step pipeline)
 - [x] B.3 — Sub-agent instruction files (design, code, test, deploy)
 - [x] B.4 — `hooks/pre-tool.sh` + `hooks/post-tool.sh`
-- [x] B.5 — Skills library (create-test-file, generate-prisma-migration, update-changelog, open-pr)
-- [x] C.1 — `.mcp.json` with Jira + Slack MCPs
-- [x] D.1 — AWS Bedrock model access enabled (Claude Sonnet 4.5 + Haiku 4.5 — AUTHORIZED)
+- [x] B.5 — Skills library
+  - [x] `skills/create-test-file/skill.md`
+  - [x] `skills/update-changelog/skill.md`
+  - [x] `skills/open-pr/skill.md`
+  - [ ] `skills/generate-prisma-migration/skill.md` — deferred (Prisma not in active use)
+
+### Phase C — MCP Configuration
+
+- [x] C.1 — `.mcp.json` with GitHub, AWS Unified, Jira, Langfuse MCPs
+
+### Phase D — LLM Security in CI/CD
+
+- [x] D.1 — AWS Bedrock model access enabled (Claude Sonnet 4.5 + Nova Pro)
 - [x] D.2 — IAM role created: `orderflow-github-bedrock-role` (arn:aws:iam::947612421212:role/orderflow-github-bedrock-role)
-- [ ] D.3 — VPC endpoint for Bedrock ⚠️ OPTIONAL — recommended for production
 - [x] D.2b — Add `AWS_BEDROCK_ROLE_ARN` secret to GitHub repo
+- [ ] D.3 — VPC endpoint for Bedrock ⚠️ OPTIONAL — recommended for production
 - [x] D.4 — `.github/workflows/llm-security-scan.yml`
+
+### Phase E — Operator Script
+
 - [x] E.1 — `scripts/ai-dev.sh`
+
+### 5-Section Agentic Workflow (target)
+
+- [ ] Create `agents/requirements-agent/instructions.md`
+- [ ] Update orchestrator to add human gates between sections
+- [ ] Document the requirements → design handoff format

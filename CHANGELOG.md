@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`docs/AI_DRIVEN_DEV_SETUP_PLAN.md` — comprehensive review and accuracy update**:
+  - Fixed Table of Contents — added 5-Section Workflow + Status Tracking entries
+  - A.2: Updated shared libs list to match actual `CLAUDE.md`; added environment note
+  - A.3: Updated per-service `CLAUDE.md` section to reflect actual apps (`vyasa-rag-service`, `vyasa-ui`) instead of planned but unscaffolded services
+  - B.1: Updated `.cloud/permissions.yaml` example to match actual file (9 deny + 4 allow rules)
+  - B.2: Updated orchestrator description to match actual 8-step pipeline; added evolution note linking to 5-Section Workflow
+  - B.5: Marked `generate-prisma-migration/skill.md` as deferred (not created)
+  - C.1: Updated `.mcp.json` to match actual config — Langfuse instead of Slack, added `JIRA_EMAIL`
+  - D.1: Fixed Bedrock model IDs to match actual usage (`claude-sonnet-4-5`, `nova-pro`)
+  - 5-Section Workflow: Marked `requirements-agent` as not yet created; added TODO; added Implementation Readiness table; replaced ASCII diagram with Mermaid flowchart (ASCII preserved in collapsible fallback)
+  - Status Tracking: Reorganised by phase with granular sub-item tracking; added 5-Section Workflow pending items
+- **`CLAUDE.md` (root)**: Fixed stale environments line — was `dev → staging → pre-prod → prod`, now `Single prod environment (per ADR-011)`
+
 ### Added
 
 - **Consolidated infrastructure reference** (`docs/INFRASTRUCTURE.md`): Single doc covering all infra — architecture overview, CDK stacks, live endpoints, networking, compute, DB/cache, Vyasa RAG, CDN/DNS, security, observability, cost analysis, capacity plan, DR playbooks, CDK ops, and ADR summaries.

@@ -22,7 +22,7 @@ Purpose: hands-on Fortune 500 SDLC patterns demonstration.
 - **Cloud**: AWS (ECS Fargate, ALB, CloudFront, EventBridge, SQS, RDS, ElastiCache)
 - **IaC**: AWS CDK (TypeScript) in `infra/` — 7 stacks
 - **Message broker**: EventBridge (publish) → SQS (consume)
-- **Environments**: dev → staging → pre-prod → prod (config in `infra/config/environments.ts`)
+- **Environments**: Single `prod` environment (config in `infra/config/environments.ts`, per ADR-011)
 
 ### Services
 
