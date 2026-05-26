@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { getConfig } from '../config/environments';
+import { config } from '../config/environments';
 import { NetworkStack } from '../lib/network-stack';
 import { VyasaLambdaStack } from '../lib/vyasa-lambda-stack';
 import { VyasaVectorStack } from '../lib/vyasa-vector-stack';
 import { VyasaUiStack } from '../lib/vyasa-ui-stack';
 
 const app = new cdk.App();
-
-const config = getConfig();
 
 const env: cdk.Environment = {
   account: config.account || process.env.CDK_DEFAULT_ACCOUNT,

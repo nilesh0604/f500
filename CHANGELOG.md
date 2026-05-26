@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Single environment simplification** — Removed dev/staging configurations, keeping only prod:
+  - `infra/config/environments.ts` — Removed `devConfig`, `stagingConfig`, `getConfig()`, and `environments` map; now exports single `export const config` with prod values only
+  - `infra/bin/app.ts` — Updated import to use `config` directly instead of `getConfig()`
+  - Updated documentation across `infra/CLAUDE.md`, `docs/AWS_COST_ANALYSIS.md`, `docs/CAPACITY_PLAN.md`, `docs/adr/ADR-011-single-env-cost-optimisation.md`, `docs/SANDBOX_COST_REDUCTION_PLAN.md`, and `docs/IMPLEMENTATION_PLAN_VYASA_RAG.md`
+
 ### Added
 
 - **Dev sandbox deployed to `us-east-1`** — Vyasa-only stack at near-zero cost:

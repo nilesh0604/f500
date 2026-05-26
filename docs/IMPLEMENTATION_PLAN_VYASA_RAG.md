@@ -18,10 +18,10 @@
 | **API Gateway**      | `https://t859xz8d3c.execute-api.us-east-1.amazonaws.com` |
 | **Bedrock KB**       | `JGDXZQCA1Y`                                             |
 | **Data Source**      | `5DGY6OL5YG`                                             |
-| **S3 Vector Bucket** | `vyasa-vectors-dev-947612421212`                         |
-| **Vector Index**     | `vyasa-index-dev` (9,362 vectors)                        |
-| **Corpus Bucket**    | `vyasa-rag-corpus-dev-947612421212`                      |
-| **Prompts Bucket**   | `vyasa-rag-prompts-dev-947612421212`                     |
+| **S3 Vector Bucket** | `vyasa-vectors-prod-947612421212`                        |
+| **Vector Index**     | `vyasa-index-prod` (9,362 vectors)                       |
+| **Corpus Bucket**    | `vyasa-rag-corpus-prod-947612421212`                     |
+| **Prompts Bucket**   | `vyasa-rag-prompts-prod-947612421212`                    |
 | **LLM Model**        | `amazon.nova-pro-v1:0`                                   |
 | **Embedding Model**  | `amazon.titan-embed-text-v2:0` (1024-dim)                |
 
@@ -145,7 +145,7 @@ Bedrock KB Data Source (5DGY6OL5YG)
         ├── Titan Embed V2 → 1024-dim float32 vectors
         │
         ▼
-S3 Vectors: vyasa-vectors-dev-947612421212 / vyasa-index-dev
+S3 Vectors: vyasa-vectors-prod-947612421212 / vyasa-index-prod
         │   nonFilterableMetadataKeys: [AMAZON_BEDROCK_TEXT, AMAZON_BEDROCK_METADATA]
         │   distanceMetric: euclidean
         │   9,362 vectors written
@@ -192,12 +192,12 @@ Response:
 ```
 infra/bin/app.ts
   │
-  ├── OrderFlow-Dev-VyasaVector   (VyasaVectorStack)
+  ├── OrderFlow-VyasaVector   (VyasaVectorStack)
   │     Lambda custom resource → s3vector-creator/index.mjs
   │       Creates: S3 vector bucket + index (nonFilterableMetadataKeys configured)
   │       Outputs: VectorBucketName, VectorIndexName, VectorIndexArn
   │
-  └── OrderFlow-Dev-VyasaRag      (VyasaLambdaStack)
+  └── OrderFlow-VyasaRag      (VyasaLambdaStack)
         Lambda custom resource → bedrock-kb-creator/index.mjs
           Creates: Bedrock KB + S3 Data Source (S3_VECTORS storage type)
           Outputs: KnowledgeBaseId, DataSourceId
@@ -217,7 +217,7 @@ infra/bin/app.ts
 | `infra/lib/bedrock-kb-creator/index.mjs` | Lambda: creates Bedrock KB + data source via SDK  |
 | `infra/lib/vyasa-lambda-stack.ts`        | Main RAG stack (Lambda, APIGW, DynamoDB, S3, IAM) |
 | `infra/bin/app.ts`                       | CDK app entrypoint — wires stacks together        |
-| `infra/config/environments.ts`           | Per-env config (dev/staging/prod)                 |
+| `infra/config/environments.ts`           | Single `prod` environment config (per ADR-011)    |
 
 ### 2.3 Why Lambda Custom Resources?
 
@@ -316,15 +316,15 @@ generation prompt. History section is omitted entirely when empty to avoid pollu
 
 ## 5. Corpus Details
 
-| Property          | Value                                                    |
-| ----------------- | -------------------------------------------------------- |
-| **Source**        | `docs/Mahabharata (Unabridged in English).pdf`           |
-| **Size**          | 19 MB, 2,328 pages                                       |
-| **Translation**   | Kisari Mohan Ganguli (1883–1896), sacred-texts.com       |
-| **S3 location**   | `s3://vyasa-rag-corpus-dev-947612421212/mahabharata.pdf` |
-| **Chunking**      | Fixed-size, ~500 tokens, 20% overlap                     |
-| **Vectors**       | 9,362 × 1024-dim float32, euclidean distance             |
-| **Ingestion job** | `NZMK8FJBRE` — COMPLETE, ~25 min                         |
+| Property          | Value                                                     |
+| ----------------- | --------------------------------------------------------- |
+| **Source**        | `docs/Mahabharata (Unabridged in English).pdf`            |
+| **Size**          | 19 MB, 2,328 pages                                        |
+| **Translation**   | Kisari Mohan Ganguli (1883–1896), sacred-texts.com        |
+| **S3 location**   | `s3://vyasa-rag-corpus-prod-947612421212/mahabharata.pdf` |
+| **Chunking**      | Fixed-size, ~500 tokens, 20% overlap                      |
+| **Vectors**       | 9,362 × 1024-dim float32, euclidean distance              |
+| **Ingestion job** | `NZMK8FJBRE` — COMPLETE, ~25 min                          |
 
 ---
 
@@ -360,7 +360,7 @@ generation prompt. History section is omitted entirely when empty to avoid pollu
 
 ```json
 // Request
-{ "source_uri": "s3://vyasa-rag-corpus-dev-947612421212/mahabharata.pdf" }
+{ "source_uri": "s3://vyasa-rag-corpus-prod-947612421212/mahabharata.pdf" }
 
 // Response
 { "job_id": "NZMK8FJBRE", "status": "STARTING", "message": "..." }
@@ -379,7 +379,7 @@ generation prompt. History section is omitted entirely when empty to avoid pollu
 | Item                             | Priority | Notes                                                                               |
 | -------------------------------- | -------- | ----------------------------------------------------------------------------------- |
 | Citation `book`/`chapter` empty  | Low      | Source metadata not structured by Bedrock; needs custom metadata file per S3 object |
-| `mahabharata-test.txt` in corpus | Low      | Test artifact; `aws s3 rm s3://vyasa-rag-corpus-dev-*/mahabharata-test.txt`         |
+| `mahabharata-test.txt` in corpus | Low      | Test artifact; `aws s3 rm s3://vyasa-rag-corpus-prod-*/mahabharata-test.txt`        |
 | Streaming (`/chat/stream`)       | Medium   | SSE handler exists but not tested end-to-end                                        |
 | Provisioned concurrency          | Low      | Cold start ~500ms; acceptable at 100 visits/mo                                      |
 | Eval golden dataset pass rate    | Medium   | 20-case dataset in `eval/` not run against live KB yet                              |

@@ -12,12 +12,11 @@
 ## Context
 
 After completing UI and backend deployment, a full AWS cost analysis
-(`docs/AWS_COST_ANALYSIS.md`) revealed the following monthly estimates:
+(`docs/AWS_COST_ANALYSIS.md`) revealed the monthly estimate:
 
-| Scope                                          | Low    | High   |
-| ---------------------------------------------- | ------ | ------ |
-| All 4 environments (dev/staging/pre-prod/prod) | $1,964 | $2,313 |
-| Prod only (before this ADR)                    | $954   | $1,148 |
+| Scope                  | Low  | High   |
+| ---------------------- | ---- | ------ |
+| Prod (before this ADR) | $954 | $1,148 |
 
 Three decisions were identified as high-ROI cost reductions that are
 appropriate for a **single-owner portfolio/demo application** where:
@@ -42,9 +41,8 @@ exported `config` object. Remove all dev, staging, and pre-prod configurations.
 
 - Multi-environment infrastructure existed for a team workflow that does not
   apply to a single-owner project.
-- Eliminates ~$400–900/month if lower environments were ever live.
-- CI/CD pipelines are simplified from multi-job staging→eval→prod pipelines
-  to a single `deploy` job on `main`.
+- Simplifies CI/CD to a single `deploy` job on `main`.
+- Reduces cognitive overhead — one config, one set of resources to monitor.
 
 **Trade-offs accepted:**
 
@@ -56,10 +54,10 @@ exported `config` object. Remove all dev, staging, and pre-prod configurations.
 
 **Changes made:**
 
-- `infra/config/environments.ts` — replaced `environments` map + `envName`
-  context lookup with a single `export const config`.
-- `infra/bin/app.ts` — removed `app.node.tryGetContext('env')`, stack prefix
-  changed from `OrderFlow-Prod-*` → `OrderFlow-*`.
+- `infra/config/environments.ts` — removed `devConfig`, `stagingConfig`, `getConfig()`,
+  and `environments` map. Now exports single `export const config` with prod values only.
+- `infra/bin/app.ts` — updated import to use `config` directly instead of `getConfig()`.
+  Stack prefix is now always `OrderFlow-*` (no environment suffix).
 - `.github/workflows/vyasa-rag-cd.yml` — staging + eval + prod jobs collapsed
   to single `deploy` job.
 - `.github/workflows/vyasa-ui-cd.yml` — stack name references updated.
@@ -130,9 +128,7 @@ separately via response caching (see `docs/AWS_COST_ANALYSIS.md`).
 
 ## Consequences
 
-- Stack names changed: all `OrderFlow-Prod-*` → `OrderFlow-*`. If any of the
-  old stacks are live, they must be manually destroyed before or after
-  re-deploying with the new names.
+- Stack names use `OrderFlow-*` prefix (no environment suffix).
 - `dbDeletionProtection: true` and `terminationProtection: true` are retained
   on all stateful stacks (RDS, Redis, ECS, Network) to prevent accidental data
   loss.

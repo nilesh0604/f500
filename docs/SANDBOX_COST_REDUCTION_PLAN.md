@@ -1,6 +1,12 @@
 # Sandbox Cost Reduction Plan
 
-**Goal:** Reduce personal dev sandbox from ~$170/month to ~$25–35/month while keeping a fully working backend + frontend.
+> **⚠️ SUPERCEDED:** This document is retained for historical reference only. Per ADR-011, the project now uses a **single `prod` environment only**. Dev/staging environments have been removed from `infra/config/environments.ts`.
+>
+> The current serverless Vyasa RAG stack costs **~$1–6/month** at 100 requests/month.
+
+---
+
+**Original Goal:** Reduce personal dev sandbox from ~$170/month to ~$25–35/month while keeping a fully working backend + frontend.
 
 **Constraint:** Max 100 requests/month, single developer, no uptime SLA.
 

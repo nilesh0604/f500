@@ -4,31 +4,33 @@
 
 ---
 
-## Service Baselines
+## Service Baselines (Prod Only)
+
+> **Note:** Single environment (prod) per ADR-011.
 
 ### Order Service
 
-| Metric                   | Dev     | Staging | Pre-Prod | Prod    |
-| ------------------------ | ------- | ------- | -------- | ------- |
-| vCPU (Fargate units)     | 0.25    | 0.5     | 1.0      | 1.0     |
-| Memory (MiB)             | 512     | 1024    | 2048     | 2048    |
-| Min tasks                | 1       | 1       | 2        | 2       |
-| Max tasks                | 2       | 4       | 8        | 10      |
-| DB connections / task    | 20      | 20      | 20       | 20      |
-| Redis connections / task | 50      | 50      | 50       | 50      |
-| **Max RPS (sustained)**  | ~50     | ~200    | ~500     | ~1 000  |
-| **Memory ceiling**       | 450 MiB | 900 MiB | 1.8 GiB  | 1.8 GiB |
+| Metric                   | Prod    |
+| ------------------------ | ------- |
+| vCPU (Fargate units)     | 1.0     |
+| Memory (MiB)             | 2048    |
+| Min tasks                | 2       |
+| Max tasks                | 10      |
+| DB connections / task    | 20      |
+| Redis connections / task | 50      |
+| **Max RPS (sustained)**  | ~1 000  |
+| **Memory ceiling**       | 1.8 GiB |
 
 ### Notification Service
 
-| Metric                    | Dev    | Staging | Pre-Prod | Prod   |
-| ------------------------- | ------ | ------- | -------- | ------ |
-| vCPU (Fargate units)      | 0.25   | 0.5     | 1.0      | 1.0    |
-| Memory (MiB)              | 512    | 1024    | 2048     | 2048   |
-| Min tasks                 | 1      | 1       | 2        | 2      |
-| Max tasks                 | 2      | 4       | 8        | 10     |
-| SQS long-poll concurrency | 10 msg | 10 msg  | 10 msg   | 10 msg |
-| WebSocket connections     | ~200   | ~500    | ~2 000   | ~5 000 |
+| Metric                    | Prod   |
+| ------------------------- | ------ |
+| vCPU (Fargate units)      | 1.0    |
+| Memory (MiB)              | 2048   |
+| Min tasks                 | 2      |
+| Max tasks                 | 10     |
+| SQS long-poll concurrency | 10 msg |
+| WebSocket connections     | ~5 000 |
 
 ---
 
@@ -41,7 +43,7 @@
 | Connection ceiling formula   | `max_connections × 0.8 / 20` = max tasks   |
 | Slow query threshold         | 1 000 ms (`log_min_duration_statement`)    |
 | Storage growth projection    | ~200 MB / month at 500 RPS (90-day orders) |
-| Backup retention             | 7 days (prod), 1 day (other)               |
+| Backup retention             | 7 days                                     |
 
 ---
 

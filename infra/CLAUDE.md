@@ -3,7 +3,7 @@
 ## Responsibility
 
 All AWS infrastructure as code using AWS CDK (TypeScript).
-Manages 8 stacks across 4 environments (dev / staging / pre-prod / prod).
+Manages infrastructure stacks for a single `prod` environment (per ADR-011).
 Owner: platform-team
 
 ---
@@ -35,18 +35,15 @@ Owner: platform-team
 
 ---
 
-## Environments
+## Environment
 
-Config in `config/environments.ts`. Always reference `EnvironmentConfig` interface.
+Config in `config/environments.ts`. Single `prod` environment only.
 
-| Env      | VPC CIDR    | DB           | Multi-AZ | WAF |
-| -------- | ----------- | ------------ | -------- | --- |
-| dev      | 10.0.0.0/16 | db.t3.micro  | No       | No  |
-| staging  | 10.1.0.0/16 | db.t3.small  | No       | Yes |
-| pre-prod | 10.2.0.0/16 | db.t3.medium | Yes      | Yes |
-| prod     | 10.3.0.0/16 | db.t3.medium | Yes      | Yes |
+| Env  | VPC CIDR    | Region    | NAT GW | Log Retention | Domain            |
+| ---- | ----------- | --------- | ------ | ------------- | ----------------- |
+| prod | 10.0.0.0/16 | us-east-1 | 1      | 90 days       | vyasa.nshinde.xyz |
 
-Specify env with CDK context: `cdk deploy --context env=staging`
+The project uses a single production environment. No dev/staging environments are deployed.
 
 ---
 
@@ -81,9 +78,9 @@ npm run cdk:diff          # Preview changes (ALWAYS run before deploy)
 npm run cdk:deploy        # Deploy (prompts for confirmation)
 
 # From infra/ directory
-cdk synth --context env=dev      # Synthesize CloudFormation
-cdk diff --context env=staging   # Diff against deployed stack
-cdk deploy --context env=staging --require-approval broadening
+cdk synth                                    # Synthesize CloudFormation
+cdk diff                                     # Diff against deployed stack
+cdk deploy --require-approval broadening     # Deploy with approval
 ```
 
 ---
