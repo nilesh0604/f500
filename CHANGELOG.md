@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Consolidated infrastructure reference** (`docs/INFRASTRUCTURE.md`): Single doc covering all infra — architecture overview, CDK stacks, live endpoints, networking, compute, DB/cache, Vyasa RAG, CDN/DNS, security, observability, cost analysis, capacity plan, DR playbooks, CDK ops, and ADR summaries.
+
+### Removed
+
+- `docs/AWS_COST_ANALYSIS.md` — consolidated into `docs/INFRASTRUCTURE.md`
+- `docs/CAPACITY_PLAN.md` — consolidated into `docs/INFRASTRUCTURE.md`
+- `docs/SANDBOX_COST_REDUCTION_PLAN.md` — consolidated into `docs/INFRASTRUCTURE.md`
+- `docs/DISASTER_RECOVERY_PLAN.md` — consolidated into `docs/INFRASTRUCTURE.md`
+
 ### Changed
 
 - **Single environment simplification** — Removed dev/staging configurations, keeping only prod:

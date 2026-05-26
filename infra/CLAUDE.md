@@ -1,5 +1,7 @@
 # CLAUDE.md — infra (AWS CDK)
 
+> **Full infrastructure reference:** [`docs/INFRASTRUCTURE.md`](../docs/INFRASTRUCTURE.md)
+
 ## Responsibility
 
 All AWS infrastructure as code using AWS CDK (TypeScript).
