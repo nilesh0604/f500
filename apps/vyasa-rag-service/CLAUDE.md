@@ -33,7 +33,7 @@ Agentic RAG (Retrieval-Augmented Generation) service for answering questions abo
 ┌─────────────────────────────────────────────────────────────┐
 │                     External Services                        │
 │  • Bedrock Knowledge Base (vector search)                    │
-│  • Claude 3 Haiku (LLM generation)                           │
+│  • Amazon Nova Pro (LLM generation)                           │
 │  • DynamoDB (sessions, rate limits)                          │
 │  • S3 (corpus, prompts)                                     │
 └─────────────────────────────────────────────────────────────┘
@@ -100,7 +100,7 @@ npx nx build vyasa-rag-service
 npx nx test vyasa-rag-service
 
 # Deploy (via CDK)
-cd infra && npx cdk deploy OrderFlow-Dev-VyasaRag
+cd infra && npx cdk deploy OrderFlow-VyasaRag
 ```
 
 ## Cost Optimization

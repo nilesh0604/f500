@@ -20,7 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - D.1: Fixed Bedrock model IDs to match actual usage (`claude-sonnet-4-5`, `nova-pro`)
   - 5-Section Workflow: Marked `requirements-agent` as not yet created; added TODO; added Implementation Readiness table; replaced ASCII diagram with Mermaid flowchart (ASCII preserved in collapsible fallback)
   - Status Tracking: Reorganised by phase with granular sub-item tracking; added 5-Section Workflow pending items
-- **`CLAUDE.md` (root)**: Fixed stale environments line — was `dev → staging → pre-prod → prod`, now `Single prod environment (per ADR-011)`
+- **`CLAUDE.md` (root) — A.2 overhaul to reflect actual project state**:
+  - Project Overview: Added Vyasa Intelligence alongside OrderFlow
+  - Services: Split into "active" (`vyasa-rag-service`, `vyasa-ui` with live URLs) and "planned" (`order-service`, `notification-svc`, `web`)
+  - Shared Libraries: Added status column — `shared-types` and `testing-utils` marked as existing, remaining 4 libs marked as planned
+  - Language & Runtime: Added Vyasa backend (Lambda + Bedrock + Nova Pro) and frontend (React 18 + Vite + TailwindCSS); marked Prisma/Angular as planned
+  - CI/CD: Replaced 6 workflows (3 didn't exist) with 8 actual workflows including `llm-security-scan.yml`, `vyasa-rag-ci/cd/eval.yml`, `vyasa-ui-cd.yml`
+  - Local Development: Added Vyasa-specific commands, removed references to non-existent OrderFlow local stack
+  - Known Technical Debt: Added 3 new items (stale model name in Vyasa CLAUDE.md, unscaffolded OrderFlow services, missing `@orderflow/logger` lib)
+  - Fixed stale environments line (was `dev → staging → pre-prod → prod`, now `Single prod environment per ADR-011`)
+- **`apps/vyasa-rag-service/CLAUDE.md`** — Fixed model name in architecture diagram (`Claude 3 Haiku` → `Amazon Nova Pro`); fixed deploy command (`OrderFlow-Dev-VyasaRag` → `OrderFlow-VyasaRag`)
+
+### Added
+
+- **`apps/vyasa-ui/CLAUDE.md`** — New service-scoped context file for Vyasa UI: architecture diagram, key files table, tech stack, API integration details, env vars, dev commands, deployment info, code conventions
 
 ### Added
 

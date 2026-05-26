@@ -9,8 +9,8 @@ current plan step count, and all security-critical rules in this file.
 
 ## Project Overview
 
-**OrderFlow** — Real-Time Order Management System.
-Nx monorepo with 2 Express microservices + Angular 18 frontend, deployed on AWS ECS Fargate.
+**OrderFlow** — Real-Time Order Management System + **Vyasa Intelligence** — Agentic RAG Service.
+Nx monorepo deployed on AWS (ECS Fargate for OrderFlow, Lambda + Bedrock for Vyasa).
 Purpose: hands-on Fortune 500 SDLC patterns demonstration.
 
 ---
@@ -19,29 +19,36 @@ Purpose: hands-on Fortune 500 SDLC patterns demonstration.
 
 - **Pattern**: Microservices + Event-Driven (REST + async messaging)
 - **Monorepo tool**: Nx 20 (use `nx affected` for incremental builds)
-- **Cloud**: AWS (ECS Fargate, ALB, CloudFront, EventBridge, SQS, RDS, ElastiCache)
-- **IaC**: AWS CDK (TypeScript) in `infra/` — 7 stacks
+- **Cloud**: AWS (Lambda, Bedrock, API Gateway, CloudFront, S3 Vectors, DynamoDB, ECS Fargate, ALB, EventBridge, SQS, RDS, ElastiCache)
+- **IaC**: AWS CDK (TypeScript) in `infra/`
 - **Message broker**: EventBridge (publish) → SQS (consume)
 - **Environments**: Single `prod` environment (config in `infra/config/environments.ts`, per ADR-011)
 
-### Services
+### Services (active)
 
-| Service          | Port | Directory                |
-| ---------------- | ---- | ------------------------ |
-| order-service    | 3001 | `apps/order-service/`    |
-| notification-svc | 3002 | `apps/notification-svc/` |
-| web (Angular)    | 4200 | `apps/web/`              |
+| Service           | Runtime          | Directory                 | Status                                                      |
+| ----------------- | ---------------- | ------------------------- | ----------------------------------------------------------- |
+| vyasa-rag-service | Lambda + Bedrock | `apps/vyasa-rag-service/` | ✅ Live — API Gateway `t859xz8d3c` in `us-east-1`           |
+| vyasa-ui          | React 18 + Vite  | `apps/vyasa-ui/`          | ✅ Live — CloudFront `d3qhic431njv7c` / `vyasa.nshinde.xyz` |
+
+### Services (planned — not yet scaffolded)
+
+| Service          | Runtime          | Directory                | Notes                                |
+| ---------------- | ---------------- | ------------------------ | ------------------------------------ |
+| order-service    | Express + Prisma | `apps/order-service/`    | Orders CRUD, EventBridge, PostgreSQL |
+| notification-svc | Express + SQS    | `apps/notification-svc/` | SQS consumer, Socket.IO WebSocket    |
+| web (Angular)    | Angular 18       | `apps/web/`              | NgRx Signal Store, 3 screens         |
 
 ### Shared Libraries (always import from these, never duplicate)
 
-| Import path                | Location              | Purpose                                              |
-| -------------------------- | --------------------- | ---------------------------------------------------- |
-| `@orderflow/shared-types`  | `libs/shared-types/`  | Domain models, DTOs, event interfaces                |
-| `@orderflow/event-schemas` | `libs/event-schemas/` | Zod event validation + envelope builder              |
-| `@orderflow/logger`        | `libs/logger/`        | Winston structured logger, PII masking, OTel tracing |
-| `@orderflow/auth`          | `libs/auth/`          | JWT RS256 middleware, token generation               |
-| `@orderflow/http-client`   | `libs/http-client/`   | Axios + circuit breaker + retry                      |
-| `@orderflow/testing-utils` | `libs/testing-utils/` | Jest factories, mock builders, test app helper       |
+| Import path                | Location              | Status    | Purpose                                              |
+| -------------------------- | --------------------- | --------- | ---------------------------------------------------- |
+| `@orderflow/shared-types`  | `libs/shared-types/`  | ✅ exists | Domain models, DTOs, RAG types, event interfaces     |
+| `@orderflow/testing-utils` | `libs/testing-utils/` | ✅ exists | Jest factories, mock builders, test app helper       |
+| `@orderflow/event-schemas` | `libs/event-schemas/` | planned   | Zod event validation + envelope builder              |
+| `@orderflow/logger`        | `libs/logger/`        | planned   | Winston structured logger, PII masking, OTel tracing |
+| `@orderflow/auth`          | `libs/auth/`          | planned   | JWT RS256 middleware, token generation               |
+| `@orderflow/http-client`   | `libs/http-client/`   | planned   | Axios + circuit breaker + retry                      |
 
 ---
 
@@ -51,10 +58,12 @@ Purpose: hands-on Fortune 500 SDLC patterns demonstration.
 - **Language**: TypeScript 5.5 — strict mode ON (see `tsconfig.base.json`)
   - `noImplicitAny: true`, `strictNullChecks: true`, `noUnusedLocals: true`
   - `no any` — use `unknown` + type guards instead
-- **Backend**: Express 4.x with async/await — all handlers wrapped with `asyncHandler`
+- **Backend (OrderFlow)**: Express 4.x with async/await — all handlers wrapped with `asyncHandler`
+- **Backend (Vyasa)**: AWS Lambda + Bedrock KB + Amazon Nova Pro — ReAct agent loop
 - **Validation**: Zod 3.x for all request/response schemas
-- **ORM**: Prisma 5.x + PostgreSQL (schema at `apps/order-service/prisma/schema.prisma`)
-- **Frontend**: Angular 18, NgRx Signal Store, TypeScript strict
+- **ORM**: Prisma 5.x + PostgreSQL (planned — for `order-service` when scaffolded)
+- **Frontend (Vyasa)**: React 18, Vite, TailwindCSS, Lucide icons — `apps/vyasa-ui/`
+- **Frontend (OrderFlow)**: Angular 18, NgRx Signal Store (planned — `apps/web/`)
 
 ---
 
@@ -122,26 +131,22 @@ helmet → cors (strictCors) → compression → rateLimit → auth → validate
 
 ## CI/CD Pipelines (GitHub Actions)
 
-| Workflow                | Trigger         | Purpose                                        |
-| ----------------------- | --------------- | ---------------------------------------------- |
-| `pr-checks.yml`         | Every PR        | Lint, format, unit tests, build, security scan |
-| `integration-tests.yml` | PR to main      | Docker Compose + integration + contract tests  |
-| `security-scan.yml`     | Daily + PR      | SAST, container scan, secret scan, Snyk        |
-| `deploy-staging.yml`    | Merge to main   | Auto-deploy to staging ECS                     |
-| `deploy-production.yml` | Manual dispatch | Canary deploy to prod with CAB gate            |
-| `sbom.yml`              | Release         | SBOM generation + license compliance           |
+| Workflow                | Trigger       | Purpose                                                |
+| ----------------------- | ------------- | ------------------------------------------------------ |
+| `pr-checks.yml`         | Every PR      | Lint, format, unit tests, build, stylelint, Lighthouse |
+| `security-scan.yml`     | Daily + PR    | SAST, container scan, secret scan, Snyk                |
+| `llm-security-scan.yml` | Every PR      | Claude Sonnet via Bedrock — OWASP review of TS diff    |
+| `vyasa-rag-ci.yml`      | PR + push     | Lint, test, build, CDK synth for Vyasa RAG             |
+| `vyasa-rag-cd.yml`      | Push to main  | Deploy Lambda + API GW, smoke tests                    |
+| `vyasa-rag-eval.yml`    | Daily 2am UTC | Golden dataset evaluation, Slack alert < 70%           |
+| `vyasa-ui-cd.yml`       | Push to main  | Build + S3 sync + CloudFront invalidation              |
+| `sbom.yml`              | Release       | SBOM generation + license compliance                   |
 
 ---
 
 ## Local Development
 
 ```bash
-# Start full local stack (PostgreSQL + Redis + LocalStack + services)
-docker compose up -d
-
-# Run order-service in dev mode
-npm run dev -- --project=order-service
-
 # Run all tests
 npm test
 
@@ -153,9 +158,21 @@ npm run cdk:diff
 
 # Lint all
 npm run lint
+
+# --- Vyasa RAG Service ---
+npx nx build vyasa-rag-service   # Build Lambda bundle
+npx nx test vyasa-rag-service    # Unit tests
+
+# --- Vyasa UI ---
+cd apps/vyasa-ui && npm run dev  # Dev server on port 4201
+cd apps/vyasa-ui && npm run build # Production build
+
+# --- OrderFlow (when scaffolded) ---
+# docker compose up -d            # PostgreSQL + Redis + LocalStack
+# npm run dev -- --project=order-service
 ```
 
-**LocalStack** emulates: SQS, EventBridge, Secrets Manager (endpoint: `http://localhost:4566`)
+**Vyasa UI proxy**: Vite proxies `/api` → `VITE_VYASA_API_URL` (default `http://localhost:3000`)
 
 ---
 
@@ -178,6 +195,9 @@ main          ← production-ready, protected
 ## Known Technical Debt
 
 - `aws-sdk` v2 still in `package.json` root dependencies — do NOT use in new code
-- Route 53 / custom domain not provisioned — ALB serves HTTP only (TLS at CloudFront)
+- Route 53 / custom domain not provisioned for OrderFlow — Vyasa uses `vyasa.nshinde.xyz` via CloudFront
 - Secrets rotation Lambda not wired in CDK yet (tracked in `docs/PRODUCTION_APP_MASTER_PLAN.md`)
 - SSM Parameter Store migration not complete — some config still in ECS env vars
+- `apps/vyasa-rag-service/CLAUDE.md` still says "Claude 3 Haiku" in diagram — actual model is Amazon Nova Pro
+- OrderFlow services (`order-service`, `notification-svc`, `web`) not yet scaffolded — CLAUDE.md, agents, and skills reference them but they don't exist yet
+- `@orderflow/logger` referenced in code standards but lib not yet created — Vyasa uses its own `src/lib/logger.ts`
