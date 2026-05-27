@@ -32,7 +32,7 @@ validated via DNS (CNAME record in Namecheap).
 | ------------------------------ | ----------------------------------------------------------------------------------------- |
 | **Stack**                      | `OrderFlow-VyasaUi` (region: `us-east-1`)                                                 |
 | **CloudFront Distribution ID** | `EP5RB7V8B8LOQ`                                                                           |
-| **CloudFront Domain**          | `d3qhic431njv7c.cloudfront.net`                                                           |
+| **CloudFront Domain**          | `d2j5xbveesoc8s.cloudfront.net`                                                           |
 | **ACM Certificate ARN**        | `arn:aws:acm:us-east-1:947612421212:certificate/64cc200e-74df-45d3-b7d9-86b5ef3379e1`     |
 | **S3 UI Bucket**               | `orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y`                                    |
 | **S3 Access Logs Bucket**      | auto-named (in `OrderFlow-VyasaUi` stack)                                                 |
@@ -58,7 +58,7 @@ validated via DNS (CNAME record in Namecheap).
 | Type  | Host                                      | Value                                                              | Purpose                                        |
 | ----- | ----------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
 | CNAME | `_14f04e88e165485e51aa0b9af8aeb5b8.vyasa` | `_0d85c2002378ec778375dfa887c2be0e.jkddzztszm.acm-validations.aws` | ACM DNS validation (permanent — do not delete) |
-| CNAME | `vyasa`                                   | `d3qhic431njv7c.cloudfront.net`                                    | Points `vyasa.nshinde.xyz` → CloudFront        |
+| CNAME | `vyasa`                                   | `d2j5xbveesoc8s.cloudfront.net`                                    | Points `vyasa.nshinde.xyz` → CloudFront        |
 
 ### Original Records (restore if needed)
 
@@ -125,11 +125,11 @@ aws cloudfront create-invalidation \
 
 ## Access URLs
 
-| URL                                     | Status  | Notes                                                                 |
-| --------------------------------------- | ------- | --------------------------------------------------------------------- |
-| `https://vyasa.nshinde.xyz`             | ✅ Live | Custom domain — may be blocked by org DNS policy on corporate devices |
-| `https://d3qhic431njv7c.cloudfront.net` | ✅ Live | New distribution — use for testing on corp devices                    |
-| `https://dmz5l917whhxp.cloudfront.net`  | ✅ Live | Old distribution (`OrderFlow-Prod-VyasaUi`) — still active            |
+| URL                                     | Status  | Notes                                                             |
+| --------------------------------------- | ------- | ----------------------------------------------------------------- |
+| `https://vyasa.nshinde.xyz`             | ✅ Live | Custom domain (external users) — may be blocked by org DNS policy |
+| `https://d2j5xbveesoc8s.cloudfront.net` | ✅ Live | CloudFront direct — use for dev/testing on corp devices           |
+| `https://dmz5l917whhxp.cloudfront.net`  | ✅ Live | Old distribution (`OrderFlow-Prod-VyasaUi`) — still active        |
 
 ---
 
@@ -146,5 +146,6 @@ redeployed under the new naming convention.
 ### Corporate DNS Blocking
 
 `.xyz` TLD domains may be blocked by corporate/org DNS policy. Use the
-CloudFront domain (`d3qhic431njv7c.cloudfront.net`) for testing on managed
-devices. The custom domain works correctly on personal devices and mobile.
+CloudFront domain (`d2j5xbveesoc8s.cloudfront.net`) for dev/testing on managed
+devices. The custom domain (`vyasa.nshinde.xyz`) works correctly on personal
+devices and mobile — reserve it for external users.

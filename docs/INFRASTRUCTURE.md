@@ -47,7 +47,7 @@ graph TB
   end
 
   subgraph "Vyasa Intelligence — Serverless RAG"
-    CF2[CloudFront<br/>vyasa.nshinde.xyz] --> APIGW[API Gateway HTTP]
+    CF2[CloudFront<br/>d2j5xbveesoc8s / vyasa.nshinde.xyz] --> APIGW[API Gateway HTTP]
     APIGW --> LAM[Lambda<br/>Node.js 22 arm64 1024MB]
     LAM --> BRK[Bedrock KB<br/>Nova Pro + Titan Embed v2]
     BRK --> S3V[S3 Vectors Index]
@@ -98,20 +98,20 @@ All stacks are prefixed `OrderFlow-*` (no environment suffix in prod).
 
 ## 3. Live Resources & Endpoints
 
-| Resource                       | ID / Value                                                      |
-| ------------------------------ | --------------------------------------------------------------- |
-| **Vyasa UI (custom domain)**   | `https://vyasa.nshinde.xyz`                                     |
-| **Vyasa UI (CloudFront)**      | `https://d3qhic431njv7c.cloudfront.net`                         |
-| **Vyasa RAG API**              | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com`        |
-| **Vyasa RAG health**           | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com/health` |
-| **CloudFront Distribution ID** | `EP5RB7V8B8LOQ`                                                 |
-| **ACM Certificate ARN**        | `arn:aws:acm:us-east-1:947612421212:certificate/64cc200e-...`   |
-| **S3 UI Bucket**               | `orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y`          |
-| **Bedrock KB ID**              | `OYAKPT9RLA`                                                    |
-| **Bedrock Data Source ID**     | `B2VQSKC6IS`                                                    |
-| **S3 Corpus Bucket**           | `vyasa-rag-corpus-dev-947612421212` (RETAIN policy)             |
-| **S3 Prompts Bucket**          | `vyasa-rag-prompts-dev-947612421212` (RETAIN policy)            |
-| **S3 Vectors Bucket**          | `vyasa-vectors-dev-947612421212`                                |
+| Resource                       | ID / Value                                                       |
+| ------------------------------ | ---------------------------------------------------------------- |
+| **Vyasa UI (external)**        | `https://vyasa.nshinde.xyz` (custom domain for end users)        |
+| **Vyasa UI (dev/internal)**    | `https://d2j5xbveesoc8s.cloudfront.net` (use during development) |
+| **Vyasa RAG API**              | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com`         |
+| **Vyasa RAG health**           | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com/health`  |
+| **CloudFront Distribution ID** | `EP5RB7V8B8LOQ`                                                  |
+| **ACM Certificate ARN**        | `arn:aws:acm:us-east-1:947612421212:certificate/64cc200e-...`    |
+| **S3 UI Bucket**               | `orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y`           |
+| **Bedrock KB ID**              | `OYAKPT9RLA`                                                     |
+| **Bedrock Data Source ID**     | `B2VQSKC6IS`                                                     |
+| **S3 Corpus Bucket**           | `vyasa-rag-corpus-dev-947612421212` (RETAIN policy)              |
+| **S3 Prompts Bucket**          | `vyasa-rag-prompts-dev-947612421212` (RETAIN policy)             |
+| **S3 Vectors Bucket**          | `vyasa-vectors-dev-947612421212`                                 |
 
 > **Note:** `.xyz` TLD may be blocked by corporate DNS. Use the CloudFront URL on managed devices.
 
@@ -272,20 +272,20 @@ Architecture decision: [ADR-010 — Serverless Lambda over ECS Fargate](#adr-010
 | Type  | Host                | Value                             | Purpose                          |
 | ----- | ------------------- | --------------------------------- | -------------------------------- |
 | CNAME | `_14f04e88...vyasa` | `_0d85c200...acm-validations.aws` | ACM DNS validation (permanent)   |
-| CNAME | `vyasa`             | `d3qhic431njv7c.cloudfront.net`   | `vyasa.nshinde.xyz` → CloudFront |
+| CNAME | `vyasa`             | `d2j5xbveesoc8s.cloudfront.net`   | `vyasa.nshinde.xyz` → CloudFront |
 
 ---
 
 ## 10. CDN & Custom Domain
 
-| Resource                | Value                                                  |
-| ----------------------- | ------------------------------------------------------ |
-| CloudFront Distribution | `EP5RB7V8B8LOQ`                                        |
-| CloudFront Domain       | `d3qhic431njv7c.cloudfront.net`                        |
-| Custom Domain           | `vyasa.nshinde.xyz`                                    |
-| Price Class             | `PriceClass_All`                                       |
-| CloudFront Function     | `vyasa-api-rewrite-prod-v2` (rewrites `/api/*` → `/*`) |
-| ACM Certificate         | `us-east-1` (required for CloudFront)                  |
+| Resource                 | Value                                                    |
+| ------------------------ | -------------------------------------------------------- |
+| CloudFront Distribution  | `EP5RB7V8B8LOQ`                                          |
+| CloudFront Domain (dev)  | `d2j5xbveesoc8s.cloudfront.net` (use during development) |
+| Custom Domain (external) | `vyasa.nshinde.xyz` (for end users)                      |
+| Price Class              | `PriceClass_All`                                         |
+| CloudFront Function      | `vyasa-api-rewrite-prod-v2` (rewrites `/api/*` → `/*`)   |
+| ACM Certificate          | `us-east-1` (required for CloudFront)                    |
 
 ### Deploy UI Assets
 

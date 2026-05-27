@@ -437,7 +437,7 @@ cmd_create() {
 
   # Extract JSON from agent output (between markers)
   local ticket_json
-  ticket_json=$(echo "$agent_output" | sed -n '/---JSON_OUTPUT_START---/,/---JSON_OUTPUT_END---/p' | grep -v '---JSON_OUTPUT')
+  ticket_json=$(echo "$agent_output" | sed -n '/---JSON_OUTPUT_START---/,/---JSON_OUTPUT_END---/p' | grep -v -- '---JSON_OUTPUT')
 
   if [ -z "$ticket_json" ] || ! echo "$ticket_json" | jq -e '.summary' &>/dev/null; then
     echo "Error: Could not parse ticket from agent output."
@@ -484,6 +484,14 @@ cmd_create() {
   local issue_type_id
   local types_response
   types_response=$(jira_api GET "/issue/createmeta/${project_key}/issuetypes")
+
+  if ! echo "$types_response" | jq -e '.issueTypes' &>/dev/null; then
+    echo "Error: Could not fetch issue types for project '$project_key'."
+    echo "  Verify the project key exists in Jira: ${JIRA_BASE_URL}/browse/$project_key"
+    echo "  API response: $(echo "$types_response" | jq -r '.errorMessages[0] // .message // "unknown error"' 2>/dev/null)"
+    exit 1
+  fi
+
   issue_type_id=$(echo "$types_response" | jq -r ".issueTypes[] | select(.name == \"$jira_issue_type\") | .id" | head -1)
 
   if [ -z "$issue_type_id" ]; then
