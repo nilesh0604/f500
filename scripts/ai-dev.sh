@@ -9,13 +9,15 @@
 #   ./scripts/ai-dev.sh <TICKET_ID> <subcommand>
 #
 # Requirements:
-#   - claude CLI: npm install -g @anthropic-ai/claude-code
+#   - codemie-claude CLI: npm install -g @codemieai/code
+#     (or set AI_DEV_CLAUDE_CMD=claude to use raw Claude Code CLI)
 #   - jq: brew install jq (macOS) or apt install jq (Linux)
 #   - JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN env vars
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CLAUDE_CMD="${AI_DEV_CLAUDE_CMD:-codemie-claude}"
 STEPS_ORDERED=(requirements design code test deploy)
 GATED_STEPS=(requirements design code)
 
@@ -44,9 +46,10 @@ require_tool() {
   if ! command -v "$tool" &>/dev/null; then
     echo "Error: '$tool' is required but not installed."
     case "$tool" in
-      jq)     echo "  Install: brew install jq (macOS) or apt install jq (Linux)" ;;
-      claude) echo "  Install: npm install -g @anthropic-ai/claude-code" ;;
-      curl)   echo "  Install: should be available on all systems" ;;
+      jq)             echo "  Install: brew install jq (macOS) or apt install jq (Linux)" ;;
+      codemie-claude) echo "  Install: npm install -g @codemieai/code" ;;
+      claude)         echo "  Install: npm install -g @anthropic-ai/claude-code" ;;
+      curl)           echo "  Install: should be available on all systems" ;;
     esac
     exit 1
   fi
@@ -62,6 +65,50 @@ require_jira_creds() {
     echo "    export JIRA_API_TOKEN=your-api-token"
     exit 1
   fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Agent Runner
+# ══════════════════════════════════════════════════════════════════════
+
+# run_agent <instructions_file> <budget_usd> <model> [KEY=VALUE ...]
+#
+# Reads the agent instructions file, substitutes {KEY} placeholders with
+# provided values, and invokes codemie-claude (or $CLAUDE_CMD) in
+# non-interactive print mode.
+#
+# Example:
+#   run_agent agents/requirements-agent/instructions.md 1.50 sonnet \
+#     TICKET_ID="OF-123" TICKET_CONTEXT="$context"
+#
+run_agent() {
+  local instructions_file="$1"
+  local budget="$2"
+  local model="$3"
+  shift 3
+
+  if [ ! -f "$REPO_ROOT/$instructions_file" ]; then
+    echo "Error: Instructions file not found: $instructions_file" >&2
+    return 1
+  fi
+
+  local instructions
+  instructions=$(cat "$REPO_ROOT/$instructions_file")
+
+  # Substitute {KEY} placeholders with provided KEY=VALUE pairs
+  for kv in "$@"; do
+    local key="${kv%%=*}"
+    local value="${kv#*=}"
+    # Use awk for safe substitution (handles special chars in value)
+    instructions=$(echo "$instructions" | awk -v k="{$key}" -v v="$value" '{gsub(k, v)}1')
+  done
+
+  $CLAUDE_CMD -p \
+    --system-prompt "$instructions" \
+    --model "$model" \
+    --max-budget-usd "$budget" \
+    --permission-mode default \
+    "Execute the task described in your system prompt. Follow all instructions precisely and produce the required output artifacts."
 }
 
 # ══════════════════════════════════════════════════════════════════════
@@ -347,9 +394,13 @@ Approval: Transition the subtask to "Done" in Jira UI.
 Status:   All state lives in Jira — no local state files.
 
 Environment vars (required):
-  JIRA_BASE_URL   e.g. https://yourcompany.atlassian.net
-  JIRA_EMAIL      Your Atlassian email
-  JIRA_API_TOKEN  API token from id.atlassian.com
+  JIRA_BASE_URL       e.g. https://yourcompany.atlassian.net
+  JIRA_EMAIL          Your Atlassian email
+  JIRA_API_TOKEN      API token from id.atlassian.com
+
+Environment vars (optional):
+  AI_DEV_CLAUDE_CMD   CLI to use (default: codemie-claude)
+                      Set to "claude" to use raw Claude Code CLI
 HELP
 }
 
@@ -358,7 +409,7 @@ HELP
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_create() {
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_tool jq
   require_jira_creds
 
@@ -379,10 +430,10 @@ cmd_create() {
   # Run ticket-creator agent to generate structured ticket
   echo "Analyzing codebase and generating ticket..."
   local agent_output
-  agent_output=$(cd "$REPO_ROOT" && claude -p agents/ticket-creator/instructions.md \
-    --var IDEA="$idea" \
-    --var PROJECT_KEY="$project_key" \
-    --max-turns 15 2>/dev/null)
+  agent_output=$(cd "$REPO_ROOT" && run_agent \
+    agents/ticket-creator/instructions.md 2.00 sonnet \
+    IDEA="$idea" \
+    PROJECT_KEY="$project_key" 2>/dev/null)
 
   # Extract JSON from agent output (between markers)
   local ticket_json
@@ -502,7 +553,7 @@ cmd_create() {
 
 cmd_init() {
   require_tool jq
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_tool curl
   require_jira_creds
 
@@ -615,7 +666,7 @@ EOF
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_requirements() {
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_jira_creds
   check_prerequisite requirements
 
@@ -634,10 +685,9 @@ cmd_requirements() {
   local context
   context=$(cat "$(feature_dir)/.ticket-context")
 
-  claude -p agents/requirements-agent/instructions.md \
-    --var TICKET_ID="$TICKET_ID" \
-    --var TICKET_CONTEXT="$context" \
-    --max-turns 10
+  run_agent agents/requirements-agent/instructions.md 1.50 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    TICKET_CONTEXT="$context"
 
   # Verify output
   local req_file="$(feature_dir)/requirements.md"
@@ -682,7 +732,7 @@ Review the requirements document. When satisfied, transition this subtask to Don
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_design() {
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_jira_creds
   check_prerequisite design
 
@@ -702,11 +752,10 @@ cmd_design() {
   context=$(cat "$(feature_dir)/.ticket-context")
   req_path="docs/features/$TICKET_ID/requirements.md"
 
-  claude -p agents/design-agent/instructions.md \
-    --var TICKET_ID="$TICKET_ID" \
-    --var TICKET_CONTEXT="$context" \
-    --var REQUIREMENTS_PATH="$req_path" \
-    --max-turns 15
+  run_agent agents/design-agent/instructions.md 2.00 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    TICKET_CONTEXT="$context" \
+    REQUIREMENTS_PATH="$req_path"
 
   # Verify output
   local tdd_file="$(feature_dir)/TDD.md"
@@ -752,7 +801,7 @@ Review the technical design. When satisfied, transition this subtask to Done to 
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_code() {
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_jira_creds
   check_prerequisite code
 
@@ -770,10 +819,9 @@ cmd_code() {
   cd "$REPO_ROOT"
   local tdd_path="docs/features/$TICKET_ID/TDD.md"
 
-  claude -p agents/code-agent/instructions.md \
-    --var TICKET_ID="$TICKET_ID" \
-    --var TDD_PATH="$tdd_path" \
-    --max-turns 30
+  run_agent agents/code-agent/instructions.md 5.00 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    TDD_PATH="$tdd_path"
 
   # Run lint + tests with retries
   local retries=0 max_retries=2 lint_pass=false test_pass=false
@@ -798,11 +846,10 @@ cmd_code() {
     if [ $retries -le $max_retries ]; then
       echo "Lint/tests failed — retrying with code-agent (attempt $retries/$max_retries)..."
       local error_context="Lint passed: $lint_pass, Tests passed: $test_pass. Please fix."
-      claude -p agents/code-agent/instructions.md \
-        --var TICKET_ID="$TICKET_ID" \
-        --var TDD_PATH="$tdd_path" \
-        --var ERROR_CONTEXT="$error_context" \
-        --max-turns 15
+      run_agent agents/code-agent/instructions.md 3.00 sonnet \
+        TICKET_ID="$TICKET_ID" \
+        TDD_PATH="$tdd_path" \
+        ERROR_CONTEXT="$error_context"
     fi
   done
 
@@ -846,7 +893,7 @@ Review the implementation on the feature branch. When satisfied, transition this
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_test() {
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_jira_creds
   check_prerequisite test
 
@@ -865,19 +912,17 @@ cmd_test() {
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
-  claude -p agents/test-agent/instructions.md \
-    --var TICKET_ID="$TICKET_ID" \
-    --var CHANGED_FILES="$changed_files" \
-    --max-turns 20
+  run_agent agents/test-agent/instructions.md 3.00 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    CHANGED_FILES="$changed_files"
 
   # Run coverage check
   local coverage_pass=true
   if ! npm run test:affected -- --coverage --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' 2>/dev/null; then
     echo "Coverage below 80% — retrying..."
-    claude -p agents/test-agent/instructions.md \
-      --var TICKET_ID="$TICKET_ID" \
-      --var CHANGED_FILES="$changed_files" \
-      --max-turns 10
+    run_agent agents/test-agent/instructions.md 2.00 sonnet \
+      TICKET_ID="$TICKET_ID" \
+      CHANGED_FILES="$changed_files"
 
     if ! npm run test:affected -- --coverage --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' 2>/dev/null; then
       coverage_pass=false
@@ -918,7 +963,7 @@ Testing phase complete."
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_deploy() {
-  require_tool claude
+  require_tool "$CLAUDE_CMD"
   require_jira_creds
   check_prerequisite deploy
 
@@ -938,11 +983,10 @@ cmd_deploy() {
   branch=$(git branch --show-current)
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
-  claude -p agents/deploy-agent/instructions.md \
-    --var TICKET_ID="$TICKET_ID" \
-    --var BRANCH="$branch" \
-    --var CHANGED_FILES="$changed_files" \
-    --max-turns 10
+  run_agent agents/deploy-agent/instructions.md 0.50 haiku \
+    TICKET_ID="$TICKET_ID" \
+    BRANCH="$branch" \
+    CHANGED_FILES="$changed_files"
 
   # Post to Jira (deploy subtask)
   local comment_body

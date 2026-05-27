@@ -198,6 +198,10 @@ This is the entry point for any autonomous task. Current implementation is an 8-
 > **Evolution note:** The 5-Section Agentic Workflow (below) is the target architecture
 > that adds a dedicated requirements analysis phase and human review gates. The
 > current orchestrator will be updated to align with that model.
+>
+> **CLI note:** Agents are invoked via `run_agent()` in `ai-dev.sh` using valid
+> `codemie-claude`/`claude` CLI flags (`-p --system-prompt --model --max-budget-usd`).
+> The earlier `--var` and `--max-turns` flags were aspirational and never existed in the CLI.
 
 ---
 
@@ -408,6 +412,46 @@ An async pipeline where each step is independently triggered. State lives in Jir
 each pipeline step maps to a subtask under the parent ticket. Human approval = transitioning
 the subtask to "Done" in the Jira UI.
 
+#### CLI Invocation: `codemie-claude` via `run_agent()` helper
+
+The script uses `codemie-claude` (CodeMie enterprise wrapper around Claude Code CLI) as the
+default AI runner. A centralized `run_agent()` helper handles all agent invocations:
+
+```bash
+# run_agent <instructions_file> <budget_usd> <model> [KEY=VALUE ...]
+run_agent agents/requirements-agent/instructions.md 1.50 sonnet \
+  TICKET_ID="OF-123" TICKET_CONTEXT="$context"
+```
+
+**How it works:**
+
+1. Reads the agent instructions file (Markdown)
+2. Substitutes `{KEY}` placeholders with provided `KEY=VALUE` pairs (using `awk`)
+3. Invokes `$CLAUDE_CMD -p --system-prompt "$instructions" --model <model> --max-budget-usd <budget> --permission-mode default`
+
+**Valid CLI flags used (compatible with both `claude` and `codemie-claude`):**
+
+| Flag                        | Purpose                                             |
+| --------------------------- | --------------------------------------------------- |
+| `-p` / `--print`            | Non-interactive mode (exit after response)          |
+| `--system-prompt`           | Agent instructions (with variables pre-substituted) |
+| `--model`                   | Model selection (`sonnet`, `haiku`)                 |
+| `--max-budget-usd`          | Cost cap per invocation (replaces `--max-turns`)    |
+| `--permission-mode default` | Keeps human-in-the-loop for destructive operations  |
+
+**Budget allocation per agent:**
+
+| Agent              | Model  | Budget | Rationale                               |
+| ------------------ | ------ | ------ | --------------------------------------- |
+| ticket-creator     | sonnet | $2.00  | Codebase analysis + structured output   |
+| requirements-agent | sonnet | $1.50  | Deep reasoning on requirements          |
+| design-agent       | sonnet | $2.00  | System interaction reasoning            |
+| code-agent         | sonnet | $5.00  | Complex implementation (retries: $3.00) |
+| test-agent         | sonnet | $3.00  | Coverage generation (retries: $2.00)    |
+| deploy-agent       | haiku  | $0.50  | Pure scripting — cheapest model         |
+
+**Configurable CLI:** Set `AI_DEV_CLAUDE_CMD=claude` to bypass CodeMie and use raw Claude Code CLI.
+
 **Architecture:**
 
 ```
@@ -438,7 +482,9 @@ Parent ticket: OF-123
 
 **Gated steps:** requirements, design, code (next step checks prior subtask = "Done")
 
-**Prerequisites:** `claude` CLI, `jq`, `curl`, Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
+**Prerequisites:** `codemie-claude` CLI (`npm install -g @codemieai/code`), `jq`, `curl`, Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
+
+> **Note:** Set `AI_DEV_CLAUDE_CMD=claude` to use raw Claude Code CLI instead of the CodeMie enterprise wrapper.
 
 ---
 
@@ -465,7 +511,7 @@ Parent ticket: OF-123
 | After Phase         | What works                                                                                                                 |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **A** (Brain)       | Every Claude session in Windsurf instantly knows the full project context — no re-explaining stack, patterns, or standards |
-| **B** (Agents)      | Can run `claude -p agents/orchestrator/instructions.md --var TICKET="..."` and get autonomous PR generation                |
+| **B** (Agents)      | `run_agent` helper invokes `codemie-claude -p --system-prompt <instructions> --model sonnet` for autonomous PR generation  |
 | **C** (MCPs)        | Orchestrator can read Jira tickets itself + Langfuse observability for RAG eval — no manual copy-paste                     |
 | **D** (Security CI) | Every PR gets AI security review via Bedrock — no code leaves your AWS VPC                                                 |
 | **E** (Script)      | Async pipeline: `./scripts/ai-dev.sh JIRA-456 <step>` — review offline, approve, trigger next step                         |
@@ -702,6 +748,10 @@ flowchart TD
   - [x] Error recovery (re-runnable steps)
   - [x] No local state files — Jira is single source of truth
   - [x] `create` subcommand — AI generates detailed Jira ticket from one-liner idea
+  - [x] Migrated to `codemie-claude` (CodeMie enterprise wrapper) with valid CLI flags
+  - [x] `run_agent()` helper — centralized agent invocation with `{VAR}` substitution
+  - [x] Budget-based cost control (`--max-budget-usd`) per agent invocation
+  - [x] Configurable via `AI_DEV_CLAUDE_CMD` env var (fallback to raw `claude` CLI)
 - [x] E.2 — `agents/orchestrator/instructions.md` rewritten for Jira-backed async model
 - [x] E.3 — `agents/ticket-creator/instructions.md` — generates structured tickets from one-liners
 
