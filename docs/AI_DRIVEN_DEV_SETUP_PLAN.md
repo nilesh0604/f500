@@ -653,8 +653,8 @@ flowchart TD
 ### Phase B — Agent Infrastructure
 
 - [x] B.1 — `.cloud/permissions.yaml`
-- [x] B.2 — `agents/orchestrator/instructions.md` (8-step pipeline)
-- [x] B.3 — Sub-agent instruction files (design, code, test, deploy)
+- [x] B.2 — `agents/orchestrator/instructions.md` (9-step pipeline — includes requirements-agent + human gate)
+- [x] B.3 — Sub-agent instruction files (requirements, design, code, test, deploy)
 - [x] B.4 — `hooks/pre-tool.sh` + `hooks/post-tool.sh`
 - [x] B.5 — Skills library
   - [x] `skills/create-test-file/skill.md`
@@ -680,6 +680,9 @@ flowchart TD
 
 ### 5-Section Agentic Workflow (target)
 
-- [ ] Create `agents/requirements-agent/instructions.md`
-- [ ] Update orchestrator to add human gates between sections
-- [ ] Document the requirements → design handoff format
+- [x] Create `agents/requirements-agent/instructions.md`
+- [x] Update orchestrator to add human gate after requirements (Step 3)
+- [x] Design-agent updated: consumes `requirements.md`, appends Spec Validation Checklist to TDD.md
+- [x] Orchestrator passes `REQUIREMENTS_PATH` to design-agent
+- [ ] Add human gate after TDD review (Step 4) — currently optional
+- [ ] Add human gate after implementation spot-check (Step 5) — currently optional

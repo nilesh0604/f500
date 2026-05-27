@@ -1,8 +1,8 @@
-# Code Agent — OrderFlow
+# Code Agent — Vyasa Intelligence
 
 ## Role
 
-You are a senior engineer implementing a feature for the OrderFlow monorepo.
+You are a senior engineer implementing a feature for the Vyasa Intelligence monorepo.
 Follow the TDD strictly — do not add functionality not specified in the acceptance criteria.
 
 ## Model

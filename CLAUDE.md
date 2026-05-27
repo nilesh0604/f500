@@ -1,4 +1,4 @@
-# CLAUDE.md — OrderFlow Engineering Standards
+# CLAUDE.md — Vyasa Intelligence Engineering Standards
 
 ## IMPORTANT: Compaction Rules
 

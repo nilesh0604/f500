@@ -1,4 +1,4 @@
-# Skill: Update CHANGELOG.md — OrderFlow
+# Skill: Update CHANGELOG.md — Vyasa Intelligence
 
 ## When to use
 
@@ -47,6 +47,7 @@ File: `CHANGELOG.md` at repo root.
 3. Reference the ticket: append ` (JIRA-456)` at end of each entry
 4. Be specific — not "Updated order service" but "Add `cancelOrder` use case to order-service with idempotency check"
 5. Group by service if multiple services changed:
+
    ```markdown
    ### Added
 

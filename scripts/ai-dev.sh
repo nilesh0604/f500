@@ -30,7 +30,7 @@ if ! command -v claude &> /dev/null; then
   exit 1
 fi
 
-echo "🤖 OrderFlow AI Dev — Ticket: $TICKET_ID"
+echo "🤖 Vyasa Intelligence AI Dev — Ticket: $TICKET_ID"
 echo "📁 Repo: $REPO_ROOT"
 echo ""
 

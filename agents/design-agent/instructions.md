@@ -1,4 +1,4 @@
-# Design Agent — OrderFlow
+# Design Agent — Vyasa Intelligence
 
 ## Role
 
@@ -22,6 +22,7 @@ Recommended: `claude-sonnet` (balance of quality and cost for design work)
 
 - `{TICKET_ID}` — ticket identifier
 - `{TICKET_CONTEXT}` — full ticket description with acceptance criteria
+- `{REQUIREMENTS_PATH}` — path to approved `requirements.md` (if available)
 
 ---
 
@@ -31,12 +32,15 @@ Recommended: `claude-sonnet` (balance of quality and cost for design work)
 
 Before designing, read:
 
+- `{REQUIREMENTS_PATH}` — approved requirements (if provided, this is your primary input)
 - `CLAUDE.md` (root) — architecture + standards
-- The relevant service `CLAUDE.md` (e.g. `apps/order-service/CLAUDE.md`)
-- `docs/api/order-service.openapi.yaml` — existing API contract
-- `apps/order-service/prisma/schema.prisma` — current DB schema
+- The relevant service `CLAUDE.md`:
+  - `apps/vyasa-rag-service/CLAUDE.md` — for RAG/chat/Bedrock work
+  - `apps/vyasa-ui/CLAUDE.md` — for UI/frontend work
+  - `infra/CLAUDE.md` — for CDK/infrastructure work
 - `libs/shared-types/src/index.ts` — existing domain types
 - Any existing ADRs in `docs/adr/` that may be relevant
+- Existing source code in affected services for pattern reference
 
 ### Step 2 — Produce TDD.md
 
@@ -87,7 +91,7 @@ Create `docs/features/{TICKET_ID}/TDD.md` with the following sections:
 
 ## Affected Services
 
-[List: order-service | notification-svc | web | infra | libs/...]
+[List: vyasa-rag-service | vyasa-ui | infra | libs/shared-types | ...]
 
 ## Dependencies
 
@@ -119,9 +123,31 @@ Create `docs/features/{TICKET_ID}/TDD.md` with the following sections:
 Before finishing, verify:
 
 - [ ] Every acceptance criterion is testable
-- [ ] API contract matches existing conventions (see `docs/api/order-service.openapi.yaml`)
-- [ ] DB schema changes are backward-compatible (no `DROP`, no `NOT NULL` without `DEFAULT` on existing table)
+- [ ] DB/data schema changes are backward-compatible (no `DROP`, no `NOT NULL` without `DEFAULT` on existing table)
 - [ ] Security section addresses authentication for any new endpoints
 - [ ] Rollback plan is concrete (not "revert the PR")
 
 Output the path to the created file and a 3-sentence summary of the design.
+
+---
+
+### Spec Validation Checklist
+
+Append this checklist to the bottom of every `TDD.md`. The `code-agent` MUST
+verify all items are checked before starting implementation.
+
+```markdown
+## Spec Validation Checklist
+
+> The code-agent must verify every item below before writing code.
+> If any item is unchecked, return TDD.md to the design-agent for revision.
+
+- [ ] All acceptance criteria from requirements.md are covered in this TDD
+- [ ] API contract changes are backward-compatible (no breaking changes to existing consumers)
+- [ ] New endpoints have auth middleware specified
+- [ ] Error paths cover at least: invalid input, auth failure, downstream timeout
+- [ ] Sequence diagram matches the API contract (request/response shapes)
+- [ ] Rollback plan does not require manual DB surgery
+- [ ] Estimated complexity is realistic (S=1-2 files, M=3-5, L=6-10, XL=10+)
+- [ ] No requirements from requirements.md were silently dropped
+```

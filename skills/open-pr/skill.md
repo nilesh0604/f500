@@ -1,4 +1,4 @@
-# Skill: Open Pull Request — OrderFlow
+# Skill: Open Pull Request — Vyasa Intelligence
 
 ## When to use
 

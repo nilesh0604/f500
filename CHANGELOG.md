@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Project-wide rename: OrderFlow → Vyasa Intelligence** in agent/skill/hook documentation:
+  - `agents/*/instructions.md` (all 6 agents): title lines updated
+  - `agents/code-agent/instructions.md`: role description updated
+  - `skills/*/skill.md` (all 3 skills): title lines updated
+  - `scripts/ai-dev.sh`: CLI banner updated
+  - `CLAUDE.md` (root): title updated
+  - **Not renamed** (runtime identifiers): `@orderflow/*` package paths, `package.json` name, CDK stack prefixes, CDK tags — these require coordinated migration
+- **`agents/requirements-agent/instructions.md`** — New requirements analysis agent (5-Section Workflow Section 1): takes raw ticket context, produces structured `requirements.md` with Given/When/Then acceptance criteria, edge cases, constraints, affected services, and open questions; read-only permissions (no git/npm/cdk)
+
 ### Changed
 
+- **`agents/orchestrator/instructions.md`** — Expanded from 8-step to 9-step pipeline: inserted Step 3 (requirements-agent) with optional human gate before design; renumbered Steps 4-9; updated affected services list to actual services (`vyasa-rag-service`, `vyasa-ui`); summary now includes requirements.md review + Spec Validation Checklist verification
+- **`agents/design-agent/instructions.md`** — Added `{REQUIREMENTS_PATH}` input; updated context-reading to use actual service CLAUDE.md paths; updated affected services list; added Spec Validation Checklist template appended to every TDD.md (8 items the code-agent must verify before implementation)
 - **`docs/AI_DRIVEN_DEV_SETUP_PLAN.md` — comprehensive review and accuracy update**:
   - Fixed Table of Contents — added 5-Section Workflow + Status Tracking entries
   - A.2: Updated shared libs list to match actual `CLAUDE.md`; added environment note
