@@ -15,6 +15,18 @@ Purpose: hands-on Fortune 500 SDLC patterns demonstration.
 
 ---
 
+## Jira Integration
+
+- **Site**: `nilesh0604.atlassian.net`
+- **Project key**: `SCRUM`
+- **Project name**: Vyasa Intelligence
+- **Board type**: Software (next-gen / Team-managed)
+- **Default JQL prefix**: `project = SCRUM`
+
+When creating/searching issues, always use project key `SCRUM` unless explicitly told otherwise.
+
+---
+
 ## Architecture
 
 - **Pattern**: Microservices + Event-Driven (REST + async messaging)
