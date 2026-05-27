@@ -1,182 +1,152 @@
-# Orchestrator Agent — Vyasa Intelligence
+# Orchestrator — Vyasa Intelligence (Jira-Backed Async Pipeline)
 
-## IMPORTANT: Follow these steps in exact order. Do not skip steps. Do not combine steps.
+## Overview
 
-## Inputs
-
-- `{TICKET_ID}` — e.g. `JIRA-456`
-- `{TICKET_CONTEXT}` — full ticket JSON or description with acceptance criteria
-
----
-
-## Pre-flight Checks (run before any step)
-
-1. Read `.cloud/permissions.yaml` — confirm no blocked operations are needed
-2. Confirm you are NOT on the `main` branch
-3. Check `git status` — working directory must be clean before starting
-
----
-
-## Step 1 — Parse Ticket
-
-Extract from `{TICKET_CONTEXT}`:
-
-- Title
-- Description
-- Acceptance criteria (list each as a testable statement)
-- Affected service(s): `vyasa-rag-service` | `vyasa-ui` | `infra` | `libs/shared-types`
-- Ticket type: `feature` | `bug` | `chore`
-
-If acceptance criteria are missing or ambiguous, STOP and report:
+The AI-driven development pipeline operates as **independent, manually-triggered steps** with
+state tracked entirely in Jira. Each step creates output, posts it to a Jira subtask,
+and the human reviews offline. Approval = transitioning the subtask to "Done" in Jira.
 
 ```
-ORCHESTRATOR: Cannot proceed — acceptance criteria missing from ticket {TICKET_ID}.
-Please clarify: [list what is unclear]
+Human triggers step → Agent produces output → Posted to Jira subtask → Human reviews in Jira → Transitions to Done → Next step unlocked
 ```
 
 ---
 
-## Step 2 — Create Feature Branch
+## Architecture
+
+```
+Parent ticket: OF-123 "Add session timeout"
+├── Subtask: OF-124 "[AI] Requirements"     → requirements.md (summary + attachment)
+├── Subtask: OF-125 "[AI] Design"           → TDD.md (summary + attachment)
+├── Subtask: OF-126 "[AI] Implementation"   → changed files list, lint/test status
+├── Subtask: OF-127 "[AI] Testing"          → coverage report (auto-completes)
+└── Subtask: OF-128 "[AI] Deploy"           → PR URL (auto-completes)
+```
+
+---
+
+## Pipeline Steps
+
+| #   | Step           | Agent              | Input             | Output (in Jira)                             | Human Gate              |
+| --- | -------------- | ------------------ | ----------------- | -------------------------------------------- | ----------------------- |
+| —   | `create`       | ticket-creator     | One-liner idea    | New Jira ticket with structured description  | **Yes** (review ticket) |
+| 0   | `init`         | (shell only)       | Ticket ID         | Subtasks created + branch                    | —                       |
+| 1   | `requirements` | requirements-agent | Ticket context    | Summary comment + `requirements.md` attached | **Yes**                 |
+| 2   | `design`       | design-agent       | `requirements.md` | Summary comment + `TDD.md` attached          | **Yes**                 |
+| 3   | `code`         | code-agent         | `TDD.md`          | Changed files + lint/test status comment     | **Yes**                 |
+| 4   | `test`         | test-agent         | Changed files     | Coverage report comment                      | No (auto-Done)          |
+| 5   | `deploy`       | deploy-agent       | Branch + files    | PR URL comment                               | No (auto-Done)          |
+
+---
+
+## Usage
 
 ```bash
-git checkout main
-git pull origin main
-git checkout -b feature/{TICKET_ID}-$(echo "{TICKET_CONTEXT}" | head -c 40 | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-')
-```
+# 0. Create a ticket from an idea (optional — skip if ticket already exists)
+./scripts/ai-dev.sh OF create "add session timeout to chat"
+# → Review in Jira: edit title, description, priority if needed
 
-Confirm branch was created. If branch already exists, STOP and report.
+# 1. Initialize — creates subtasks + branch
+./scripts/ai-dev.sh OF-123 init
+
+# 2. Requirements analysis
+./scripts/ai-dev.sh OF-123 requirements
+# → Review in Jira: transition "[AI] Requirements" subtask to Done
+
+# 3. Technical design
+./scripts/ai-dev.sh OF-123 design
+# → Review in Jira: transition "[AI] Design" subtask to Done
+
+# 4. Implementation
+./scripts/ai-dev.sh OF-123 code
+# → Review branch + Jira comment: transition "[AI] Implementation" to Done
+
+# 5. Test coverage
+./scripts/ai-dev.sh OF-123 test
+# (auto-completes — no approval needed)
+
+# 6. Open PR
+./scripts/ai-dev.sh OF-123 deploy
+# (auto-completes — review the PR on GitHub)
+
+# Check progress anytime
+./scripts/ai-dev.sh OF-123 status
+```
 
 ---
 
-## Step 3 — Call Requirements Agent
+## Human Approval Flow
 
-```bash
-claude -p agents/requirements-agent/instructions.md \
-  --var TICKET_ID="{TICKET_ID}" \
-  --var TICKET_CONTEXT="{TICKET_CONTEXT}" \
-  --max-turns 10
-```
-
-**Wait for completion.**
-
-Verify output exists: `docs/features/{TICKET_ID}/requirements.md`
-If missing: retry once. If still missing: STOP and report failure.
-
-**🚪 HUMAN GATE (optional):** If running interactively, pause here and ask:
-
-```
-ORCHESTRATOR: Requirements ready at docs/features/{TICKET_ID}/requirements.md
-Review and confirm to proceed, or provide feedback.
-```
+1. Agent runs and posts output to the Jira subtask (comment + file attachment)
+2. Human receives notification in Jira (or checks via `status` command)
+3. Human reviews the artifact offline — no time pressure
+4. If satisfied: transition subtask to **"Done"** in Jira UI
+5. If feedback needed: add a comment on the subtask, then re-run the step
+6. Script checks subtask status before allowing next step to proceed
 
 ---
 
-## Step 4 — Call Design Agent
+## Prerequisite Validation
 
-```bash
-claude -p agents/design-agent/instructions.md \
-  --var TICKET_ID="{TICKET_ID}" \
-  --var TICKET_CONTEXT="{TICKET_CONTEXT}" \
-  --var REQUIREMENTS_PATH="docs/features/{TICKET_ID}/requirements.md" \
-  --max-turns 15
-```
+Each step queries Jira for the prior subtask's status:
 
-**Wait for completion.**
+| Step         | Jira check                           |
+| ------------ | ------------------------------------ |
+| requirements | Subtasks exist (init was run)        |
+| design       | Requirements subtask status = "Done" |
+| code         | Design subtask status = "Done"       |
+| test         | Code subtask status = "Done"         |
+| deploy       | Test subtask status = "Done"         |
 
-Verify output exists: `docs/features/{TICKET_ID}/TDD.md`
-If missing: retry once. If still missing: STOP and report failure.
-
-Verify `TDD.md` contains the Spec Validation Checklist section at the bottom.
-If missing: call design-agent again with instruction to append the checklist.
+If prerequisite fails, the script prints which subtask to review and exits.
 
 ---
 
-## Step 5 — Call Code Agent
+## What Gets Posted to Jira (not code)
 
-```bash
-claude -p agents/code-agent/instructions.md \
-  --var TICKET_ID="{TICKET_ID}" \
-  --var TDD_PATH="docs/features/{TICKET_ID}/TDD.md" \
-  --max-turns 30
-```
+| Step         | Comment summary                                     | Attachment        |
+| ------------ | --------------------------------------------------- | ----------------- |
+| requirements | AC count, edge cases, affected services, highlights | `requirements.md` |
+| design       | API contracts, schema changes, security notes       | `TDD.md`          |
+| code         | Changed files list, lint/test pass status           | —                 |
+| test         | Coverage report, pass/fail                          | —                 |
+| deploy       | PR URL, branch name                                 | —                 |
 
-**Wait for completion.**
-
-Run verification:
-
-```bash
-npm run lint -- --quiet
-npm run test:affected
-```
-
-If lint fails: call code-agent again with lint output as context. Max 2 retries.
-If tests fail: call code-agent again with test failure output as context. Max 2 retries.
-If still failing after retries: STOP and report — do NOT open PR with failing tests.
+**Code stays in git only.** Jira gets summaries and design documents, not source files.
 
 ---
 
-## Step 6 — Call Test Agent
+## Local Files
 
-```bash
-claude -p agents/test-agent/instructions.md \
-  --var TICKET_ID="{TICKET_ID}" \
-  --var CHANGED_FILES="$(git diff main --name-only)" \
-  --max-turns 20
+Two local files are created during `init`:
+
+```
+docs/features/{TICKET_ID}/.jira-subtasks    — subtask key mappings (e.g., requirements=OF-124)
+docs/features/{TICKET_ID}/.ticket-context   — ticket title + description for agent input
 ```
 
-**Wait for completion.**
-
-Run coverage check:
-
-```bash
-npm run test:affected -- --coverage --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}'
-```
-
-If coverage below 80%: call test-agent again. Max 1 retry.
+These are lookup caches — all actual state lives in Jira.
 
 ---
 
-## Step 7 — Update Changelog
+## Agent Contracts
 
-Read `skills/update-changelog/skill.md` and apply it.
-Add entry under `## [Unreleased]` in `CHANGELOG.md`.
-
----
-
-## Step 8 — Call Deploy Agent
-
-```bash
-claude -p agents/deploy-agent/instructions.md \
-  --var TICKET_ID="{TICKET_ID}" \
-  --var BRANCH="$(git branch --show-current)" \
-  --var CHANGED_FILES="$(git diff main --name-only | tr '\n' ',')" \
-  --max-turns 10
-```
-
-**Wait for completion.**
-
-Verify PR was opened (deploy-agent will output the PR URL).
+| Agent          | File                                        | Model         |
+| -------------- | ------------------------------------------- | ------------- |
+| Ticket Creator | `agents/ticket-creator/instructions.md`     | Claude Sonnet |
+| Requirements   | `agents/requirements-agent/instructions.md` | Claude Sonnet |
+| Design         | `agents/design-agent/instructions.md`       | Claude Sonnet |
+| Code           | `agents/code-agent/instructions.md`         | Claude Sonnet |
+| Test           | `agents/test-agent/instructions.md`         | Claude Sonnet |
+| Deploy         | `agents/deploy-agent/instructions.md`       | Claude Haiku  |
 
 ---
 
-## Step 9 — Report Summary
+## Prerequisites
 
-Output a summary in this format:
-
-```
-ORCHESTRATOR COMPLETE ✓
-
-Ticket:     {TICKET_ID}
-Branch:     feature/{TICKET_ID}-...
-PR:         [URL from deploy-agent]
-Tests:      PASS (coverage: X%)
-Changed:    [list of files]
-Duration:   [elapsed time]
-
-Next steps for human reviewer:
-- [ ] Review requirements.md at docs/features/{TICKET_ID}/requirements.md
-- [ ] Review TDD.md at docs/features/{TICKET_ID}/TDD.md
-- [ ] Verify Spec Validation Checklist in TDD.md is fully checked
-- [ ] Review PR diff
-- [ ] Approve and merge when ready
-```
+- `claude` CLI (`npm install -g @anthropic-ai/claude-code`)
+- `jq` (`brew install jq`)
+- `curl`
+- Environment variables: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+- Jira project must support subtask creation
+- Standard workflow: "To Do" → "In Progress" → "Done"

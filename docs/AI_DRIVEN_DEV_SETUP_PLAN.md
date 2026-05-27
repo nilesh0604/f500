@@ -299,17 +299,18 @@ _Estimated effort: 1 hour | Needs API tokens_
     },
     "jira": {
       "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-server-jira"],
+      "args": ["-y", "mcp-jira-cloud"],
       "env": {
-        "JIRA_URL": "${JIRA_URL}",
+        "JIRA_BASE_URL": "${JIRA_BASE_URL}",
         "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
         "JIRA_EMAIL": "${JIRA_EMAIL}"
       }
     },
     "langfuse": {
+      "type": "sse",
       "url": "https://cloud.langfuse.com/api/public/mcp",
       "headers": {
-        "Authorization": "Basic <base64-encoded-credentials>"
+        "Authorization": "Basic ${LANGFUSE_API_TOKEN}"
       }
     }
   }
@@ -318,10 +319,10 @@ _Estimated effort: 1 hour | Needs API tokens_
 
 **Tokens needed:**
 
-- GitHub PAT: `https://github.com/settings/tokens`
-- Jira API token + email: `https://id.atlassian.com/manage-profile/security/api-tokens`
-- Langfuse: Public + Secret key from Langfuse project settings (Base64-encoded as `pk:sk`)
-- AWS: Profile configured via `aws configure` or SSO
+- GitHub PAT (`GITHUB_PERSONAL_ACCESS_TOKEN`): `https://github.com/settings/tokens`
+- Jira API token + email (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`): `https://id.atlassian.com/manage-profile/security/api-tokens`
+- Langfuse (`LANGFUSE_API_TOKEN`): Base64-encoded `pk:sk` from Langfuse project settings
+- AWS: Profile configured via `aws configure` or SSO (`AWS_REGION`, `AWS_PROFILE`)
 
 > **Note:** Slack MCP was originally planned but replaced by Langfuse MCP for RAG evaluation
 > observability. Slack can be added later if notification integration is needed.
@@ -397,32 +398,47 @@ jobs:
 
 ---
 
-## Phase E — Operator Script (ties it all together)
+## Phase E — Operator Script (Jira-Backed Async Pipeline)
 
-_Estimated effort: 30 min_
+_Estimated effort: 2 hours_
 
-### E.1 — Create `scripts/ai-dev.sh`
+### E.1 — `scripts/ai-dev.sh` — Subcommand Dispatcher (Jira State)
 
-A single script you run to trigger the orchestrator for a given ticket:
+An async pipeline where each step is independently triggered. State lives in Jira —
+each pipeline step maps to a subtask under the parent ticket. Human approval = transitioning
+the subtask to "Done" in the Jira UI.
+
+**Architecture:**
+
+```
+Parent ticket: OF-123
+├── Subtask: "[AI] Requirements"     → requirements.md (comment + attachment)
+├── Subtask: "[AI] Design"           → TDD.md (comment + attachment)
+├── Subtask: "[AI] Implementation"   → changed files list
+├── Subtask: "[AI] Testing"          → coverage report (auto-Done)
+└── Subtask: "[AI] Deploy"           → PR URL (auto-Done)
+```
+
+**Usage:**
 
 ```bash
-#!/bin/bash
-# Usage: ./scripts/ai-dev.sh JIRA-456
-# Fetches Jira ticket, runs orchestrator headlessly
-
-TICKET_ID="$1"
-
-# Fetch ticket via Jira API (or Jira MCP)
-TICKET_JSON=$(curl -s -H "Authorization: Bearer $JIRA_API_TOKEN" \
-  "https://yourcompany.atlassian.net/rest/api/3/issue/$TICKET_ID")
-
-# Run orchestrator
-claude -p agents/orchestrator/instructions.md \
-  --var TICKET_ID="$TICKET_ID" \
-  --var TICKET_CONTEXT="$TICKET_JSON" \
-  --var BRANCH="feature/$TICKET_ID" \
-  --max-turns 30
+./scripts/ai-dev.sh OF-123 init           # Create subtasks + branch
+./scripts/ai-dev.sh OF-123 requirements   # → posts to Jira subtask
+# Review in Jira UI → transition subtask to "Done"
+./scripts/ai-dev.sh OF-123 design         # → posts to Jira subtask
+# Review in Jira UI → transition subtask to "Done"
+./scripts/ai-dev.sh OF-123 code           # → posts to Jira subtask
+# Review in Jira UI → transition subtask to "Done"
+./scripts/ai-dev.sh OF-123 test           # → auto-completes
+./scripts/ai-dev.sh OF-123 deploy         # → opens PR, auto-completes
+./scripts/ai-dev.sh OF-123 status         # Query Jira for all subtask statuses
 ```
+
+**Approval mechanism:** Transition subtask to "Done" in Jira (no CLI `approve` command needed).
+
+**Gated steps:** requirements, design, code (next step checks prior subtask = "Done")
+
+**Prerequisites:** `claude` CLI, `jq`, `curl`, Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
 
 ---
 
@@ -452,7 +468,7 @@ claude -p agents/orchestrator/instructions.md \
 | **B** (Agents)      | Can run `claude -p agents/orchestrator/instructions.md --var TICKET="..."` and get autonomous PR generation                |
 | **C** (MCPs)        | Orchestrator can read Jira tickets itself + Langfuse observability for RAG eval — no manual copy-paste                     |
 | **D** (Security CI) | Every PR gets AI security review via Bedrock — no code leaves your AWS VPC                                                 |
-| **E** (Script)      | One command: `./scripts/ai-dev.sh JIRA-456` → PR opened autonomously                                                       |
+| **E** (Script)      | Async pipeline: `./scripts/ai-dev.sh JIRA-456 <step>` — review offline, approve, trigger next step                         |
 
 ---
 
@@ -644,7 +660,7 @@ flowchart TD
 - [x] A.3 — Per-service `CLAUDE.md` files
   - [x] `apps/vyasa-rag-service/CLAUDE.md`
   - [x] `infra/CLAUDE.md`
-  - [ ] `apps/vyasa-ui/CLAUDE.md` — not yet created
+  - [x] `apps/vyasa-ui/CLAUDE.md`
   - [ ] `apps/order-service/CLAUDE.md` — deferred (service not scaffolded)
   - [ ] `apps/notification-svc/CLAUDE.md` — deferred (service not scaffolded)
   - [ ] `apps/web/CLAUDE.md` — deferred (service not scaffolded)
@@ -653,8 +669,8 @@ flowchart TD
 ### Phase B — Agent Infrastructure
 
 - [x] B.1 — `.cloud/permissions.yaml`
-- [x] B.2 — `agents/orchestrator/instructions.md` (9-step pipeline — includes requirements-agent + human gate)
-- [x] B.3 — Sub-agent instruction files (requirements, design, code, test, deploy)
+- [x] B.2 — `agents/orchestrator/instructions.md` (9-step pipeline — 3 mandatory human gates at Steps 3, 4, 5)
+- [x] B.3 — Sub-agent instruction files (ticket-creator, requirements, design, code, test, deploy)
 - [x] B.4 — `hooks/pre-tool.sh` + `hooks/post-tool.sh`
 - [x] B.5 — Skills library
   - [x] `skills/create-test-file/skill.md`
@@ -674,15 +690,29 @@ flowchart TD
 - [ ] D.3 — VPC endpoint for Bedrock ⚠️ OPTIONAL — recommended for production
 - [x] D.4 — `.github/workflows/llm-security-scan.yml`
 
-### Phase E — Operator Script
+### Phase E — Operator Script (Jira-Backed Async Pipeline)
 
-- [x] E.1 — `scripts/ai-dev.sh`
+- [x] E.1 — `scripts/ai-dev.sh` rewritten as Jira-backed subcommand dispatcher
+  - [x] Subcommand routing (create, init, requirements, design, code, test, deploy, status)
+  - [x] Jira REST API helpers (create subtask, add comment, upload attachment, get status, transition)
+  - [x] Subtask creation during init (5 subtasks per ticket)
+  - [x] Prerequisite validation via Jira subtask status checks
+  - [x] Summary comments + file attachments posted to Jira subtasks
+  - [x] Status display sourced from live Jira data
+  - [x] Error recovery (re-runnable steps)
+  - [x] No local state files — Jira is single source of truth
+  - [x] `create` subcommand — AI generates detailed Jira ticket from one-liner idea
+- [x] E.2 — `agents/orchestrator/instructions.md` rewritten for Jira-backed async model
+- [x] E.3 — `agents/ticket-creator/instructions.md` — generates structured tickets from one-liners
 
-### 5-Section Agentic Workflow (target)
+### 5-Section Agentic Workflow (implemented)
 
 - [x] Create `agents/requirements-agent/instructions.md`
-- [x] Update orchestrator to add human gate after requirements (Step 3)
 - [x] Design-agent updated: consumes `requirements.md`, appends Spec Validation Checklist to TDD.md
 - [x] Orchestrator passes `REQUIREMENTS_PATH` to design-agent
-- [ ] Add human gate after TDD review (Step 4) — currently optional
-- [ ] Add human gate after implementation spot-check (Step 5) — currently optional
+- [x] Human gate after requirements — enforced via Jira subtask "Done" transition
+- [x] Human gate after TDD review — enforced via Jira subtask "Done" transition
+- [x] Human gate after implementation — enforced via Jira subtask "Done" transition
+- [x] Async model: each step independently triggerable, no single-session requirement
+- [x] State in Jira: subtask statuses, comments, attachments — no local state files
+- [x] Output artifacts posted to Jira: summary comments + file attachments for offline review
