@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI: `vyasa-ui:test` failing with `ERR_MODULE_NOT_FOUND` for vitest** — Added `vitest`, `@vitejs/plugin-react`, `@vitest/coverage-v8`, and `vite` to root `package.json` devDependencies so they are installed during `npm ci` in the monorepo. Changed `apps/vyasa-ui/package.json` test scripts from `npx vitest run` to `vitest run` to use the hoisted package instead of triggering a runtime auto-install.
+
 ### Added
 
 - **SCRUM-5 — Responsive Mobile Layout for Vyasa UI** (`apps/vyasa-ui/`):
