@@ -170,90 +170,7 @@ jobs:
             !dist/**/*.map
           retention-days: 1
 
-  # Job 5: Security and dependency checks
-  security-scan:
-    name: Security & Dependencies
-    runs-on: ubuntu-latest
-    needs: setup
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run npm audit
-        run: |
-          npm audit --audit-level=high --json > npm-audit-report.json || true
-          # Fail if critical vulnerabilities found
-          if jq -e '.metadata.vulnerabilities.critical > 0' npm-audit-report.json 2>/dev/null; then
-            echo "❌ Critical vulnerabilities found"
-            exit 1
-          fi
-          if jq -e '.metadata.vulnerabilities.high > 0' npm-audit-report.json 2>/dev/null; then
-            echo "⚠️ High vulnerabilities found - review required"
-          fi
-          echo "✅ No critical vulnerabilities"
-
-      - name: Check for dependency license issues
-        run: |
-          # Check for GPL licenses in dependencies
-          npm list --json > dependencies.json || true
-          echo "License check placeholder - use license-checker in production"
-
-      - name: Secret scanning (TruffleHog)
-        uses: trufflesecurity/trufflehog@v3.88.5
-        with:
-          path: ./
-          base: ${{ github.event.pull_request.base.sha }}
-          head: ${{ github.event.pull_request.head.sha }}
-          extra_args: --only-verified
-
-  # Job 6: SonarQube analysis
-  sonarqube:
-    name: SonarQube Analysis
-    runs-on: ubuntu-latest
-    needs: [unit-tests, build]
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download coverage reports
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-reports
-          path: ./coverage/
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v4
-        if: env.SONAR_TOKEN != ''
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=orderflow
-            -Dsonar.organization=orderflow
-            -Dsonar.javascript.lcov.reportPaths=coverage/**/lcov.info
-            -Dsonar.typescript.tsconfigPath=tsconfig.base.json
-            -Dsonar.sources=apps,libs
-            -Dsonar.tests=apps,libs
-            -Dsonar.test.inclusions=**/*.spec.ts,**/*.test.ts
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**
-
-  # Job 7: SCSS / Stylelint
+  # Job 5: SCSS / Stylelint
   stylelint:
     name: Stylelint (SCSS)
     runs-on: ubuntu-latest
@@ -334,21 +251,11 @@ jobs:
             echo "✅ Bundle size: $BUNDLE_SIZE bytes (limit: $MAX_SIZE bytes)"
           fi
 
-  # Job 10: Final summary
+  # Job 8: Final summary
   pr-checks-summary:
     name: PR Checks Summary
     runs-on: ubuntu-latest
-    needs:
-      [
-        lint,
-        unit-tests,
-        build,
-        security-scan,
-        stylelint,
-        lighthouse,
-        sonarqube,
-        bundle-size,
-      ]
+    needs: [lint, unit-tests, build, stylelint, lighthouse, bundle-size]
     if: always()
     steps:
       - name: Generate summary
@@ -360,10 +267,8 @@ jobs:
           echo "| Lint & Format | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Verification | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Stylelint (SCSS) | ${{ needs.stylelint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Lighthouse CI | ${{ needs.lighthouse.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| SonarQube | ${{ needs.sonarqube.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Bundle Size | ${{ needs.bundle-size.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -371,10 +276,8 @@ jobs:
           if [[ "${{ needs.lint.result }}" == "failure" ]] || \
              [[ "${{ needs.unit-tests.result }}" == "failure" ]] || \
              [[ "${{ needs.build.result }}" == "failure" ]] || \
-             [[ "${{ needs.security-scan.result }}" == "failure" ]] || \
              [[ "${{ needs.stylelint.result }}" == "failure" ]] || \
              [[ "${{ needs.lighthouse.result }}" == "failure" ]] || \
-             [[ "${{ needs.sonarqube.result }}" == "failure" ]] || \
              [[ "${{ needs.bundle-size.result }}" == "failure" ]]; then
             echo "❌ **PR checks failed** - Please review the errors above" >> $GITHUB_STEP_SUMMARY
             exit 1

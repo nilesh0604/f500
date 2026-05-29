@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CI: Consolidated duplicate PR workflow jobs** — Removed redundant security/sonar jobs from `pr-checks.yml` (TruffleHog secret scan, npm audit, SonarQube) which were already covered by `security-scan.yml`. Removed dead `container-scan` job from `security-scan.yml` (referenced non-existent `order-service`/`notification-svc` Docker images). Removed duplicate `security-scan` job from `vyasa-rag-ci.yml`. Added `paths` filter to `security-scan.yml` PR trigger to avoid unnecessary runs. Reduces PR runner minutes from 4 parallel workflows firing full security stacks to a clean split: `pr-checks.yml` (build quality gate) + `security-scan.yml` (security gate) + `llm-security-scan.yml` (LLM review) + `vyasa-rag-ci.yml` (path-filtered app CI).
+- **CI: Gate LLM security review on static analysis** — `llm-security-scan.yml` now triggers via `workflow_run` on `PR Checks` and `Security Scan` completing, with `conclusion == 'success'` guard. Claude Bedrock review only fires after all static analysis passes, saving ~$0.01–0.05/PR in Bedrock costs on failing PRs. PR number resolved via `gh pr list` lookup on the triggering workflow's head SHA.
+
 ### Fixed
 
 - **CI: `vyasa-ui:test` failing with `ERR_MODULE_NOT_FOUND` for vitest** — Added `vitest`, `@vitejs/plugin-react`, `@vitest/coverage-v8`, and `vite` to root `package.json` devDependencies so they are installed during `npm ci` in the monorepo. Changed `apps/vyasa-ui/package.json` test scripts from `npx vitest run` to `vitest run` to use the hoisted package instead of triggering a runtime auto-install.
