@@ -18,6 +18,10 @@ jest.mock('../../src/lib/logger', () => ({
       warn: jest.fn(),
       error: jest.fn(),
     })),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
   },
   logAgentStep: jest.fn(),
 }));
@@ -38,6 +42,9 @@ const mockDecomposeQuery = queryPlanner.decomposeQuery as jest.MockedFunction<
 >;
 const mockCheckSufficiency = reflection.checkSufficiency as jest.MockedFunction<
   typeof reflection.checkSufficiency
+>;
+const mockEvaluateAnswer = reflection.evaluateAnswer as jest.MockedFunction<
+  typeof reflection.evaluateAnswer
 >;
 const mockGetSystemPrompt =
   promptManager.getSystemPrompt as jest.MockedFunction<
@@ -69,6 +76,13 @@ describe('Agent', () => {
     mockCheckSufficiency.mockResolvedValue({
       sufficient: true,
       confidence: 0.9,
+    });
+
+    mockEvaluateAnswer.mockResolvedValue({
+      complete: true,
+      accurate: true,
+      issues: [],
+      confidence: 0.95,
     });
 
     mockGetSystemPrompt.mockResolvedValue('You are Vyasa, the sage');
@@ -194,6 +208,26 @@ describe('Agent', () => {
 
       expect(result.tokenUsage.total_tokens).toBeGreaterThan(0);
     });
+  });
+
+  it('should_formatAssistantMessages_when_sessionHasChatHistory', async () => {
+    const query = 'What else do you know?';
+    const sessionMessages: Message[] = [
+      {
+        role: 'user',
+        content: 'Who was Karna?',
+        timestamp: new Date().toISOString(),
+      },
+      {
+        role: 'assistant',
+        content: 'Karna was a great warrior.',
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    const result = await runAgent(query, sessionMessages, 'corr-id');
+    expect(result).toBeDefined();
+    expect(result.answer).toBeDefined();
   });
 
   describe('buildChatResponse', () => {

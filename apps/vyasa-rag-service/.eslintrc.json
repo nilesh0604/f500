@@ -1,0 +1,39 @@
+{
+  "extends": ["../../.eslintrc.json"],
+  "ignorePatterns": ["!**/*"],
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "excludedFiles": [
+        "jest.config.ts",
+        "test/**/*.ts",
+        "**/*.spec.ts",
+        "**/*.test.ts"
+      ],
+      "parserOptions": {
+        "project": ["apps/vyasa-rag-service/tsconfig.app.json"]
+      },
+      "rules": {}
+    },
+    {
+      "files": [
+        "jest.config.ts",
+        "test/**/*.ts",
+        "**/*.spec.ts",
+        "**/*.test.ts"
+      ],
+      "parserOptions": {
+        "project": ["apps/vyasa-rag-service/tsconfig.spec.json"]
+      },
+      "rules": {}
+    },
+    {
+      "files": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+      "rules": {}
+    },
+    {
+      "files": ["*.js", "*.jsx"],
+      "rules": {}
+    }
+  ]
+}

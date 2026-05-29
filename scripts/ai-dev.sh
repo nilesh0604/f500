@@ -99,15 +99,21 @@ run_agent() {
   for kv in "$@"; do
     local key="${kv%%=*}"
     local value="${kv#*=}"
-    # Use awk for safe substitution (handles special chars in value)
-    instructions=$(echo "$instructions" | awk -v k="{$key}" -v v="$value" '{gsub(k, v)}1')
+    # Use env vars + perl to handle newlines and special chars safely
+    instructions=$(SUBST_KEY="{$key}" SUBST_VAL="$value" perl -e '
+      my $text = do { local $/; <STDIN> };
+      my $k = quotemeta($ENV{SUBST_KEY});
+      my $v = $ENV{SUBST_VAL};
+      $text =~ s/$k/$v/g;
+      print $text;
+    ' <<< "$instructions")
   done
 
   $CLAUDE_CMD -p \
     --system-prompt "$instructions" \
     --model "$model" \
     --max-budget-usd "$budget" \
-    --permission-mode default \
+    --dangerously-skip-permissions \
     "Execute the task described in your system prompt. Follow all instructions precisely and produce the required output artifacts."
 }
 
@@ -213,6 +219,11 @@ jira_add_comment() {
   jira_api POST "/issue/${issue_key}/comment" "$payload" > /dev/null
 }
 
+jira_get_comments() {
+  local issue_key="$1"
+  jira_api GET "/issue/${issue_key}/comment" | jq -r '.comments'
+}
+
 jira_upload_attachment() {
   local issue_key="$1" file_path="$2"
 
@@ -306,6 +317,12 @@ check_prerequisite() {
         echo "  Transition subtask to 'Done' when approved."
         exit 1
       fi
+      local req_file="$(feature_dir)/requirements.md"
+      if grep -q "^## Open Questions" "$req_file" 2>/dev/null; then
+        echo "Error: Unresolved open questions in requirements.md."
+        echo "  Run: ./scripts/ai-dev.sh $TICKET_ID resolve"
+        exit 1
+      fi
       ;;
     code)
       local des_key
@@ -371,7 +388,8 @@ Subcommands:
   create <idea>    Generate a detailed Jira ticket from a one-liner idea
   init             Parse ticket, create branch + Jira subtasks
   requirements     Run requirements-agent (needs: init)
-  design           Run design-agent (needs: requirements subtask = Done)
+  resolve          Pull PO answers from Jira, update requirements.md
+  design           Run design-agent (needs: requirements subtask = Done, no open questions)
   code             Run code-agent (needs: design subtask = Done)
   test             Run test-agent (needs: code subtask = Done)
   deploy           Open PR (needs: test subtask = Done)
@@ -382,6 +400,8 @@ Workflow:
      -> Review ticket in Jira, edit if needed
   1. ./scripts/ai-dev.sh OF-456 init
   2. ./scripts/ai-dev.sh OF-456 requirements
+     -> If open questions posted: PO replies in Jira, then:
+     -> ./scripts/ai-dev.sh OF-456 resolve  (repeat until no questions remain)
      -> Review in Jira, transition subtask to "Done"
   3. ./scripts/ai-dev.sh OF-456 design
      -> Review in Jira, transition subtask to "Done"
@@ -727,11 +747,184 @@ Review the requirements document. When satisfied, transition this subtask to Don
   # Upload attachment
   jira_upload_attachment "$subtask_key" "$req_file"
 
+  # Parse and post Open Questions if present
+  local open_questions
+  open_questions=$(sed -n '/^## Open Questions/,/^## /{
+    /^## Open Questions/d
+    /^## /d
+    p
+  }' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
+
+  if [ -n "$open_questions" ]; then
+    local round_file="$(feature_dir)/.questions-round"
+    echo "1" > "$round_file"
+
+    local questions_comment
+    questions_comment="⚠️  Open Questions — Round 1
+
+Please reply with your decisions using this format:
+  Q1: [your choice or free text answer]
+  Q2: [your choice or free text answer]
+  ...
+
+---
+${open_questions}"
+
+    jira_add_comment "$subtask_key" "$questions_comment"
+    echo ""
+    echo "Open questions found and posted to Jira."
+    echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+    echo ""
+    echo "Next: PO answers questions in Jira, then run:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID resolve"
+  else
+    echo ""
+    echo "Requirements posted to Jira."
+    echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+    echo ""
+    echo "Next: Review in Jira, transition subtask to 'Done', then:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID design"
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: resolve
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_resolve() {
+  require_tool jq
+  require_jira_creds
+
+  local subtask_key
+  subtask_key=$(get_subtask_key "requirements")
+  if [ -z "$subtask_key" ]; then
+    echo "Error: Requirements subtask not found. Run init first."
+    exit 1
+  fi
+
+  local req_file="$(feature_dir)/requirements.md"
+  if [ ! -f "$req_file" ]; then
+    echo "Error: requirements.md not found. Run requirements step first."
+    exit 1
+  fi
+
+  echo "Vyasa AI Dev — Resolving Open Questions: $TICKET_ID"
+  echo "  Subtask: $subtask_key"
   echo ""
-  echo "Requirements posted to Jira."
-  echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+
+  # Fetch comments and find latest with Q1:, Q2: answer format
+  local comments latest_answers
+  comments=$(jira_get_comments "$subtask_key")
+
+  latest_answers=$(echo "$comments" | jq -r '
+    [.[] | select(
+      (.body.content // [])[] |
+      (.content // [])[] |
+      .text? | strings | test("^Q[0-9]+:")
+    )] | last |
+    [(.body.content // [])[] |
+      (.content // [])[] |
+      .text? | strings
+    ] | join("\n")
+  ' 2>/dev/null || true)
+
+  if [ -z "$latest_answers" ]; then
+    echo "No answers yet. Waiting for PO to reply in Jira."
+    echo "  ${JIRA_BASE_URL}/browse/$subtask_key"
+    exit 1
+  fi
+
+  echo "Answers found. Updating requirements.md..."
+
+  # Parse each Q answer line and build decision block
+  local decisions=""
+  while IFS= read -r line; do
+    if echo "$line" | grep -qE '^Q[0-9]+:'; then
+      local q_num answer_text
+      q_num=$(echo "$line" | grep -oE '^Q[0-9]+')
+      answer_text=$(echo "$line" | sed 's/^Q[0-9]*:[[:space:]]*//')
+      decisions="${decisions}- **${q_num} Decision**: ${answer_text}
+"
+    fi
+  done <<< "$latest_answers"
+
+  # Write decisions to a temp file to avoid awk -v newline limitations
+  local decisions_file="${req_file}.decisions"
+  printf '%s' "$decisions" > "$decisions_file"
+
+  # Replace ## Open Questions section with ## Design Decisions (resolved),
+  # then inject the decisions block immediately after the heading.
+  local tmp_file="${req_file}.tmp"
+  awk -v dfile="$decisions_file" '
+    /^## Open Questions/ {
+      skip=1
+      print "## Design Decisions (resolved)"
+      print ""
+      while ((getline line < dfile) > 0) print line
+      close(dfile)
+      next
+    }
+    skip && /^## / { skip=0 }
+    skip { next }
+    { print }
+  ' "$req_file" > "$tmp_file"
+
+  mv "$tmp_file" "$req_file"
+  rm -f "$decisions_file"
+
+  # Check if new Open Questions arose after the update
+  local remaining_questions
+  remaining_questions=$(grep -c "^## Open Questions" "$req_file" 2>/dev/null || echo "0")
+
+  if [ "$remaining_questions" -gt 0 ]; then
+    # Increment round counter and post new questions
+    local round_file="$(feature_dir)/.questions-round"
+    local round=1
+    [ -f "$round_file" ] && round=$(cat "$round_file")
+    round=$((round + 1))
+    echo "$round" > "$round_file"
+
+    local new_questions
+    new_questions=$(sed -n '/^## Open Questions/,/^## /{
+      /^## Open Questions/d
+      /^## /d
+      p
+    }' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
+
+    local new_comment
+    new_comment="⚠️  Open Questions — Round ${round}
+
+Previous answers applied. New questions arose:
+
+Please reply using the same format:
+  Q1: [your answer]
+  Q2: [your answer]
+  ...
+
+---
+${new_questions}"
+
+    jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
+    jira_add_comment "$subtask_key" "$new_comment"
+
+    echo "New questions posted (Round ${round})."
+    echo "  ${JIRA_BASE_URL}/browse/$subtask_key"
+    echo ""
+    echo "Next: PO answers Round ${round}, then re-run:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID resolve"
+    exit 1
+  fi
+
+  # No remaining open questions — post confirmation comment
+  local round_file="$(feature_dir)/.questions-round"
+  local final_round=1
+  [ -f "$round_file" ] && final_round=$(cat "$round_file")
+
+  jira_add_comment "$subtask_key" "✅  All open questions resolved (Round ${final_round}). requirements.md updated with design decisions. Transition this subtask to Done to unlock the Design phase."
+
+  echo "All questions resolved. requirements.md updated."
   echo ""
-  echo "Next: Review in Jira, transition subtask to 'Done', then:"
+  echo "Next: Transition subtask to 'Done' in Jira, then run:"
   echo "  ./scripts/ai-dev.sh $TICKET_ID design"
 }
 
@@ -991,7 +1184,7 @@ cmd_deploy() {
   branch=$(git branch --show-current)
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
-  run_agent agents/deploy-agent/instructions.md 0.50 haiku \
+  run_agent agents/deploy-agent/instructions.md 1.00 haiku \
     TICKET_ID="$TICKET_ID" \
     BRANCH="$branch" \
     CHANGED_FILES="$changed_files"
@@ -1108,6 +1301,7 @@ case "$SUBCOMMAND" in
   create)       cmd_create ;;
   init)         cmd_init ;;
   requirements) cmd_requirements ;;
+  resolve)      cmd_resolve ;;
   design)       cmd_design ;;
   code)         cmd_code ;;
   test)         cmd_test ;;

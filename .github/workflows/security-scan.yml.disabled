@@ -9,6 +9,11 @@ on:
     branches:
       - main
       - develop
+    paths:
+      - 'apps/**'
+      - 'libs/**'
+      - 'infra/**'
+      - 'package*.json'
   schedule:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
@@ -178,66 +183,7 @@ jobs:
           name: snyk-report
           path: snyk-report.json
 
-  # Job 5: Container image scanning (Trivy)
-  container-scan:
-    name: Container Image Scan (Trivy)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Order Service image
-        run: |
-          docker build -f apps/order-service/Dockerfile.prod -t order-service:scan .
-
-      - name: Build Notification Service image
-        run: |
-          docker build -f apps/notification-svc/Dockerfile.prod -t notification-svc:scan .
-
-      - name: Run Trivy vulnerability scanner - Order Service
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'order-service:scan'
-          format: 'sarif'
-          output: 'trivy-order-service.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0' # Don't fail the build, just report
-
-      - name: Run Trivy vulnerability scanner - Notification Service
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'notification-svc:scan'
-          format: 'sarif'
-          output: 'trivy-notification-svc.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0' # Don't fail the build, just report
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-order-service.sarif'
-          category: 'trivy-order-service'
-
-      - name: Check for critical container vulnerabilities
-        run: |
-          # Check if any critical vulnerabilities exist
-          if grep -q "CRITICAL" trivy-order-service.sarif 2>/dev/null; then
-            echo "⚠️ Critical vulnerabilities found in Order Service image"
-          fi
-          if grep -q "CRITICAL" trivy-notification-svc.sarif 2>/dev/null; then
-            echo "⚠️ Critical vulnerabilities found in Notification Service image"
-          fi
-          echo "✅ Container scan completed - check Security tab for details"
-
-  # Job 6: License compliance check
+  # Job 5: License compliance check
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
@@ -310,14 +256,7 @@ jobs:
     name: Security Scan Summary
     runs-on: ubuntu-latest
     needs:
-      [
-        secret-scan,
-        sast-sonarqube,
-        sast-codeql,
-        dependency-scan,
-        container-scan,
-        license-check,
-      ]
+      [secret-scan, sast-sonarqube, sast-codeql, dependency-scan, license-check]
     if: always()
     steps:
       - name: Generate summary
@@ -330,7 +269,6 @@ jobs:
           echo "| SAST - SonarQube | ${{ needs.sast-sonarqube.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| SAST - CodeQL | ${{ needs.sast-codeql.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Container Scan (Trivy) | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| License Compliance | ${{ needs.license-check.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 

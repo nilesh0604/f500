@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { runAgent, buildChatResponse } from '../src/services/agent';
 import { evaluateResponse } from './metrics/evaluator';
-import { TestCase, EvaluationResult, Session, Message } from '../src/types';
+import { TestCase, EvaluationResult, Message } from '../src/types';
 import { logger } from '../src/lib/logger';
 
 interface Dataset {
@@ -61,11 +61,14 @@ function filterTestCases(cases: TestCase[], config: RunConfig): TestCase[] {
   let filtered = [...cases];
 
   if (config.categories && config.categories.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     filtered = filtered.filter(tc => config.categories!.includes(tc.category));
   }
 
   if (config.difficulties && config.difficulties.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     filtered = filtered.filter(tc =>
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       config.difficulties!.includes(tc.difficulty)
     );
   }

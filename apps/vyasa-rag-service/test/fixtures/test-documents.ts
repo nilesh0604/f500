@@ -2,13 +2,7 @@
  * Test fixtures for Vyasa RAG Service
  */
 
-import {
-  RetrievalResult,
-  Citation,
-  Session,
-  Message,
-  AgentStep,
-} from '../../src/types';
+import { RetrievalResult, Citation, Session, AgentStep } from '../../src/types';
 
 /**
  * Sample retrieval results from Mahabharata

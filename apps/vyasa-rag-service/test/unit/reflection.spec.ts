@@ -9,6 +9,21 @@ import {
 } from '../../src/services/reflection';
 import * as bedrockClient from '../../src/services/bedrock-client';
 
+jest.mock('../../src/lib/logger', () => ({
+  logger: {
+    child: jest.fn(() => ({
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    })),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 jest.mock('../../src/services/bedrock-client');
 
 const mockGenerate = bedrockClient.generate as jest.MockedFunction<

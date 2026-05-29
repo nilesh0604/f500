@@ -3,14 +3,9 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "declaration": true,
-    "types": ["node"],
-    "rootDir": "../.."
+    "types": ["node", "jest"],
+    "rootDir": "."
   },
   "exclude": ["jest.config.ts", "src/**/*.spec.ts", "src/**/*.test.ts"],
-  "include": [
-    "src/**/*.ts",
-    "../shared-types/src/**/*.ts",
-    "../logger/src/**/*.ts",
-    "../auth/src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }

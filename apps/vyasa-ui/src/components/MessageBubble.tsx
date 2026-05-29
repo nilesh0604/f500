@@ -1,19 +1,30 @@
+import { type JSX } from 'react';
 import { AlertCircle } from 'lucide-react';
 import type { ChatMessage } from '../types';
 import { AgentSteps } from './AgentSteps';
 
+/** Props accepted by {@link MessageBubble}. */
 interface MessageBubbleProps {
   message: ChatMessage;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+/**
+ * Renders a single chat message bubble.
+ *
+ * **Responsive changes (SCRUM-5)**:
+ * - User bubble:      `max-w-[90%]` on mobile, `md:max-w-[75%]` on desktop.
+ * - Assistant bubble: `max-w-[90%]` on mobile, `md:max-w-[85%]` on desktop.
+ * - Prose content div gains `break-words overflow-hidden` to prevent long
+ *   unbroken strings (URLs, code) from causing horizontal page scroll.
+ */
+export function MessageBubble({ message }: MessageBubbleProps): JSX.Element {
   const isUser = message.role === 'user';
 
   if (isUser) {
     return (
       <div className="flex justify-end animate-slide-up">
         <div
-          className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-2.5
+          className="max-w-[90%] md:max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-2.5
             bg-saffron-500 text-white text-sm leading-relaxed shadow-sm"
         >
           {message.content}
@@ -24,7 +35,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   return (
     <div className="flex justify-start animate-slide-up">
-      <div className="flex gap-2.5 max-w-[85%]">
+      <div className="flex gap-2.5 max-w-[90%] md:max-w-[85%]">
         <div
           className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br
             from-saffron-400 to-maroon-500 flex items-center justify-center
@@ -54,7 +65,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <div
               className="prose prose-sm max-w-none rounded-2xl rounded-tl-sm
                 px-4 py-2.5 bg-white border border-gray-100 shadow-sm
-                text-gray-800 leading-relaxed whitespace-pre-wrap"
+                text-gray-800 leading-relaxed whitespace-pre-wrap
+                break-words overflow-hidden"
             >
               {message.content}
               {message.isStreaming && (

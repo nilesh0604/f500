@@ -9,7 +9,7 @@ import { logger } from './logger';
 export class CircuitBreaker {
   private state: CircuitState = 'closed';
   private failures = 0;
-  private lastFailureTime: number = 0;
+  private lastFailureTime = 0;
   private halfOpenCalls = 0;
 
   constructor(

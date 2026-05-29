@@ -33,7 +33,7 @@ export async function runAgent(
   const allRetrievedResults: RetrievalResult[] = [];
   const allCitations: import('../types').Citation[][] = [];
 
-  let totalTokenUsage: TokenUsage = {
+  const totalTokenUsage: TokenUsage = {
     prompt_tokens: 0,
     completion_tokens: 0,
     total_tokens: 0,
@@ -68,7 +68,7 @@ export async function runAgent(
 
   // Step 3-5: Iterative retrieval loop (max 3 iterations)
   let iteration = 0;
-  let contexts: string[] = [];
+  const contexts: string[] = [];
 
   while (iteration < MAX_ITERATIONS && iteration < subQueries.length) {
     const currentQuery = subQueries[iteration];
@@ -110,29 +110,27 @@ export async function runAgent(
     }
 
     iteration++;
+  }
 
-    // Check if we have enough context
-    if (iteration < MAX_ITERATIONS && iteration < subQueries.length) {
-      const mergedContext = mergeContexts(contexts);
-      const sufficiency = await checkSufficiency(query, mergedContext);
-
-      if (sufficiency.sufficient) {
-        const thoughtSufficient = `Context is sufficient (confidence: ${sufficiency.confidence})`;
-        trace.push({
-          step: 3 + iteration * 2,
-          type: 'thought',
-          content: thoughtSufficient,
-          timestamp: new Date().toISOString(),
-        });
-        logAgentStep(
-          requestLogger,
-          3 + iteration * 2,
-          'thought',
-          thoughtSufficient
-        );
-        break;
-      }
-    }
+  // After all retrievals, check whether context is sufficient
+  const mergedContextCheck = mergeContexts(contexts);
+  if (mergedContextCheck) {
+    const sufficiency = await checkSufficiency(query, mergedContextCheck);
+    const sufficiencyThought = sufficiency.sufficient
+      ? `Context is sufficient (confidence: ${sufficiency.confidence})`
+      : `Context may be incomplete: ${sufficiency.missingInfo || 'unknown gaps'}`;
+    trace.push({
+      step: 3 + iteration * 2,
+      type: 'thought',
+      content: sufficiencyThought,
+      timestamp: new Date().toISOString(),
+    });
+    logAgentStep(
+      requestLogger,
+      3 + iteration * 2,
+      'thought',
+      sufficiencyThought
+    );
   }
 
   // Step 6: Generate answer

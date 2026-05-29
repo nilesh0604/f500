@@ -1,6 +1,6 @@
 {
   "root": true,
-  "ignorePatterns": ["**/*"],
+  "ignorePatterns": ["**/*", "**/vitest.config.ts", "**/vite.config.ts"],
   "plugins": ["@nx"],
   "overrides": [
     {
@@ -45,7 +45,8 @@
         "jest": true
       },
       "rules": {
-        "@angular-eslint/prefer-on-push-change-detection": "off"
+        "@angular-eslint/prefer-on-push-change-detection": "off",
+        "@typescript-eslint/explicit-function-return-type": "off"
       }
     }
   ]

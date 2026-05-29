@@ -50,15 +50,19 @@ export function extractCitations(results: RetrievalResult[]): Citation[] {
 function formatCitation(result: RetrievalResult): Citation {
   const { metadata, score } = result;
 
-  // Build title from available metadata
-  const titleParts: string[] = ['Mahabharata'];
+  const titleParts: string[] = [];
 
-  if (metadata.book) {
-    titleParts.push(metadata.book);
-  }
-
-  if (metadata.chapter) {
-    titleParts.push(metadata.chapter);
+  if (metadata.book || metadata.chapter) {
+    titleParts.push('Mahabharata');
+    if (metadata.book) {
+      titleParts.push(metadata.book);
+    }
+    if (metadata.chapter) {
+      titleParts.push(metadata.chapter);
+    }
+  } else {
+    const filename = metadata.source.split('/').pop() || metadata.source;
+    titleParts.push(filename);
   }
 
   return {

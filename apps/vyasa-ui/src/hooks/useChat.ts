@@ -3,7 +3,19 @@ import { v4 as uuidv4 } from 'uuid';
 import type { ChatMessage, Session } from '../types';
 import { sendChatStream, agentStepFromChunk } from '../services/vyasa.service';
 
-export function useChat() {
+/** Shape returned by the {@link useChat} hook. */
+interface UseChatReturn {
+  messages: ChatMessage[];
+  sessions: Session[];
+  activeSessionId: string | undefined;
+  isLoading: boolean;
+  sendMessage: (text: string) => Promise<void>;
+  startNewSession: () => void;
+  switchSession: (sessionId: string) => void;
+  cancelStream: () => void;
+}
+
+export function useChat(): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();

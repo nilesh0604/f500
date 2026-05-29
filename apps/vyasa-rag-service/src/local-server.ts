@@ -74,8 +74,11 @@ const mockContext: Context = {
   logGroupName: '/aws/lambda/vyasa-rag-local',
   logStreamName: `local-${new Date().toISOString().replace(/:/g, '-')}`,
   getRemainingTimeInMillis: () => 30000,
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   done: () => {},
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   fail: () => {},
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   succeed: () => {},
 };
 

@@ -32,6 +32,7 @@ export default {
         'pulse-dot': 'pulse 1.4s ease-in-out infinite',
         'fade-in': 'fadeIn 0.3s ease',
         'slide-up': 'slideUp 0.3s ease',
+        'slide-in-left': 'slideInLeft 0.3s ease',
       },
       keyframes: {
         fadeIn: {
@@ -41,6 +42,10 @@ export default {
         slideUp: {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideInLeft: {
+          from: { transform: 'translateX(-100%)' },
+          to: { transform: 'translateX(0)' },
         },
       },
     },

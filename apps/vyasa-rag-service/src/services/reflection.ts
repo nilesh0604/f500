@@ -179,7 +179,7 @@ export function quickSufficiencyCheck(
   }
 
   // Very short context
-  if (context.length < 100) {
+  if (context.length < 50) {
     return {
       sufficient: false,
       confidence: 0.2,
