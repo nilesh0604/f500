@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CI: `vyasa-ui:test` failing with `ERR_MODULE_NOT_FOUND` for vitest** — Added `vitest`, `@vitejs/plugin-react`, `@vitest/coverage-v8`, and `vite` to root `package.json` devDependencies so they are installed during `npm ci` in the monorepo. Changed `apps/vyasa-ui/package.json` test scripts from `npx vitest run` to `vitest run` to use the hoisted package instead of triggering a runtime auto-install.
 - **CI: `vyasa-ui:test` failing to resolve `@testing-library/jest-dom`** — Updated `apps/vyasa-ui/src/test-setup.ts` to use `@testing-library/jest-dom/vitest` import path (required for v6+). Added `@testing-library/jest-dom` to root `package.json` devDependencies and ran `npm install` to update `package-lock.json` so the dependency is available during CI `npm ci`.
+- **CI: `vyasa-ui:test` failing to resolve `@testing-library/react`** — Added `@testing-library/react`, `@testing-library/user-event`, `jsdom`, `react`, `react-dom`, and `lucide-react` to root `package.json` so they are available in the single root `node_modules` during CI `npm ci`. Without npm workspaces, only root-level dependencies are installed.
+- **CI: Node.js 20 deprecation & Codecov upload failure** — Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` env var to `pr-checks.yml` to opt into Node.js 24 action runtime ahead of the June 2nd, 2026 mandatory deadline. Upgraded `codecov/codecov-action` from v4 to v5 to fix Node.js 24 compatibility and resolve the upload failure.
 
 ### Added
 

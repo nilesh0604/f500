@@ -18,6 +18,7 @@ concurrency:
 env:
   NODE_VERSION: '22.x'
   NX_CLOUD_ACCESS_TOKEN: ''
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # Job 1: Setup and cache dependencies
@@ -115,7 +116,7 @@ jobs:
         run: npx nx affected --target=test --configuration=ci --parallel=3 --base=${{ github.event.pull_request.base.sha }} --head=${{ github.event.pull_request.head.sha }}
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
