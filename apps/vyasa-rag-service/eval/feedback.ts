@@ -4,7 +4,7 @@
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { PutItemCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { HumanFeedback, ChatResponse } from '../src/types';
 import { logger } from '../src/lib/logger';
 
@@ -35,21 +35,19 @@ export async function submitFeedback(
   };
 
   await ddbClient.send(
-    new PutItemCommand({
+    new PutCommand({
       TableName: FEEDBACK_TABLE,
       Item: {
-        session_id: { S: feedback.sessionId },
-        timestamp: { S: feedback.timestamp },
-        query: { S: feedback.query },
-        response: { S: feedback.response },
-        rating: { N: String(feedback.rating) },
-        helpful: { BOOL: feedback.helpful },
-        accurate: { BOOL: feedback.accurate },
-        comments: feedback.comments ? { S: feedback.comments } : undefined,
-        citations_count: { N: String(response.citations.length) },
-        token_usage: response.token_usage
-          ? { N: String(response.token_usage.total_tokens) }
-          : undefined,
+        session_id: feedback.sessionId,
+        timestamp: feedback.timestamp,
+        query: feedback.query,
+        response: feedback.response,
+        rating: feedback.rating,
+        helpful: feedback.helpful,
+        accurate: feedback.accurate,
+        comments: feedback.comments,
+        citations_count: response.citations.length,
+        token_usage: response.token_usage?.total_tokens,
       },
     })
   );
@@ -99,11 +97,11 @@ export async function getFeedbackStats(days = 30): Promise<{
     };
   }
 
-  const ratings = items.map(i => parseInt(i.rating.N || '3', 10));
+  const ratings = items.map(i => (i.rating as number) || 3);
   const avgRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
 
-  const helpfulCount = items.filter(i => i.helpful.BOOL).length;
-  const accurateCount = items.filter(i => i.accurate.BOOL).length;
+  const helpfulCount = items.filter(i => i.helpful as boolean).length;
+  const accurateCount = items.filter(i => i.accurate as boolean).length;
 
   const byRating: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   for (const r of ratings) {
@@ -139,23 +137,23 @@ export async function getLowRatedFeedback(
         '#ts': 'timestamp',
       },
       ExpressionAttributeValues: {
-        ':since': { S: since },
-        ':maxRating': { N: String(minRating) },
+        ':since': since,
+        ':maxRating': minRating,
       },
-      Limit: { N: String(limit) },
+      Limit: limit,
     })
   );
 
   return (result.Items || []).map(item => ({
-    sessionId: item.session_id.S || '',
-    query: item.query.S || '',
-    response: item.response.S || '',
-    rating: parseInt(item.rating.N || '3', 10) as 1 | 2 | 3 | 4 | 5,
-    helpful: item.helpful.BOOL || false,
-    accurate: item.accurate.BOOL || false,
-    comments: item.comments?.S,
-    timestamp: item.timestamp.S || '',
-    citationsCount: parseInt(item.citations_count.N || '0', 10),
+    sessionId: (item.session_id as string) || '',
+    query: (item.query as string) || '',
+    response: (item.response as string) || '',
+    rating: item.rating as number as 1 | 2 | 3 | 4 | 5,
+    helpful: (item.helpful as boolean) || false,
+    accurate: (item.accurate as boolean) || false,
+    comments: item.comments as string | undefined,
+    timestamp: (item.timestamp as string) || '',
+    citationsCount: (item.citations_count as number) || 0,
   }));
 }
 

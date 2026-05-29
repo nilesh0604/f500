@@ -106,7 +106,7 @@ async function runExperiment(config: ExperimentConfig): Promise<void> {
         // This corrected score maps committal answers to 1 (high relevance).
         const answerRelevance = calculateAnswerRelevance(
           result.output,
-          item.input
+          item.input as string
         );
         langfuse.score({
           traceId: trace.id,
