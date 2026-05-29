@@ -5,9 +5,9 @@ module.exports = {
         'http://localhost:4200/auth/login',
         'http://localhost:4200/auth/register',
       ],
-      startServerCommand: 'npx nx serve web --configuration=production',
-      startServerReadyPattern: 'compiled successfully',
-      startServerReadyTimeout: 60000,
+      startServerCommand: 'npx serve dist/apps/vyasa-ui -l 4200 --no-clipboard',
+      startServerReadyPattern: 'Accepting connections',
+      startServerReadyTimeout: 30000,
       numberOfRuns: 3,
     },
     assert: {
