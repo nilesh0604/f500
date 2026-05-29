@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import {
   Brain,
   Zap,
@@ -56,7 +56,10 @@ interface AgentStepsProps {
   isStreaming?: boolean;
 }
 
-export function AgentSteps({ steps, isStreaming }: AgentStepsProps) {
+export function AgentSteps({
+  steps,
+  isStreaming,
+}: AgentStepsProps): JSX.Element | null {
   const [open, setOpen] = useState(false);
 
   const reasoningSteps = steps.filter(

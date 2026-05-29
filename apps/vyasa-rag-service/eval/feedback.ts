@@ -65,7 +65,7 @@ export async function submitFeedback(
 /**
  * Get feedback statistics
  */
-export async function getFeedbackStats(days: number = 30): Promise<{
+export async function getFeedbackStats(days = 30): Promise<{
   total: number;
   avgRating: number;
   helpfulRate: number;
@@ -123,8 +123,8 @@ export async function getFeedbackStats(days: number = 30): Promise<{
  * Get low-rated feedback for review
  */
 export async function getLowRatedFeedback(
-  minRating: number = 3,
-  limit: number = 20
+  minRating = 3,
+  limit = 20
 ): Promise<Array<HumanFeedback & { citationsCount: number }>> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -163,10 +163,9 @@ export async function getLowRatedFeedback(
  * Export feedback to CSV for analysis
  */
 export async function exportFeedbackToCSV(
-  days: number = 30,
+  _days = 30,
   outputPath?: string
 ): Promise<string> {
-  const stats = await getFeedbackStats(days);
   const lowRated = await getLowRatedFeedback(3, 50);
 
   const lines = [
@@ -203,8 +202,6 @@ export async function getFeedbackDashboardData(): Promise<{
   };
   topIssues: string[];
 }> {
-  const now = Date.now();
-
   const [stats24h, stats7d, stats30d] = await Promise.all([
     getFeedbackStats(1),
     getFeedbackStats(7),
@@ -218,6 +215,7 @@ export async function getFeedbackDashboardData(): Promise<{
 
   // Get common issues from comments
   const lowRated = await getLowRatedFeedback(2, 20);
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const comments = lowRated.filter(f => f.comments).map(f => f.comments!);
 
   // Simple keyword extraction for issues

@@ -63,6 +63,23 @@ describe('ContextAssembler', () => {
       expect(result.context).toContain('Karna was a great warrior');
     });
 
+    it('should_includeVerse_when_verseMetadataProvided', () => {
+      const result = assembleContext([
+        {
+          content: 'Verse content here',
+          metadata: {
+            source: 'mahabharata.txt',
+            book: 'Adi Parva',
+            chapter: 'Sambhava',
+            verse: '1.2.3',
+          },
+          score: 0.95,
+        },
+      ]);
+
+      expect(result.context).toContain('Verse 1.2.3');
+    });
+
     it('should use source filename when metadata missing', () => {
       const resultWithFallback = assembleContext([
         {

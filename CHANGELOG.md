@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SCRUM-5 — Responsive Mobile Layout for Vyasa UI** (`apps/vyasa-ui/`):
+  - `src/hooks/useMediaQuery.ts` — New custom hook tracking live CSS media query breakpoints with `change` event listener; guards against jsdom/SSR environments (returns `false` as mobile-first default)
+  - `src/App.tsx` — Mobile-responsive root layout: sidebar hidden by default on mobile (`< 768px`), opens as a GPU-accelerated fixed drawer with backdrop overlay; `h-dvh` root container for iOS soft-keyboard safety; hamburger toggle meets 44×44px WCAG touch-target minimum (`w-11 h-11`)
+  - `src/components/SessionSidebar.tsx` — Accepts `isMobile` and `onClose` props; renders as `fixed inset-y-0 left-0 z-50` drawer on mobile (auto-closes on session select) and as static persistent sidebar on desktop
+  - `src/components/ChatInput.tsx` — Suggestion chips in single horizontally-scrollable row (`overflow-x-auto`, each chip `shrink-0 min-h-[44px]`); send/cancel buttons `w-11 h-11` (44px touch target); iOS safe-area padding via `pb-[env(safe-area-inset-bottom)]`
+  - `src/components/MessageBubble.tsx` — User bubble `max-w-[90%] md:max-w-[75%]`, assistant bubble `max-w-[90%] md:max-w-[85%]`; prose div adds `break-words overflow-hidden` to prevent horizontal scroll from long URLs/code
+  - `src/components/ChatPage.tsx` — Message list gains `overscroll-contain` to contain pull-to-refresh within the scroll container
+  - `tailwind.config.js` — Added `slideInLeft` keyframe and `animate-slide-in-left` animation for GPU-accelerated drawer slide
+  - `index.html` — Viewport meta updated to `viewport-fit=cover` enabling `env(safe-area-inset-bottom)` on iPhone X+
+  - `apps/vyasa-ui/.eslintrc.json` — New project-level ESLint config extending root config with `ignorePatterns: ["!**/*"]` to enable linting of the project
+  - Unit tests: 19 tests across 5 files covering all 7 acceptance criteria and error paths
+
+- **`scripts/ai-dev.sh` — Open Questions Jira gate + `resolve` subcommand**:
+  - `jira_get_comments()`: new helper to fetch comment list from a Jira issue
+  - `cmd_requirements()`: after uploading `requirements.md`, parses any `## Open Questions` section and posts a structured "Round 1" Jira comment with PO answer instructions; writes `.questions-round` counter file
+  - `cmd_resolve()`: new subcommand — fetches latest PO answers from Jira comments, updates `requirements.md` (replaces `## Open Questions` with `## Design Decisions (resolved)`), detects follow-up questions and posts "Round N+1" comment if needed, posts confirmation comment when all resolved
+  - `check_prerequisite` `design` gate: added second guard — blocks `design` if `requirements.md` still contains an `## Open Questions` section; directs user to `resolve`
+  - `help` and dispatch updated with `resolve` subcommand and revised workflow docs
+
 - **Project-wide rename: OrderFlow → Vyasa Intelligence** in agent/skill/hook documentation:
   - `agents/*/instructions.md` (all 6 agents): title lines updated
   - `agents/code-agent/instructions.md`: role description updated

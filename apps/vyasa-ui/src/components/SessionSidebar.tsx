@@ -1,20 +1,39 @@
+import { type JSX } from 'react';
 import { MessageSquare, Plus, Trash2 } from 'lucide-react';
 import type { Session } from '../types';
 
+/** Props accepted by {@link SessionSidebar}. */
 interface SessionSidebarProps {
   sessions: Session[];
   activeSessionId?: string;
   onNewSession: () => void;
   onSelectSession: (id: string) => void;
+  /** `true` when the viewport is in mobile mode (< 768 px). */
+  isMobile: boolean;
+  /** Callback to close the sidebar drawer (mobile only). */
+  onClose: () => void;
 }
 
+/**
+ * Session history sidebar.
+ *
+ * **Desktop** (isMobile = false): renders as a static flex column — the
+ * existing persistent layout.
+ *
+ * **Mobile** (isMobile = true): renders as a GPU-accelerated fixed drawer
+ * with `translate-x-0`.  The backdrop lives in `App.tsx`.  Selecting a
+ * session calls `onClose()` to automatically slide the drawer closed.
+ */
 export function SessionSidebar({
   sessions,
   activeSessionId,
   onNewSession,
   onSelectSession,
-}: SessionSidebarProps) {
-  const formatRelative = (ts: number) => {
+  isMobile,
+  onClose,
+}: SessionSidebarProps): JSX.Element {
+  /** Format a timestamp as a human-readable relative string. */
+  const formatRelative = (ts: number): string => {
     const diff = Date.now() - ts;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'just now';
@@ -24,9 +43,22 @@ export function SessionSidebar({
     return `${Math.floor(hrs / 24)}d ago`;
   };
 
+  /**
+   * Select a session and, on mobile, close the drawer so the chat area
+   * returns to full-viewport width.
+   */
+  const handleSelectSession = (id: string): void => {
+    onSelectSession(id);
+    if (isMobile) onClose();
+  };
+
+  const mobileClasses =
+    'fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out translate-x-0';
+  const desktopClasses = 'flex flex-col w-64 shrink-0';
+
   return (
     <aside
-      className="flex flex-col w-64 shrink-0 bg-gray-900 text-gray-100 h-full"
+      className={`${isMobile ? mobileClasses : desktopClasses} bg-gray-900 text-gray-100 h-full`}
       aria-label="Sessions sidebar"
     >
       <div className="flex items-center gap-2 px-4 py-4 border-b border-gray-700">
@@ -65,7 +97,7 @@ export function SessionSidebar({
             {sessions.map(s => (
               <li key={s.id}>
                 <button
-                  onClick={() => onSelectSession(s.id)}
+                  onClick={() => handleSelectSession(s.id)}
                   className={`w-full flex items-start gap-2.5 px-3 py-2.5
                     rounded-lg text-left text-sm transition-colors group
                     ${

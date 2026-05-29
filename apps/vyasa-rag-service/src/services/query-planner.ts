@@ -59,6 +59,7 @@ function isSimpleQuery(query: string): boolean {
     /\brelationship between.*and\b/i,
     /\bwho were the parents of\b/i,
     /\bwhat happened to.*when\b/i,
+    /^tell me about\b.*\band\b/i,
   ];
 
   // Check for complex patterns first

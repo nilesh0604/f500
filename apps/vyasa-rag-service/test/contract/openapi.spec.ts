@@ -1,7 +1,122 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Contract tests for OpenAPI spec compliance
  * Validates that responses match the API schema
  */
+
+jest.mock('../../src/lib/logger', () => ({
+  logger: {
+    child: jest.fn().mockReturnValue({
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    }),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+  createRequestLogger: jest.fn().mockReturnValue({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
+  logAgentStep: jest.fn(),
+}));
+
+jest.mock('../../src/lib/rate-limiter', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue({ allowed: true, remaining: 99 }),
+  checkGlobalRateLimit: jest
+    .fn()
+    .mockResolvedValue({ allowed: true, remaining: 99 }),
+  getDefaultRateLimits: jest
+    .fn()
+    .mockReturnValue({ perMinute: 10, perHour: 100, global: 100 }),
+}));
+
+jest.mock('../../src/services/session-store', () => ({
+  getOrCreateSession: jest.fn().mockResolvedValue({
+    session_id: '550e8400-e29b-41d4-a716-446655440000',
+    messages: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ttl: Math.floor(Date.now() / 1000) + 604800,
+  }),
+  getSessionMessages: jest.fn().mockResolvedValue([]),
+  addMessageToSession: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../../src/services/agent', () => ({
+  runAgent: jest.fn().mockResolvedValue({
+    answer: 'Karna was a great warrior and son of Kunti.',
+    citations: [
+      { title: 'Mahabharata - Adi Parva', book: 'Adi Parva', score: 0.9 },
+    ],
+    tokenUsage: {
+      prompt_tokens: 100,
+      completion_tokens: 50,
+      total_tokens: 150,
+    },
+    trace: [],
+    iterations: 1,
+  }),
+  buildChatResponse: jest.fn(
+    (
+      sessionId: string,
+      result: {
+        answer: string;
+        citations: unknown[];
+        tokenUsage: unknown;
+        trace: unknown[];
+      }
+    ) => ({
+      session_id: sessionId,
+      response: result.answer,
+      citations: result.citations,
+      token_usage: result.tokenUsage,
+      agent_trace: result.trace,
+    })
+  ),
+}));
+
+jest.mock('../../src/services/bedrock-client', () => ({
+  retrieve: jest.fn().mockResolvedValue([
+    {
+      content: 'Karna was a great warrior in the Mahabharata epic poem.',
+      metadata: { source: 's3://bucket/adi-parva.txt', book: 'Adi Parva' },
+      score: 0.9,
+    },
+  ]),
+  generate: jest.fn().mockResolvedValue({
+    text: 'Karna was a great warrior.',
+    tokenUsage: {
+      prompt_tokens: 100,
+      completion_tokens: 50,
+      total_tokens: 150,
+    },
+  }),
+}));
+
+jest.mock('../../src/services/query-planner', () => ({
+  decomposeQuery: jest.fn().mockResolvedValue({
+    needsDecomposition: false,
+    subQueries: ['Karna'],
+    reasoning: 'Simple query',
+  }),
+}));
+
+jest.mock('../../src/services/reflection', () => ({
+  checkSufficiency: jest
+    .fn()
+    .mockResolvedValue({ sufficient: true, confidence: 0.9 }),
+}));
+
+jest.mock('../../src/services/prompt-manager', () => ({
+  getSystemPrompt: jest.fn().mockResolvedValue('You are a wise sage.'),
+  getAgentPrompt: jest.fn().mockResolvedValue('Answer the question.'),
+}));
 
 import { handler } from '../../src/index';
 import type { LambdaResponse } from '../../src/types';

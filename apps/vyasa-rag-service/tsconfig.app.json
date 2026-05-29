@@ -7,6 +7,6 @@
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "exclude": ["jest.config.ts", "test/**/*.spec.ts"],
-  "include": ["src/**/*.ts"]
+  "exclude": [],
+  "include": ["src/**/*.ts", "eval/**/*.ts", "jest.config.ts", "test/**/*.ts"]
 }

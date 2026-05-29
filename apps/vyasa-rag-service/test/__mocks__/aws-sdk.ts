@@ -2,6 +2,8 @@
  * AWS SDK mocks for testing
  */
 
+import { Session } from '../../src/types';
+
 // Mock DynamoDB
 export const mockDynamoDbClient = {
   send: jest.fn(),
@@ -82,9 +84,7 @@ export function resetAwsMocks(): void {
 /**
  * Setup mock responses for common operations
  */
-export function setupMockSessionGet(
-  sessionData?: Record<string, unknown>
-): void {
+export function setupMockSessionGet(sessionData?: Session): void {
   mockDynamoDbClient.send.mockResolvedValue({
     Item: sessionData
       ? {

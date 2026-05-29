@@ -113,7 +113,7 @@ export function truncateContext(context: string, maxTokens: number): string {
   const truncated = context.slice(0, charLimit);
   const lastBreak = truncated.lastIndexOf('\n\n');
 
-  if (lastBreak > charLimit * 0.8) {
+  if (lastBreak > charLimit * 0.5) {
     return truncated.slice(0, lastBreak) + '\n\n[Content truncated]';
   }
 
