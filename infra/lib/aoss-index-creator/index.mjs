@@ -8,9 +8,20 @@ function hexHash(data) {
   return createHash('sha256').update(data).digest('hex');
 }
 
-async function signedRequest(method, endpoint, path, body, region, credentials) {
+async function signedRequest(
+  method,
+  endpoint,
+  path,
+  body,
+  region,
+  credentials
+) {
   const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z';
+  const amzDate =
+    now
+      .toISOString()
+      .replace(/[:-]|\.\d{3}/g, '')
+      .slice(0, 15) + 'Z';
   const dateStamp = amzDate.slice(0, 8);
   const bodyHash = hexHash(body);
   const headers = {
@@ -18,18 +29,32 @@ async function signedRequest(method, endpoint, path, body, region, credentials) 
     'content-type': 'application/json',
     'x-amz-date': amzDate,
     'x-amz-content-sha256': bodyHash,
-    ...(credentials.sessionToken ? { 'x-amz-security-token': credentials.sessionToken } : {}),
+    ...(credentials.sessionToken
+      ? { 'x-amz-security-token': credentials.sessionToken }
+      : {}),
   };
   const signedHeaders = Object.keys(headers).sort().join(';');
-  const canonicalHeaders = Object.keys(headers).sort().map(k => `${k}:${headers[k]}\n`).join('');
-  const canonicalRequest = [method, path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
+  const canonicalHeaders = Object.keys(headers)
+    .sort()
+    .map(k => `${k}:${headers[k]}\n`)
+    .join('');
+  const canonicalRequest = [
+    method,
+    path,
+    '',
+    canonicalHeaders,
+    signedHeaders,
+    bodyHash,
+  ].join('\n');
   const scope = `${dateStamp}/${region}/aoss/aws4_request`;
   const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${hexHash(canonicalRequest)}`;
   const kDate = hmac(`AWS4${credentials.secretAccessKey}`, dateStamp);
   const kRegion = hmac(kDate, region);
   const kService = hmac(kRegion, 'aoss');
   const kSigning = hmac(kService, 'aws4_request');
-  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+  const signature = createHmac('sha256', kSigning)
+    .update(stringToSign)
+    .digest('hex');
   const authHeader = `AWS4-HMAC-SHA256 Credential=${credentials.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   return { ...headers, Authorization: authHeader };
 }
@@ -66,14 +91,23 @@ export async function handler(event) {
   });
 
   const path = `/${indexName}`;
-  const headers = await signedRequest('PUT', endpoint, path, body, region, credentials);
+  const headers = await signedRequest(
+    'PUT',
+    endpoint,
+    path,
+    body,
+    region,
+    credentials
+  );
 
   await new Promise((resolve, reject) => {
     const req = request(
       { hostname: endpoint, path, method: 'PUT', headers },
-      (res) => {
+      res => {
         let data = '';
-        res.on('data', (c) => { data += c; });
+        res.on('data', c => {
+          data += c;
+        });
         res.on('end', () => {
           console.log(`AOSS PUT ${indexName}: ${res.statusCode} ${data}`);
           // 200 = created, 400 with resource_already_exists_exception = already exists (ok)
