@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **CI: `vyasa-ui:test` failing with `ERR_MODULE_NOT_FOUND` for vitest** — Added `vitest`, `@vitejs/plugin-react`, `@vitest/coverage-v8`, and `vite` to root `package.json` devDependencies so they are installed during `npm ci` in the monorepo. Changed `apps/vyasa-ui/package.json` test scripts from `npx vitest run` to `vitest run` to use the hoisted package instead of triggering a runtime auto-install.
+- **CI: `vyasa-ui:test` failing to resolve `@testing-library/jest-dom`** — Updated `apps/vyasa-ui/src/test-setup.ts` to use `@testing-library/jest-dom/vitest` import path (required for v6+). Added `@testing-library/jest-dom` to root `package.json` devDependencies to ensure it's installed during CI `npm ci`.
 
 ### Added
 
