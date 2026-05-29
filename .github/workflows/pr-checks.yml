@@ -167,8 +167,8 @@ jobs:
         with:
           name: build-artifacts
           path: |
-            dist/
-            !dist/**/*.map
+            apps/vyasa-ui/dist/
+            !apps/vyasa-ui/dist/**/*.map
           retention-days: 1
 
   # Job 5: SCSS / Stylelint
@@ -216,7 +216,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-          path: dist/
+          path: apps/vyasa-ui/dist/
 
       - name: Run Lighthouse CI
         run: npx lhci autorun --config=lighthouserc.js
@@ -237,13 +237,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-          path: dist/
+          path: apps/vyasa-ui/dist/
 
       - name: Check bundle size
         run: |
-          # Check if web build exists and verify bundle size
-          if [ -d "dist/apps/vyasa-ui" ]; then
-            BUNDLE_SIZE=$(du -sb dist/apps/vyasa-ui | cut -f1)
+          # Check if vyasa-ui build exists and verify bundle size
+          if [ -d "apps/vyasa-ui/dist" ]; then
+            BUNDLE_SIZE=$(du -sb apps/vyasa-ui/dist | cut -f1)
             MAX_SIZE=5242880  # 5MB in bytes
             if [ $BUNDLE_SIZE -gt $MAX_SIZE ]; then
               echo "❌ Bundle size ($BUNDLE_SIZE bytes) exceeds limit ($MAX_SIZE bytes)"

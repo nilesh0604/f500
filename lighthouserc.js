@@ -5,7 +5,8 @@ module.exports = {
         'http://localhost:4200/auth/login',
         'http://localhost:4200/auth/register',
       ],
-      startServerCommand: 'npx serve dist/apps/vyasa-ui -l 4200 --no-clipboard',
+      startServerCommand:
+        'npx serve apps/vyasa-ui/dist -s -l 4200 --no-clipboard',
       startServerReadyPattern: 'Accepting connections',
       startServerReadyTimeout: 30000,
       numberOfRuns: 3,
