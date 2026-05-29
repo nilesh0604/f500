@@ -6,8 +6,8 @@ module.exports = {
         'http://localhost:4200/auth/register',
       ],
       startServerCommand:
-        'npx serve apps/vyasa-ui/dist -s -l 4200 --no-clipboard',
-      startServerReadyPattern: 'Accepting connections',
+        'cd apps/vyasa-ui && npx vite preview --outDir dist --port 4200 --host',
+      startServerReadyPattern: 'Local',
       startServerReadyTimeout: 30000,
       numberOfRuns: 3,
     },
