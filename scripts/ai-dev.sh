@@ -42,6 +42,14 @@ subtasks_file() {
   echo "$(feature_dir)/.jira-subtasks"
 }
 
+pr_number_file() {
+  echo "$(feature_dir)/.pr_number"
+}
+
+fix_retries_file() {
+  echo "$(feature_dir)/.fix_retries.json"
+}
+
 require_tool() {
   local tool="$1"
   if ! command -v "$tool" &>/dev/null; then
@@ -51,6 +59,7 @@ require_tool() {
       codemie-claude) echo "  Install: npm install -g @codemieai/code" ;;
       claude)         echo "  Install: npm install -g @anthropic-ai/claude-code" ;;
       curl)           echo "  Install: should be available on all systems" ;;
+      gh)             echo "  Install: brew install gh (macOS) or https://cli.github.com" ;;
     esac
     exit 1
   fi
@@ -456,6 +465,24 @@ check_prerequisite() {
       if [ ! -f "$validate_marker" ]; then
         echo "Error: Validation has not passed for $TICKET_ID."
         echo "  Run: ./scripts/ai-dev.sh $TICKET_ID validate"
+        exit 1
+      fi
+      ;;
+    deploy-pr)
+      local validate_marker
+      validate_marker="$(feature_dir)/.validate-passed"
+      if [ ! -f "$validate_marker" ]; then
+        echo "Error: Validation has not passed for $TICKET_ID."
+        echo "  Run: ./scripts/ai-dev.sh $TICKET_ID validate"
+        exit 1
+      fi
+      ;;
+    deploy-ship)
+      local pr_file
+      pr_file="$(pr_number_file)"
+      if [ ! -f "$pr_file" ]; then
+        echo "Error: No PR found for $TICKET_ID. Run deploy-pr first."
+        echo "  Run: ./scripts/ai-dev.sh $TICKET_ID deploy-pr"
         exit 1
       fi
       ;;
