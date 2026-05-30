@@ -137,6 +137,11 @@ run_agent() {
     ' <<< "$instructions")
   done
 
+  # TRUST BOUNDARY: --dangerously-skip-permissions bypasses all Claude Code
+  # permission guards. Every agent in this pipeline runs with full filesystem
+  # and shell access. This is intentional — agents must write source files,
+  # docs, and run build/test commands. Never run this script against a repo
+  # you do not own or trust.
   $CLAUDE_CMD -p \
     --system-prompt "$instructions" \
     --model "$model" \
@@ -153,15 +158,18 @@ jira_api() {
   local method="$1" endpoint="$2" data="${3:-}"
   local url="${JIRA_BASE_URL}/rest/api/3${endpoint}"
 
+  local auth_header
+  auth_header="Authorization: Basic $(printf '%s:%s' "$JIRA_EMAIL" "$JIRA_API_TOKEN" | base64 | tr -d '\n')"
+
   if [ -n "$data" ]; then
     curl -s -X "$method" \
-      -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+      -H "$auth_header" \
       -H "Content-Type: application/json" \
       -d "$data" \
       "$url"
   else
     curl -s -X "$method" \
-      -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+      -H "$auth_header" \
       -H "Content-Type: application/json" \
       "$url"
   fi
@@ -181,7 +189,7 @@ jira_get_issue_type_id() {
   local project_key="$1" type_name="$2"
   local result
   result=$(jira_api GET "/issue/createmeta/${project_key}/issuetypes")
-  echo "$result" | jq -r ".issueTypes[] | select(.name == \"$type_name\" or .name == \"Sub-task\" or .name == \"Subtask\") | .id" | head -1
+  echo "$result" | jq -r --arg name "$type_name" '.issueTypes[] | select(.name == $name or .name == "Sub-task" or .name == "Subtask") | .id' | head -1
 }
 
 jira_create_subtask() {
@@ -272,7 +280,7 @@ jira_transition_to() {
 
   local transitions transition_id
   transitions=$(jira_get_transitions "$issue_key")
-  transition_id=$(echo "$transitions" | jq -r ".transitions[] | select(.name == \"$target_status\" or (.to.name == \"$target_status\")) | .id" | head -1)
+  transition_id=$(echo "$transitions" | jq -r --arg s "$target_status" '.transitions[] | select(.name == $s or (.to.name == $s)) | .id' | head -1)
 
   if [ -z "$transition_id" ]; then
     echo "Warning: Could not find transition to '$target_status' for $issue_key" >&2
@@ -293,7 +301,7 @@ save_subtask_key() {
   local sf
   sf="$(subtasks_file)"
   if grep -q "^${step}=" "$sf" 2>/dev/null; then
-    sed -i'' -e "s/^${step}=.*/${step}=${key}/" "$sf"
+    sed -i'' -e "s|^${step}=.*|${step}=${key}|" "$sf"
   else
     echo "${step}=${key}" >> "$sf"
   fi
@@ -675,7 +683,7 @@ cmd_create() {
     exit 1
   fi
 
-  issue_type_id=$(echo "$types_response" | jq -r ".issueTypes[] | select(.name == \"$jira_issue_type\") | .id" | head -1)
+  issue_type_id=$(echo "$types_response" | jq -r --arg t "$jira_issue_type" '.issueTypes[] | select(.name == $t) | .id' | head -1)
 
   if [ -z "$issue_type_id" ]; then
     # Fallback to Task
@@ -838,6 +846,10 @@ EOF
     echo "Branch '$branch' already exists — switching to it"
     git checkout "$branch"
   else
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "Error: uncommitted changes detected — stash or commit before creating a branch."
+      exit 1
+    fi
     git checkout main
     git pull origin main
     git checkout -b "$branch"
@@ -969,6 +981,8 @@ ${questions_plain}"
 # Returns 1 (false) when all blocks are resolved or no section exists.
 # ══════════════════════════════════════════════════════════════════════
 
+# Returns 0 (true in Bash) when unresolved questions exist; 1 when all answered.
+# NOTE: AWK exit 0 signals "found" here — opposite of POSIX convention.
 has_unresolved_questions() {
   local file="$1"
   grep -q "^## Open Questions" "$file" 2>/dev/null && return 0
@@ -1247,6 +1261,7 @@ cmd_code_impl() {
     exit 1
   fi
 
+  git fetch origin main --quiet 2>/dev/null || true
   local changed_files
   changed_files=$(git diff main --name-only | grep -vE '\.(spec|test)\.(ts|js)$' | head -20 || true)
 
@@ -1300,6 +1315,7 @@ cmd_code_test() {
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local req_path="docs/features/$TICKET_ID/requirements.md"
   local tdd_path="docs/features/$TICKET_ID/TDD.md"
   local checklist_path="docs/features/$TICKET_ID/IMPL_CHECKLIST.md"
@@ -1330,6 +1346,7 @@ cmd_code_test() {
       CHANGED_FILES="$changed_files" \
       COVERAGE_GAPS="Coverage below 80% threshold. Fill the gaps — focus on uncovered branches."
 
+    coverage_pass=true
     coverage_output=$(npm run test:affected -- --coverage \
       --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' \
       --coverageReporters=text 2>&1) || coverage_pass=false
@@ -1393,6 +1410,7 @@ cmd_code_quality() {
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
@@ -1403,7 +1421,7 @@ cmd_code_quality() {
   # Auto-fix with eslint + prettier before invoking agent
   echo "Running auto-fix (eslint --fix + prettier --write)..."
   npm run lint -- --fix --quiet 2>/dev/null || true
-  npx prettier --write $(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ') 2>/dev/null || true
+  git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | xargs -r npx prettier --write 2>/dev/null || true
 
   # Check if errors remain after auto-fix
   local errors_after_autofix
@@ -1461,8 +1479,10 @@ $([ "$_CODE_ALIAS_MODE" != true ] && echo "Transition this subtask to Done to un
 # Subcommand: code-security
 # ══════════════════════════════════════════════════════════════════════
 
-# Patterns for independent secrets scan before invoking agent
-_SECRET_PATTERNS='(password|secret|token|api_key|apikey|private_key|access_key)\s*=\s*["\x27][^"\x27]{8,}'
+# Patterns for independent secrets scan before invoking agent.
+# Catches quoted and unquoted assignments (= and :) plus common AWS key prefixes.
+# Supplement with git-secrets or truffleHog pre-commit hook for base64/binary coverage.
+_SECRET_PATTERNS='(password|secret|token|api_key|apikey|private_key|access_key|aws_secret|aws_access)["\x27]?\s*[:=]\s*["\x27]?[A-Za-z0-9+/]{8,}'
 
 cmd_code_security() {
   require_tool "$CLAUDE_CMD"
@@ -1479,6 +1499,7 @@ cmd_code_security() {
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local tdd_path="docs/features/$TICKET_ID/TDD.md"
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
@@ -1576,6 +1597,7 @@ cmd_code_perf() {
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local tdd_path="docs/features/$TICKET_ID/TDD.md"
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
@@ -1694,7 +1716,9 @@ get_ci_status() {
   local checks_output
   checks_output=$(gh pr checks "$pr_number" 2>&1) || true
 
-  if echo "$checks_output" | grep -qiE $'^\S[^\t]*\t+fail'; then
+  if [ -z "$checks_output" ]; then
+    echo "unknown"
+  elif echo "$checks_output" | grep -qiE $'^\S[^\t]*\t+fail'; then
     echo "failure"
   elif echo "$checks_output" | grep -qiE $'^\S[^\t]*\t+(pending|in_progress|queued)'; then
     echo "pending"
@@ -1762,6 +1786,7 @@ cmd_deploy_pr() {
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local branch changed_files
   branch=$(git branch --show-current)
   changed_files=$(git diff main --name-only | tr '\n' ',')
@@ -1785,10 +1810,14 @@ cmd_deploy_pr() {
   # Persist PR number for deploy-ship
   echo "$pr_number" > "$(pr_number_file)"
 
-  # Gate: CI must be triggered (checks appear within ~10 s)
-  sleep 10
-  local ci_status
-  ci_status=$(get_ci_status "$pr_number")
+  # Gate: poll until CI checks appear (up to 60s)
+  local ci_status="unknown"
+  local ci_wait=0
+  while [ "$ci_status" = "unknown" ] && [ "$ci_wait" -lt 60 ]; do
+    sleep 10
+    ci_wait=$((ci_wait + 10))
+    ci_status=$(get_ci_status "$pr_number")
+  done
 
   local comment_body
   comment_body="AI Pipeline — PR Opened
@@ -1863,6 +1892,13 @@ cmd_deploy_ship() {
 
     pending)
       echo "⏳ CI checks still running. Re-run when complete:"
+      echo "  ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+      ;;
+
+    unknown)
+      echo "⚠️  CI check data unavailable (gh pr checks returned no data)."
+      echo "   This may mean checks haven't triggered yet, or gh is unauthenticated."
+      echo "   Re-run in a moment:"
       echo "  ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
       ;;
 
@@ -1957,7 +1993,7 @@ cmd_deploy_ship() {
       local new_count=$((retry_count + 1))
       local updated_json
       updated_json=$(jq ".[\"$failure_type\"] = $new_count" "$retries_file")
-      echo "$updated_json" > "$retries_file"
+      printf '%s\n' "$updated_json" > "${retries_file}.tmp" && mv "${retries_file}.tmp" "$retries_file"
 
       # Delegate to the appropriate fix-* command
       case "$failure_type" in
@@ -1989,13 +2025,12 @@ cmd_fix_lint() {
   echo ""
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
 
   # Step 1: Auto-fix
   echo "Running eslint --fix + prettier --write..."
   npm run lint -- --fix --quiet 2>/dev/null || true
-  local fmt_files
-  fmt_files=$(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ')
-  [ -n "$fmt_files" ] && npx prettier --write $fmt_files 2>/dev/null || true
+  git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | xargs -r npx prettier --write 2>/dev/null || true
 
   # Step 2: Check if errors remain
   local errors_after
@@ -2023,9 +2058,7 @@ cmd_fix_lint() {
   fi
 
   # Re-run prettier on any newly modified files
-  local final_fmt_files
-  final_fmt_files=$(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ')
-  [ -n "$final_fmt_files" ] && npx prettier --write $final_fmt_files 2>/dev/null || true
+  git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | xargs -r npx prettier --write 2>/dev/null || true
 
   # Step 4: Commit if changes exist
   git add -u
@@ -2060,6 +2093,7 @@ cmd_fix_types() {
   echo ""
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
@@ -2197,6 +2231,7 @@ cmd_fix_build() {
   echo ""
 
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
@@ -2207,9 +2242,7 @@ cmd_fix_build() {
     attempt=$((attempt + 1))
 
     local build_errors
-    build_errors=$(npm run build 2>&1 || true)
-
-    if npm run build > /dev/null 2>&1; then
+    if build_errors=$(npm run build 2>&1); then
       echo "Build passing."
       break
     fi
@@ -2357,8 +2390,8 @@ cmd_fix_conflicts() {
   # Step 3: Conflicts found — count them
   local conflicted_files
   conflicted_files=$(git diff --name-only --diff-filter=U)
-  local conflict_count
-  conflict_count=$(echo "$conflicted_files" | grep -c . || echo "0")
+  local conflict_count=0
+  [ -n "$conflicted_files" ] && conflict_count=$(echo "$conflicted_files" | grep -c .)
 
   if [ "$conflict_count" -gt 10 ]; then
     git rebase --abort
@@ -2392,7 +2425,7 @@ cmd_fix_conflicts() {
   # Step 5: Post-resolution validation
   echo ""
   echo "Running validate to confirm conflict resolution didn't break anything..."
-  if ! cmd_validate 2>/dev/null; then
+  if ! cmd_validate; then
     echo ""
     echo "Error: Validation failed after conflict resolution."
     echo "Conflict resolution introduced a breakage — manual fix required."
@@ -2463,7 +2496,9 @@ cmd_release() {
   fi
   local aws_account
   aws_account=$(aws sts get-caller-identity --query 'Account' --output text)
-  echo "  Account: $aws_account  Region: us-east-1"
+  local aws_region
+  aws_region=$(aws configure get region 2>/dev/null || echo "${AWS_DEFAULT_REGION:-us-east-1}")
+  echo "  Account: $aws_account  Region: $aws_region"
 
   # CDK synth — catch config errors before committing to a deploy
   echo "[3/8] Running cdk synth (pre-flight check)..."
@@ -2479,8 +2514,8 @@ cmd_release() {
   # Clean install + builds
   echo "[4/8] Installing dependencies and building..."
   npm ci
-  npx nx build vyasa-rag-service 2>/dev/null || true
-  (cd apps/vyasa-ui && npm run build) || true
+  npx nx build vyasa-rag-service 2>&1 || echo "Warning: vyasa-rag-service build failed (continuing)"
+  (cd apps/vyasa-ui && npm run build 2>&1) || echo "Warning: vyasa-ui build failed (continuing)"
 
   # Record pre-deploy rollback target (main~1 state)
   git rev-parse HEAD~1 > "$(release_marker_file)" 2>/dev/null || true
@@ -2545,9 +2580,15 @@ cmd_release() {
   local smoke_pass=true
 
   if [ -n "$rag_endpoint" ]; then
-    echo "  Waiting 20s for Lambda cold start..."
-    sleep 20
-    if curl -sf "${rag_endpoint}/health" -o /dev/null --max-time 15; then
+    echo "  Polling RAG health (up to 60s for Lambda cold start)..."
+    local rag_ok=false
+    for _i in 1 2 3 4; do
+      if curl -sf "${rag_endpoint}/health" -o /dev/null --max-time 15 2>/dev/null; then
+        rag_ok=true; break
+      fi
+      sleep 15
+    done
+    if [ "$rag_ok" = true ]; then
       echo "  ✅ RAG: ${rag_endpoint}/health"
     else
       echo "  ❌ RAG smoke test failed: ${rag_endpoint}/health"
@@ -2558,9 +2599,15 @@ cmd_release() {
   fi
 
   if [ -n "$ui_domain" ]; then
-    echo "  Waiting 30s for CloudFront propagation..."
-    sleep 30
-    if curl -sf "https://${ui_domain}" -o /dev/null --max-time 15; then
+    echo "  Polling UI (up to 60s for CloudFront propagation)..."
+    local ui_ok=false
+    for _i in 1 2 3 4; do
+      if curl -sf "https://${ui_domain}" -o /dev/null --max-time 15 2>/dev/null; then
+        ui_ok=true; break
+      fi
+      sleep 15
+    done
+    if [ "$ui_ok" = true ]; then
       echo "  ✅ UI: https://${ui_domain}"
     else
       echo "  ❌ UI smoke test failed: https://${ui_domain}"
@@ -2754,6 +2801,7 @@ cmd_deploy() {
 
   # Run agent
   cd "$REPO_ROOT"
+  git fetch origin main --quiet 2>/dev/null || true
   local branch changed_files
   branch=$(git branch --show-current)
   changed_files=$(git diff main --name-only | tr '\n' ',')
