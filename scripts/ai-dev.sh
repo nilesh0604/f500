@@ -1733,6 +1733,11 @@ cmd_code_security() {
     CHANGED_FILES="$changed_files" \
     AUDIT_OUTPUT="$audit_summary"
 
+  # Step-report: validate, commit, changelog
+  validate_step_report || exit 1
+  commit_step_changes
+  post_parent_changelog
+
   # Gate: SECURITY_REVIEW.md must exist with verdict != FAIL
   local security_review="$(feature_dir)/SECURITY_REVIEW.md"
   if [ ! -f "$security_review" ]; then
@@ -1811,6 +1816,11 @@ cmd_code_perf() {
     TICKET_ID="$TICKET_ID" \
     TDD_PATH="$tdd_path" \
     CHANGED_FILES="$changed_files"
+
+  # Step-report: validate, commit, changelog
+  validate_step_report || exit 1
+  commit_step_changes
+  post_parent_changelog
 
   local comment_body
   comment_body="AI Pipeline — Performance Review Complete
