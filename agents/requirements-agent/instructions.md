@@ -154,3 +154,33 @@ Edge cases:          [count]
 Open questions:      [count] — resolve before proceeding to design
 Affected services:   [list]
 ```
+
+---
+
+## Final Step: Write Step Report
+
+After completing all steps above, write the following JSON to
+`docs/features/{TICKET_ID}/.step-report.json` (replace `{TICKET_ID}` with the actual ticket ID, e.g., `SCRUM-42`):
+
+```json
+{
+  "step": "requirements",
+  "status": "success",
+  "summary": "<one sentence describing what was produced>",
+  "files_changed": ["docs/features/{TICKET_ID}/requirements.md"],
+  "validation": {
+    "acceptance_criteria": "<count>",
+    "edge_cases": "<count>",
+    "open_questions": "<count>"
+  },
+  "commit_message": "docs({TICKET_ID}): requirements checkpoint"
+}
+```
+
+**Rules:**
+
+- Use commit type `docs`, scope is the ticket ID (e.g., `docs(SCRUM-42): requirements checkpoint`)
+- If this step failed, set `"status": "failure"` and change `commit_message` subject to include `[FAILED]`, e.g., `"docs(SCRUM-42): [FAILED] requirements checkpoint"`
+- Only include `validation` fields relevant to this step — `acceptance_criteria`, `edge_cases`, `open_questions` are appropriate here
+- `files_changed` must list only the files you actually wrote to in this step
+- Do NOT include any other fields not shown above

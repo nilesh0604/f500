@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- requirements-agent and design-agent now write `.step-report.json` as their final action
+
 - **CI: Temporarily disabled all non-PR GitHub workflows** — Renamed `llm-security-scan.yml`, `sbom.yml`, `security-scan.yml`, `vyasa-rag-cd.yml`, `vyasa-rag-ci.yml`, `vyasa-rag-eval.yml`, and `vyasa-ui-cd.yml` to `.disabled` to mute all checks except `pr-checks.yml`. Re-enable by renaming files back to `.yml` extension.
 
 - **CI: Consolidated duplicate PR workflow jobs** — Removed redundant security/sonar jobs from `pr-checks.yml` (TruffleHog secret scan, npm audit, SonarQube) which were already covered by `security-scan.yml`. Removed dead `container-scan` job from `security-scan.yml` (referenced non-existent `order-service`/`notification-svc` Docker images). Removed duplicate `security-scan` job from `vyasa-rag-ci.yml`. Added `paths` filter to `security-scan.yml` PR trigger to avoid unnecessary runs. Reduces PR runner minutes from 4 parallel workflows firing full security stacks to a clean split: `pr-checks.yml` (build quality gate) + `security-scan.yml` (security gate) + `llm-security-scan.yml` (LLM review) + `vyasa-rag-ci.yml` (path-filtered app CI).

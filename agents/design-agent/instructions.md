@@ -151,3 +151,33 @@ verify all items are checked before starting implementation.
 - [ ] Estimated complexity is realistic (S=1-2 files, M=3-5, L=6-10, XL=10+)
 - [ ] No requirements from requirements.md were silently dropped
 ```
+
+---
+
+## Final Step: Write Step Report
+
+After completing all steps above, write the following JSON to
+`docs/features/{TICKET_ID}/.step-report.json` (replace `{TICKET_ID}` with the actual ticket ID, e.g., `SCRUM-42`):
+
+```json
+{
+  "step": "design",
+  "status": "success",
+  "summary": "<one sentence describing what was produced>",
+  "files_changed": ["docs/features/{TICKET_ID}/TDD.md"],
+  "validation": {
+    "acceptance_criteria_covered": "<count>",
+    "api_endpoints_designed": "<count>",
+    "open_questions": "<count>"
+  },
+  "commit_message": "docs({TICKET_ID}): design checkpoint"
+}
+```
+
+**Rules:**
+
+- Use commit type `docs`, scope is the ticket ID (e.g., `docs(SCRUM-42): design checkpoint`)
+- If this step failed, set `"status": "failure"` and change `commit_message` subject to include `[FAILED]`, e.g., `"docs(SCRUM-42): [FAILED] design checkpoint"`
+- Only include `validation` fields relevant to this step — `acceptance_criteria_covered`, `api_endpoints_designed`, `open_questions` are appropriate here
+- `files_changed` must list only the files you actually wrote to in this step (typically `TDD.md` and optionally additional design artifacts)
+- Do NOT include any other fields not shown above
