@@ -18,8 +18,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLAUDE_CMD="${AI_DEV_CLAUDE_CMD:-codemie-claude}"
-STEPS_ORDERED=(requirements design code test deploy)
-GATED_STEPS=(requirements design code)
+STEPS_ORDERED=(requirements design code-impl code-test code-quality code-security code-perf validate deploy)
+GATED_STEPS=(requirements design code-impl code-test code-quality code-security code-perf)
+_CODE_ALIAS_MODE=false
 
 # ══════════════════════════════════════════════════════════════════════
 # Argument Parsing
@@ -337,7 +338,7 @@ check_prerequisite() {
         exit 1
       fi
       ;;
-    code)
+    code-impl)
       local des_key
       des_key=$(get_subtask_key "design")
       if [ -z "$des_key" ]; then
@@ -359,34 +360,102 @@ check_prerequisite() {
         exit 1
       fi
       ;;
-    test)
-      local code_key
-      code_key=$(get_subtask_key "code")
-      if [ -z "$code_key" ]; then
-        echo "Error: Code subtask not found. Run init first."
+    code-test)
+      local impl_key
+      impl_key=$(get_subtask_key "code-impl")
+      if [ -z "$impl_key" ]; then
+        echo "Error: Implementation subtask not found. Run init first."
         exit 1
       fi
-      local code_status
-      code_status=$(jira_get_status "$code_key")
-      if [ "$code_status" != "Done" ]; then
-        echo "Error: Implementation not approved (status: $code_status)."
-        echo "  Review in Jira: ${JIRA_BASE_URL}/browse/$code_key"
+      local impl_status
+      impl_status=$(jira_get_status "$impl_key")
+      if [ "$impl_status" != "Done" ]; then
+        echo "Error: Implementation not approved (status: $impl_status)."
+        echo "  Review in Jira: ${JIRA_BASE_URL}/browse/$impl_key"
+        echo "  Transition subtask to 'Done' when approved."
+        exit 1
+      fi
+      local checklist_file="$(feature_dir)/IMPL_CHECKLIST.md"
+      if [ ! -f "$checklist_file" ]; then
+        echo "Error: IMPL_CHECKLIST.md not found. Re-run code-impl."
+        exit 1
+      fi
+      if grep -q "❌" "$checklist_file" 2>/dev/null; then
+        echo "Error: IMPL_CHECKLIST.md contains unresolved ❌ items."
+        echo "  Fix implementation issues and re-run code-impl."
+        exit 1
+      fi
+      ;;
+    code-quality)
+      local ctest_key
+      ctest_key=$(get_subtask_key "code-test")
+      if [ -z "$ctest_key" ]; then
+        echo "Error: Spec Tests subtask not found. Run init first."
+        exit 1
+      fi
+      local ctest_status
+      ctest_status=$(jira_get_status "$ctest_key")
+      if [ "$ctest_status" != "Done" ]; then
+        echo "Error: Spec Tests not approved (status: $ctest_status)."
+        echo "  Review in Jira: ${JIRA_BASE_URL}/browse/$ctest_key"
+        echo "  Transition subtask to 'Done' when approved."
+        exit 1
+      fi
+      ;;
+    code-security)
+      local quality_key
+      quality_key=$(get_subtask_key "code-quality")
+      if [ -z "$quality_key" ]; then
+        echo "Error: Code Quality subtask not found. Run init first."
+        exit 1
+      fi
+      local quality_status
+      quality_status=$(jira_get_status "$quality_key")
+      if [ "$quality_status" != "Done" ]; then
+        echo "Error: Code Quality not approved (status: $quality_status)."
+        echo "  Review in Jira: ${JIRA_BASE_URL}/browse/$quality_key"
+        echo "  Transition subtask to 'Done' when approved."
+        exit 1
+      fi
+      ;;
+    code-perf)
+      local security_key
+      security_key=$(get_subtask_key "code-security")
+      if [ -z "$security_key" ]; then
+        echo "Error: Security Review subtask not found. Run init first."
+        exit 1
+      fi
+      local security_status
+      security_status=$(jira_get_status "$security_key")
+      if [ "$security_status" != "Done" ]; then
+        echo "Error: Security Review not approved (status: $security_status)."
+        echo "  Review in Jira: ${JIRA_BASE_URL}/browse/$security_key"
+        echo "  Transition subtask to 'Done' when approved."
+        exit 1
+      fi
+      ;;
+    validate)
+      local perf_key
+      perf_key=$(get_subtask_key "code-perf")
+      if [ -z "$perf_key" ]; then
+        echo "Error: Performance Review subtask not found. Run init first."
+        exit 1
+      fi
+      local perf_status
+      perf_status=$(jira_get_status "$perf_key")
+      if [ "$perf_status" != "Done" ]; then
+        echo "Error: Performance Review not approved (status: $perf_status)."
+        echo "  Review in Jira: ${JIRA_BASE_URL}/browse/$perf_key"
         echo "  Transition subtask to 'Done' when approved."
         exit 1
       fi
       ;;
     deploy)
-      local test_key
-      test_key=$(get_subtask_key "test")
-      if [ -z "$test_key" ]; then
-        echo "Error: Test subtask not found. Run init first."
-        exit 1
-      fi
-      local test_status
-      test_status=$(jira_get_status "$test_key")
-      if [ "$test_status" != "Done" ]; then
-        echo "Error: Testing not complete (status: $test_status)."
-        echo "  Run: ./scripts/ai-dev.sh $TICKET_ID test"
+      local validate_marker
+      validate_marker="$(feature_dir)/.validate-passed"
+      if [ ! -f "$validate_marker" ]; then
+        echo "Error: Validation has not passed for $TICKET_ID."
+        echo "  Run: ./scripts/ai-dev.sh $TICKET_ID validate"
         exit 1
       fi
       ;;
@@ -405,13 +474,18 @@ Usage: ./scripts/ai-dev.sh <TICKET_ID|PROJECT_KEY> <subcommand> [args]
 
 Subcommands:
   create <idea>    Generate a detailed Jira ticket from a one-liner idea
-  init             Parse ticket, create branch + Jira subtasks
+  init             Parse ticket, create branch + 8 Jira subtasks
   requirements     Run requirements-agent (needs: init)
   resolve          Pull PO answers from Jira, update requirements.md
   design           Run design-agent (needs: requirements subtask = Done, no open questions)
-  code             Run code-agent (needs: design subtask = Done)
-  test             Run test-agent (needs: code subtask = Done)
-  deploy           Open PR (needs: test subtask = Done)
+  code             Run all 5 agent code sub-steps in sequence (needs: design subtask = Done)
+  code-impl        Run implementation-agent → IMPL_CHECKLIST.md (needs: design Done)
+  code-test        Run spec-compliance-test-agent → 80% coverage (needs: code-impl Done)
+  code-quality     Auto-fix lint/prettier; agent for remainders (needs: code-test Done)
+  code-security    Run security-agent → SECURITY_REVIEW.md (needs: code-quality Done)
+  code-perf        Run perf-agent → E2E stubs (needs: code-security Done)
+  validate         Script-only CI dry-run: lint, tsc, tests, build, audit (needs: code-perf Done)
+  deploy           Open PR (needs: validate passed)
   status           Show pipeline progress from Jira
 
 Workflow:
@@ -419,18 +493,20 @@ Workflow:
      -> Review ticket in Jira, edit if needed
   1. ./scripts/ai-dev.sh OF-456 init
   2. ./scripts/ai-dev.sh OF-456 requirements
-     -> If open questions posted: PO replies in Jira, then:
+     -> Open questions: PO replies in Jira, then:
      -> ./scripts/ai-dev.sh OF-456 resolve  (repeat until no questions remain)
      -> Review in Jira, transition subtask to "Done"
   3. ./scripts/ai-dev.sh OF-456 design
      -> Review in Jira, transition subtask to "Done"
-  4. ./scripts/ai-dev.sh OF-456 code
-     -> Review in Jira, transition subtask to "Done"
-  5. ./scripts/ai-dev.sh OF-456 test
+  4a. ./scripts/ai-dev.sh OF-456 code         (runs all 5 sub-steps, auto-approves each)
+  4b. OR run step-by-step (each requires human Done transition before next):
+      code-impl → code-test → code-quality → code-security → code-perf
+  5. ./scripts/ai-dev.sh OF-456 validate       (zero agent cost — CI gate)
   6. ./scripts/ai-dev.sh OF-456 deploy
 
-Approval: Transition the subtask to "Done" in Jira UI.
-Status:   All state lives in Jira — no local state files.
+Approval (gated steps): Transition the subtask to "Done" in Jira UI.
+Auto-approve (alias):   Running "code" auto-transitions each sub-step on success.
+Status:                 All state lives in Jira — no local state files (except validate marker).
 
 Environment vars (required):
   JIRA_BASE_URL       e.g. https://yourcompany.atlassian.net
@@ -648,19 +724,25 @@ EOF
   sf="$(subtasks_file)"
   > "$sf"
 
-  local step_names=("requirements" "design" "code" "test" "deploy")
+  local step_names=("requirements" "design" "code-impl" "code-test" "code-quality" "code-security" "code-perf" "deploy")
   local step_summaries=(
     "[AI] Requirements Analysis"
     "[AI] Technical Design"
-    "[AI] Implementation"
-    "[AI] Testing & Coverage"
+    "[AI] Implementation: ${TICKET_ID}"
+    "[AI] Spec Tests: ${TICKET_ID}"
+    "[AI] Code Quality: ${TICKET_ID}"
+    "[AI] Security Review: ${TICKET_ID}"
+    "[AI] Performance Review: ${TICKET_ID}"
     "[AI] Deploy & PR"
   )
   local step_descriptions=(
     "AI-generated requirements analysis. Review and transition to Done to approve."
     "AI-generated technical design document (TDD). Review and transition to Done to approve."
-    "AI-generated implementation. Review the branch and transition to Done to approve."
-    "AI-generated test coverage. Auto-completes when coverage threshold met."
+    "AI-generated spec-driven implementation. Reviews IMPL_CHECKLIST.md and transitions to Done when approved."
+    "AI-generated spec compliance tests verifying all acceptance criteria. Review coverage report and transition to Done."
+    "AI-enforced lint, TypeScript, and formatting. Transitions to Done when all checks pass."
+    "AI-generated OWASP review. Produces SECURITY_REVIEW.md. Transition to Done when verdict is acceptable."
+    "AI-generated performance review and E2E stubs. Transition to Done when approved."
     "AI-generated PR. Auto-completes after PR is opened."
   )
 
@@ -1054,165 +1136,481 @@ Review the technical design. When satisfied, transition this subtask to Done to 
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# Subcommand: code
+# Subcommand: code-impl
 # ══════════════════════════════════════════════════════════════════════
 
-cmd_code() {
+cmd_code_impl() {
   require_tool "$CLAUDE_CMD"
   require_jira_creds
-  check_prerequisite code
+  check_prerequisite code-impl
 
   local subtask_key
-  subtask_key=$(get_subtask_key "code")
+  subtask_key=$(get_subtask_key "code-impl")
 
   echo "Vyasa AI Dev — Implementation: $TICKET_ID"
   echo "  Subtask: $subtask_key"
   echo ""
 
-  # Transition to In Progress
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
-  # Run agent
   cd "$REPO_ROOT"
   local tdd_path="docs/features/$TICKET_ID/TDD.md"
+  local req_path="docs/features/$TICKET_ID/requirements.md"
 
-  run_agent agents/code-agent/instructions.md 5.00 sonnet \
+  run_agent agents/code-impl-agent/instructions.md 3.00 sonnet \
     TICKET_ID="$TICKET_ID" \
-    TDD_PATH="$tdd_path"
+    TDD_PATH="$tdd_path" \
+    REQUIREMENTS_PATH="$req_path"
 
-  # Run lint + tests with retries
-  local retries=0 max_retries=2 lint_pass=false test_pass=false
+  # Gate: IMPL_CHECKLIST.md must exist with no ❌ items
+  local checklist_file="$(feature_dir)/IMPL_CHECKLIST.md"
+  if [ ! -f "$checklist_file" ]; then
+    jira_add_comment "$subtask_key" "Implementation agent did not produce IMPL_CHECKLIST.md. Re-run needed."
+    echo "Error: IMPL_CHECKLIST.md not created. Re-run this step."
+    exit 1
+  fi
+  if grep -q "❌" "$checklist_file" 2>/dev/null; then
+    local fail_count
+    fail_count=$(grep -c "❌" "$checklist_file" 2>/dev/null || echo "?")
+    jira_add_comment "$subtask_key" "IMPL_CHECKLIST.md has ${fail_count} unresolved ❌ item(s). Re-run needed."
+    echo "Error: IMPL_CHECKLIST.md has ${fail_count} ❌ item(s). Fix and re-run."
+    exit 1
+  fi
 
-  while [ $retries -le $max_retries ]; do
-    lint_pass=true
-    test_pass=true
-
-    if ! npm run lint -- --quiet 2>/dev/null; then
-      lint_pass=false
-    fi
-
-    if ! npm run test:affected 2>/dev/null; then
-      test_pass=false
-    fi
-
-    if [ "$lint_pass" = true ] && [ "$test_pass" = true ]; then
-      break
-    fi
-
-    retries=$((retries + 1))
-    if [ $retries -le $max_retries ]; then
-      echo "Lint/tests failed — retrying with code-agent (attempt $retries/$max_retries)..."
-      local error_context="Lint passed: $lint_pass, Tests passed: $test_pass. Please fix."
-      run_agent agents/code-agent/instructions.md 3.00 sonnet \
-        TICKET_ID="$TICKET_ID" \
-        TDD_PATH="$tdd_path" \
-        ERROR_CONTEXT="$error_context"
-    fi
-  done
-
-  # Get changed files
   local changed_files
-  changed_files=$(git diff main --name-only 2>/dev/null || echo "unknown")
+  changed_files=$(git diff main --name-only | grep -vE '\.(spec|test)\.(ts|js)$' | head -20 || true)
 
-  # Post to Jira
   local comment_body
   comment_body="AI Pipeline — Implementation Complete
 
 Ticket: $TICKET_ID
-Lint: $([ "$lint_pass" = true ] && echo "PASS" || echo "FAIL")
-Tests: $([ "$test_pass" = true ] && echo "PASS" || echo "FAIL")
 
 Changed files:
-$changed_files
+${changed_files:-"(no implementation files detected — re-run if unexpected)"}
+
+IMPL_CHECKLIST: All items ✅
 
 ---
-Review the implementation on the feature branch. When satisfied, transition this subtask to Done to unlock the Testing phase."
+Review the implementation on the feature branch and IMPL_CHECKLIST.md attachment.
+Transition this subtask to Done to unlock the Spec Tests phase."
 
   jira_add_comment "$subtask_key" "$comment_body"
+  jira_upload_attachment "$subtask_key" "$checklist_file"
 
-  if [ "$lint_pass" != true ] || [ "$test_pass" != true ]; then
-    echo ""
-    echo "Warning: Lint/tests still failing after retries."
-    echo "Fix manually, then re-run: ./scripts/ai-dev.sh $TICKET_ID code"
-    exit 1
+  if [ "$_CODE_ALIAS_MODE" = true ]; then
+    jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
   fi
 
   echo ""
   echo "Implementation posted to Jira."
   echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
-  echo ""
-  echo "Next: Review branch, transition subtask to 'Done', then:"
-  echo "  ./scripts/ai-dev.sh $TICKET_ID test"
+  if [ "$_CODE_ALIAS_MODE" != true ]; then
+    echo ""
+    echo "Next: Review in Jira + IMPL_CHECKLIST.md, transition subtask to 'Done', then:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID code-test"
+  fi
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# Subcommand: test
+# Subcommand: code-test
 # ══════════════════════════════════════════════════════════════════════
 
-cmd_test() {
+cmd_code_test() {
   require_tool "$CLAUDE_CMD"
   require_jira_creds
-  check_prerequisite test
+  check_prerequisite code-test
 
   local subtask_key
-  subtask_key=$(get_subtask_key "test")
+  subtask_key=$(get_subtask_key "code-test")
 
-  echo "Vyasa AI Dev — Testing: $TICKET_ID"
+  echo "Vyasa AI Dev — Spec Compliance Testing: $TICKET_ID"
   echo "  Subtask: $subtask_key"
   echo ""
 
-  # Transition to In Progress
   jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
 
-  # Run agent
+  cd "$REPO_ROOT"
+  local req_path="docs/features/$TICKET_ID/requirements.md"
+  local tdd_path="docs/features/$TICKET_ID/TDD.md"
+  local checklist_path="docs/features/$TICKET_ID/IMPL_CHECKLIST.md"
+  local changed_files
+  changed_files=$(git diff main --name-only | tr '\n' ',')
+
+  run_agent agents/code-test-agent/instructions.md 2.00 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    REQUIREMENTS_PATH="$req_path" \
+    TDD_PATH="$tdd_path" \
+    IMPL_CHECKLIST_PATH="$checklist_path" \
+    CHANGED_FILES="$changed_files"
+
+  # Gate: jest --coverage must meet 80% threshold
+  local coverage_pass=true
+  local coverage_output
+  coverage_output=$(npm run test:affected -- --coverage \
+    --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' \
+    --coverageReporters=text 2>&1) || coverage_pass=false
+
+  if [ "$coverage_pass" != true ]; then
+    echo "Coverage below 80% — re-prompting agent once..."
+    run_agent agents/code-test-agent/instructions.md 2.00 sonnet \
+      TICKET_ID="$TICKET_ID" \
+      REQUIREMENTS_PATH="$req_path" \
+      TDD_PATH="$tdd_path" \
+      IMPL_CHECKLIST_PATH="$checklist_path" \
+      CHANGED_FILES="$changed_files" \
+      COVERAGE_GAPS="Coverage below 80% threshold. Fill the gaps — focus on uncovered branches."
+
+    coverage_output=$(npm run test:affected -- --coverage \
+      --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' \
+      --coverageReporters=text 2>&1) || coverage_pass=false
+  fi
+
+  local coverage_summary
+  coverage_summary=$(echo "$coverage_output" | grep -E "^All files" | head -1 || echo "Coverage data unavailable")
+
+  local comment_body
+  comment_body="AI Pipeline — Spec Compliance Tests Complete
+
+Ticket: $TICKET_ID
+Coverage threshold (80% branches/functions/lines/statements): $([ "$coverage_pass" = true ] && echo "✅ PASS" || echo "❌ BELOW THRESHOLD")
+Coverage summary: ${coverage_summary}
+
+Each acceptance criterion in requirements.md has a traceable test tagged // AC: <id>.
+
+---
+$([ "$_CODE_ALIAS_MODE" != true ] && echo "Transition this subtask to Done to unlock the Code Quality phase." || echo "")"
+
+  jira_add_comment "$subtask_key" "$comment_body"
+
+  if [ "$coverage_pass" != true ]; then
+    jira_transition_to "$subtask_key" "Blocked" 2>/dev/null || true
+    echo ""
+    echo "Error: Coverage still below 80% after retry."
+    echo "Fix coverage manually, then re-run: ./scripts/ai-dev.sh $TICKET_ID code-test"
+    exit 1
+  fi
+
+  if [ "$_CODE_ALIAS_MODE" = true ]; then
+    jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
+  fi
+
+  echo ""
+  echo "Spec compliance tests posted to Jira."
+  echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+  if [ "$_CODE_ALIAS_MODE" != true ]; then
+    echo ""
+    echo "Next: Review in Jira, transition subtask to 'Done', then:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID code-quality"
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: code-quality
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_code_quality() {
+  require_tool "$CLAUDE_CMD"
+  require_jira_creds
+  check_prerequisite code-quality
+
+  local subtask_key
+  subtask_key=$(get_subtask_key "code-quality")
+
+  echo "Vyasa AI Dev — Code Quality: $TICKET_ID"
+  echo "  Subtask: $subtask_key"
+  echo ""
+
+  jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
+
   cd "$REPO_ROOT"
   local changed_files
   changed_files=$(git diff main --name-only | tr '\n' ',')
 
-  run_agent agents/test-agent/instructions.md 3.00 sonnet \
-    TICKET_ID="$TICKET_ID" \
-    CHANGED_FILES="$changed_files"
+  # Count errors before auto-fix
+  local errors_before
+  errors_before=$(npm run lint -- --format=compact 2>/dev/null | grep -c " error " || echo "0")
 
-  # Run coverage check
-  local coverage_pass=true
-  if ! npm run test:affected -- --coverage --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' 2>/dev/null; then
-    echo "Coverage below 80% — retrying..."
-    run_agent agents/test-agent/instructions.md 2.00 sonnet \
+  # Auto-fix with eslint + prettier before invoking agent
+  echo "Running auto-fix (eslint --fix + prettier --write)..."
+  npm run lint -- --fix --quiet 2>/dev/null || true
+  npx prettier --write $(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ') 2>/dev/null || true
+
+  # Check if errors remain after auto-fix
+  local errors_after_autofix
+  errors_after_autofix=$(npm run lint -- --format=compact 2>/dev/null | grep -c " error " || echo "0")
+
+  # Invoke agent only if auto-fix left remaining errors
+  if [ "$errors_after_autofix" -gt 0 ]; then
+    echo "Auto-fix left ${errors_after_autofix} error(s) — invoking quality agent..."
+    run_agent agents/code-quality-agent/instructions.md 0.50 sonnet \
       TICKET_ID="$TICKET_ID" \
-      CHANGED_FILES="$changed_files"
-
-    if ! npm run test:affected -- --coverage --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' 2>/dev/null; then
-      coverage_pass=false
-    fi
+      CHANGED_FILES="$changed_files" \
+      REMAINING_ERRORS="$errors_after_autofix errors remain after eslint --fix. Fix them without suppressing rules."
   fi
 
-  # Post to Jira
+  # Final gates: eslint, tsc, prettier
+  local lint_pass=true tsc_pass=true
+  npm run lint -- --quiet 2>/dev/null || lint_pass=false
+  npx tsc --noEmit 2>/dev/null || tsc_pass=false
+
   local comment_body
-  comment_body="AI Pipeline — Testing Complete
+  comment_body="AI Pipeline — Code Quality Complete
 
 Ticket: $TICKET_ID
-Coverage threshold (80%): $([ "$coverage_pass" = true ] && echo "PASS" || echo "BELOW THRESHOLD")
-
-Test agent added coverage for changed files.
+ESLint errors (before → after): ${errors_before} → $([ "$lint_pass" = true ] && echo "0 ✅" || echo "❌ remaining")
+TypeScript (tsc --noEmit): $([ "$tsc_pass" = true ] && echo "✅ PASS" || echo "❌ FAIL")
 
 ---
-Testing phase complete."
+$([ "$lint_pass" = true ] && [ "$tsc_pass" = true ] && echo "All quality checks passed." || echo "Quality issues remain — manual fix required.")
+$([ "$_CODE_ALIAS_MODE" != true ] && echo "Transition this subtask to Done to unlock the Security Review phase." || echo "")"
 
   jira_add_comment "$subtask_key" "$comment_body"
 
-  # Auto-transition test subtask to Done (no human gate)
-  jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
-
-  if [ "$coverage_pass" != true ]; then
+  if [ "$lint_pass" != true ] || [ "$tsc_pass" != true ]; then
     echo ""
-    echo "Warning: Coverage still below 80%. Proceeding anyway."
+    echo "Error: Quality checks still failing."
+    echo "Fix manually, then re-run: ./scripts/ai-dev.sh $TICKET_ID code-quality"
+    exit 1
+  fi
+
+  if [ "$_CODE_ALIAS_MODE" = true ]; then
+    jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
   fi
 
   echo ""
-  echo "Testing complete. Subtask auto-transitioned to Done."
+  echo "Code quality posted to Jira."
   echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+  if [ "$_CODE_ALIAS_MODE" != true ]; then
+    echo ""
+    echo "Next: Review in Jira, transition subtask to 'Done', then:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID code-security"
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: code-security
+# ══════════════════════════════════════════════════════════════════════
+
+# Patterns for independent secrets scan before invoking agent
+_SECRET_PATTERNS='(password|secret|token|api_key|apikey|private_key|access_key)\s*=\s*["\x27][^"\x27]{8,}'
+
+cmd_code_security() {
+  require_tool "$CLAUDE_CMD"
+  require_jira_creds
+  check_prerequisite code-security
+
+  local subtask_key
+  subtask_key=$(get_subtask_key "code-security")
+
+  echo "Vyasa AI Dev — Security Review: $TICKET_ID"
+  echo "  Subtask: $subtask_key"
   echo ""
-  echo "Next: ./scripts/ai-dev.sh $TICKET_ID deploy"
+
+  jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
+
+  cd "$REPO_ROOT"
+  local tdd_path="docs/features/$TICKET_ID/TDD.md"
+  local changed_files
+  changed_files=$(git diff main --name-only | tr '\n' ',')
+
+  # Independent secrets scan before invoking agent
+  echo "Running secrets scan..."
+  local secrets_found=""
+  secrets_found=$(git diff main | grep -iE "$_SECRET_PATTERNS" | head -10 || true)
+  if [ -n "$secrets_found" ]; then
+    echo "ERROR: Hardcoded secrets detected in diff:"
+    echo "$secrets_found"
+    jira_add_comment "$subtask_key" "❌ Secrets scan FAILED: hardcoded credentials detected in git diff. Remove them before re-running."
+    exit 1
+  fi
+
+  # Run npm audit before invoking agent — capture output
+  echo "Running npm audit..."
+  local audit_output audit_has_high=false
+  audit_output=$(npm audit --audit-level=high 2>&1) || audit_has_high=true
+  local audit_summary
+  audit_summary=$(echo "$audit_output" | tail -5)
+
+  run_agent agents/code-security-agent/instructions.md 1.00 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    TDD_PATH="$tdd_path" \
+    CHANGED_FILES="$changed_files" \
+    AUDIT_OUTPUT="$audit_summary"
+
+  # Gate: SECURITY_REVIEW.md must exist with verdict != FAIL
+  local security_review="$(feature_dir)/SECURITY_REVIEW.md"
+  if [ ! -f "$security_review" ]; then
+    jira_add_comment "$subtask_key" "Security agent did not produce SECURITY_REVIEW.md. Re-run needed."
+    echo "Error: SECURITY_REVIEW.md not created. Re-run this step."
+    exit 1
+  fi
+
+  local verdict
+  verdict=$(grep -m1 "^## Overall Verdict" -A1 "$security_review" | tail -1 | tr -d ' ')
+
+  if [ "$verdict" = "FAIL" ]; then
+    jira_add_comment "$subtask_key" "❌ Security review FAILED. See SECURITY_REVIEW.md for findings. Remediate and re-run."
+    jira_transition_to "$subtask_key" "Blocked" 2>/dev/null || true
+    echo ""
+    echo "Error: Security review FAILED. Findings:"
+    grep -A5 "## Findings" "$security_review" | head -20
+    echo ""
+    echo "Remediate findings, then re-run: ./scripts/ai-dev.sh $TICKET_ID code-security"
+    exit 1
+  fi
+
+  local comment_body
+  comment_body="AI Pipeline — Security Review Complete
+
+Ticket: $TICKET_ID
+Verdict: ${verdict:-UNKNOWN}
+npm audit (HIGH/CRITICAL): $([ "$audit_has_high" = true ] && echo "⚠️  Findings detected (see report)" || echo "✅ Clean")
+Secrets scan: ✅ Clean
+
+---
+$([ "$_CODE_ALIAS_MODE" != true ] && echo "Transition this subtask to Done to unlock the Performance Review phase." || echo "")"
+
+  jira_add_comment "$subtask_key" "$comment_body"
+  jira_upload_attachment "$subtask_key" "$security_review"
+
+  if [ "$_CODE_ALIAS_MODE" = true ]; then
+    jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
+  fi
+
+  echo ""
+  echo "Security review posted to Jira."
+  echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+  if [ "$_CODE_ALIAS_MODE" != true ]; then
+    echo ""
+    echo "Next: Review in Jira + SECURITY_REVIEW.md, transition subtask to 'Done', then:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID code-perf"
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: code-perf
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_code_perf() {
+  require_tool "$CLAUDE_CMD"
+  require_jira_creds
+  check_prerequisite code-perf
+
+  local subtask_key
+  subtask_key=$(get_subtask_key "code-perf")
+
+  echo "Vyasa AI Dev — Performance Review: $TICKET_ID"
+  echo "  Subtask: $subtask_key"
+  echo ""
+
+  jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
+
+  cd "$REPO_ROOT"
+  local tdd_path="docs/features/$TICKET_ID/TDD.md"
+  local changed_files
+  changed_files=$(git diff main --name-only | tr '\n' ',')
+
+  run_agent agents/code-perf-agent/instructions.md 2.00 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    TDD_PATH="$tdd_path" \
+    CHANGED_FILES="$changed_files"
+
+  local comment_body
+  comment_body="AI Pipeline — Performance Review Complete
+
+Ticket: $TICKET_ID
+N+1 / cache review: COMPLETE
+E2E stubs scaffolded for any new API endpoints.
+
+---
+$([ "$_CODE_ALIAS_MODE" != true ] && echo "Transition this subtask to Done to unlock the Validate phase." || echo "")"
+
+  jira_add_comment "$subtask_key" "$comment_body"
+
+  if [ "$_CODE_ALIAS_MODE" = true ]; then
+    jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
+  fi
+
+  echo ""
+  echo "Performance review posted to Jira."
+  echo "  Subtask: ${JIRA_BASE_URL}/browse/$subtask_key"
+  if [ "$_CODE_ALIAS_MODE" != true ]; then
+    echo ""
+    echo "Next: Review in Jira, transition subtask to 'Done', then:"
+    echo "  ./scripts/ai-dev.sh $TICKET_ID validate"
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: validate (script-only CI dry-run — no agent, no Jira subtask)
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_validate() {
+  require_jira_creds
+  check_prerequisite validate
+
+  echo "Vyasa AI Dev — Validate (CI Dry-Run): $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+  local failed=0
+
+  echo "[1/5] ESLint..."
+  npm run lint || { echo "FAIL: eslint — fix with: ./scripts/ai-dev.sh $TICKET_ID code-quality"; failed=1; }
+
+  echo "[2/5] TypeScript..."
+  npx tsc --noEmit || { echo "FAIL: tsc --noEmit — fix with: ./scripts/ai-dev.sh $TICKET_ID code-quality"; failed=1; }
+
+  echo "[3/5] Tests + coverage..."
+  npm run test:affected -- --coverage \
+    --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}' \
+    || { echo "FAIL: jest --coverage — fix with: ./scripts/ai-dev.sh $TICKET_ID code-test"; failed=1; }
+
+  echo "[4/5] Build..."
+  npm run build || { echo "FAIL: build — investigate compilation errors manually"; failed=1; }
+
+  echo "[5/5] Security audit..."
+  npm audit --audit-level=high \
+    || { echo "FAIL: npm audit — fix with: ./scripts/ai-dev.sh $TICKET_ID code-security"; failed=1; }
+
+  if [ "$failed" -eq 1 ]; then
+    echo ""
+    echo "Validation FAILED for $TICKET_ID."
+    echo "Run the appropriate step above to fix, then re-run validate."
+    rm -f "$(feature_dir)/.validate-passed"
+    exit 1
+  fi
+
+  # Write marker file so deploy can gate on it
+  touch "$(feature_dir)/.validate-passed"
+
+  echo ""
+  echo "All checks passed. Ready to deploy."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: code (alias — runs all 5 agent sub-steps in sequence)
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_code() {
+  _CODE_ALIAS_MODE=true
+
+  echo "Vyasa AI Dev — Full Code Pipeline: $TICKET_ID"
+  echo "Running: code-impl → code-test → code-quality → code-security → code-perf"
+  echo ""
+
+  cmd_code_impl
+  cmd_code_test
+  cmd_code_quality
+  cmd_code_security
+  cmd_code_perf
+
+  _CODE_ALIAS_MODE=false
+
+  echo ""
+  echo "All 5 code sub-steps complete. Subtasks auto-transitioned to Done."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID validate"
 }
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1354,16 +1752,26 @@ if [ -z "$TICKET_ID" ]; then
 fi
 
 case "$SUBCOMMAND" in
-  create)       cmd_create ;;
-  init)         cmd_init ;;
-  requirements) cmd_requirements ;;
-  resolve)      cmd_resolve ;;
-  design)       cmd_design ;;
-  code)         cmd_code ;;
-  test)         cmd_test ;;
-  deploy)       cmd_deploy ;;
-  status)       cmd_status ;;
+  create)        cmd_create ;;
+  init)          cmd_init ;;
+  requirements)  cmd_requirements ;;
+  resolve)       cmd_resolve ;;
+  design)        cmd_design ;;
+  code)          cmd_code ;;
+  code-impl)     cmd_code_impl ;;
+  code-test)     cmd_code_test ;;
+  code-quality)  cmd_code_quality ;;
+  code-security) cmd_code_security ;;
+  code-perf)     cmd_code_perf ;;
+  validate)      cmd_validate ;;
+  test)
+    echo "Warning: 'test' is deprecated — use 'validate' instead."
+    echo ""
+    cmd_validate
+    ;;
+  deploy)        cmd_deploy ;;
+  status)        cmd_status ;;
   help|--help|-h) cmd_help ;;
-  "")           cmd_help ;;
-  *)            echo "Unknown subcommand: $SUBCOMMAND"; echo ""; cmd_help; exit 1 ;;
+  "")            cmd_help ;;
+  *)             echo "Unknown subcommand: $SUBCOMMAND"; echo ""; cmd_help; exit 1 ;;
 esac
