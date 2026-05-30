@@ -67,6 +67,19 @@ require_jira_creds() {
   fi
 }
 
+# strip_markdown <stdin>
+# Removes common Markdown tokens so text is readable as plain text in Jira ADF comments.
+strip_markdown() {
+  sed \
+    -e 's/\*\*\([^*]*\)\*\*/\1/g' \
+    -e 's/\*\([^*]*\)\*/\1/g' \
+    -e 's/`\([^`]*\)`/\1/g' \
+    -e 's/^### Q\([0-9][0-9]*\): /Q\1: /' \
+    -e 's/^### //' \
+    -e 's/^## //' \
+    -e 's/^# //'
+}
+
 # ══════════════════════════════════════════════════════════════════════
 # Agent Runner
 # ══════════════════════════════════════════════════════════════════════
@@ -762,7 +775,8 @@ Review the requirements document. When satisfied, transition this subtask to Don
     local round_file="$(feature_dir)/.questions-round"
     echo "1" > "$round_file"
 
-    local questions_comment
+    local questions_plain questions_comment
+    questions_plain=$(echo "$open_questions" | strip_markdown)
     questions_comment="⚠️  Open Questions — Round 1
 
 Please reply with your decisions using this format:
@@ -771,7 +785,7 @@ Please reply with your decisions using this format:
   ...
 
 ---
-${open_questions}"
+${questions_plain}"
 
     jira_add_comment "$subtask_key" "$questions_comment"
     echo ""
@@ -926,7 +940,8 @@ cmd_resolve() {
       END{if(s&&qb&&!dq)print qb}
     ' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
 
-    local new_comment
+    local new_questions_plain new_comment
+    new_questions_plain=$(echo "$new_questions" | strip_markdown)
     new_comment="⚠️  Open Questions — Round ${round}
 
 Previous answers applied. New questions arose:
@@ -937,7 +952,7 @@ Please reply using the same format:
   ...
 
 ---
-${new_questions}"
+${new_questions_plain}"
 
     jira_transition_to "$subtask_key" "In Progress" 2>/dev/null || true
     jira_add_comment "$subtask_key" "$new_comment"
