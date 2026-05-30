@@ -123,3 +123,34 @@ State:
 - Count of acceptance criteria satisfied
 - Whether IMPL_CHECKLIST.md has any ❌ items
 - Any manual steps required
+
+---
+
+## Final Step: Write Step Report
+
+After completing all steps above, write the following JSON to
+`docs/features/{TICKET_ID}/.step-report.json` (replace `{TICKET_ID}` with the actual ticket ID, e.g., `SCRUM-42`):
+
+```json
+{
+  "step": "code-impl",
+  "status": "success",
+  "summary": "<one sentence describing what implementation was produced>",
+  "files_changed": ["apps/SCRUM-42/src/controllers/example.controller.ts"],
+  "validation": {
+    "impl_checklist_items": 0,
+    "impl_checklist_failures": 0
+  },
+  "commit_message": "feat(order-service): scaffold controller and routes [SCRUM-42]"
+}
+```
+
+**Rules:**
+
+- Use commit type `feat`, scope is the service/app name (e.g., `feat(order-service): ...`); include `[TICKET_ID]` at the end of the subject
+- If the step failed, set `"status": "failure"` and add `[FAILED]` in the commit_message subject, e.g., `"feat(order-service): [FAILED] scaffold controller [SCRUM-42]"`
+- On failure, write `summary` describing what blocked completion (e.g., `"Agent halted — TDD.md checklist item for auth middleware could not be satisfied"`)
+- `files_changed` must list only the files you actually created or modified in this step (not test files — those are code-test's job)
+- Validation fields: `impl_checklist_items` = total items in `IMPL_CHECKLIST.md`, `impl_checklist_failures` = count of ❌ items
+- Scope falls back to `git diff --name-only | grep apps/ | head -1 | cut -d/ -f2` if service name is unclear
+- Do NOT include any other fields not shown above

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- code-impl-agent now writes `.step-report.json` as its final action
 - requirements-agent and design-agent now write `.step-report.json` as their final action
 
 - **CI: Temporarily disabled all non-PR GitHub workflows** — Renamed `llm-security-scan.yml`, `sbom.yml`, `security-scan.yml`, `vyasa-rag-cd.yml`, `vyasa-rag-ci.yml`, `vyasa-rag-eval.yml`, and `vyasa-ui-cd.yml` to `.disabled` to mute all checks except `pr-checks.yml`. Re-enable by renaming files back to `.yml` extension.
