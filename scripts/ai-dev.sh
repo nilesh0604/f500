@@ -352,6 +352,12 @@ check_prerequisite() {
         echo "  Transition subtask to 'Done' when approved."
         exit 1
       fi
+      local tdd_file="$(feature_dir)/TDD.md"
+      if grep -q "^## Open Questions" "$tdd_file" 2>/dev/null; then
+        echo "Error: Unresolved open questions in TDD.md."
+        echo "  Resolve design questions before proceeding to code."
+        exit 1
+      fi
       ;;
     test)
       local code_key
