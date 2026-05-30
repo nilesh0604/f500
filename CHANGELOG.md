@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`scripts/ai-dev.sh` — Six `fix-*` CI remediation subcommands**:
+  - `fix-lint`: Auto-fix ESLint/Prettier violations; invokes `fix-lint-agent` only for errors that survive auto-fix; commits + pushes on success
+  - `fix-types`: Fix TypeScript type errors with up to 2 agent attempts (`fix-types-agent`); fails hard if errors remain
+  - `fix-tests`: Resolve failing Jest tests using spec (`requirements.md`) as tiebreaker — agent decides whether to fix implementation or test expectation (`fix-tests-agent`); max 2 attempts
+  - `fix-build`: Fix build/compile failures by classifying error type (missing-export, circular-dependency, etc.) and invoking `fix-build-agent`; max 2 attempts
+  - `fix-security`: Run `npm audit fix` (non-breaking) first; invoke `fix-security-agent` for remaining HIGH/CRITICAL vulnerabilities; accepts documented risk in `SECURITY_REVIEW.md`
+  - `fix-conflicts`: Rebase onto `origin/main`; invoke `fix-conflicts-agent` using TDD.md as source of truth; validates after resolution; uses `--force-with-lease`; blocks on > 10 conflicted files
+  - `deploy-ship` failure branch updated to delegate to the appropriate `fix-*` command instead of printing manual guidance
+  - Six matching agent instructions files: `agents/fix-{lint,types,tests,build,security,conflicts}-agent/instructions.md`
+
 - **SCRUM-5 — Responsive Mobile Layout for Vyasa UI** (`apps/vyasa-ui/`):
   - `src/hooks/useMediaQuery.ts` — New custom hook tracking live CSS media query breakpoints with `change` event listener; guards against jsdom/SSR environments (returns `false` as mobile-first default)
   - `src/App.tsx` — Mobile-responsive root layout: sidebar hidden by default on mobile (`< 768px`), opens as a GPU-accelerated fixed drawer with backdrop overlay; `h-dvh` root container for iOS soft-keyboard safety; hamburger toggle meets 44×44px WCAG touch-target minimum (`w-11 h-11`)

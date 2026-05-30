@@ -515,6 +515,12 @@ Subcommands:
   deploy-pr        Push branch + open PR (needs: validate passed)
   deploy-ship      Monitor CI; classify + fix failures (needs: deploy-pr done)
   deploy           Deprecated — use deploy-pr then deploy-ship
+  fix-lint         Fix ESLint/Prettier CI failures (can run any time)
+  fix-types        Fix TypeScript type errors from CI (can run any time)
+  fix-tests        Fix failing Jest tests using spec as tiebreaker (can run any time)
+  fix-build        Fix build/compile failures from CI (can run any time)
+  fix-security     Fix npm audit HIGH/CRITICAL vulnerabilities (can run any time)
+  fix-conflicts    Rebase + resolve merge conflicts on PR branch (can run any time)
   status           Show pipeline progress from Jira
 
 Workflow:
@@ -1921,34 +1927,466 @@ cmd_deploy_ship() {
       updated_json=$(jq ".[\"$failure_type\"] = $new_count" "$retries_file")
       echo "$updated_json" > "$retries_file"
 
-      # Execute inline fix for deterministic cases; print guidance for the rest
+      # Delegate to the appropriate fix-* command
       case "$failure_type" in
-        lint)
-          cd "$REPO_ROOT"
-          npm run lint -- --fix --quiet 2>/dev/null || true
-          local fmt_files
-          fmt_files=$(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ')
-          [ -n "$fmt_files" ] && npx prettier --write $fmt_files 2>/dev/null || true
-          git add -u
-          if git diff --cached --quiet; then
-            echo "No changes to commit after auto-fix — lint may need manual attention."
-          else
-            git commit -m "fix(lint): auto-fix lint and format errors [${TICKET_ID}]"
-            git push
-            echo ""
-            echo "Fix pushed. CI re-running."
-          fi
-          echo "  Run: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
-          ;;
+        lint)      cmd_fix_lint ;;
+        types)     cmd_fix_types ;;
+        tests)     cmd_fix_tests ;;
+        build)     cmd_fix_build ;;
+        security)  cmd_fix_security ;;
+        conflicts) cmd_fix_conflicts ;;
         *)
-          echo "Fix requires manual changes. After fixing:"
-          echo "  git add -u && git commit -m 'fix(${failure_type}): ...' && git push"
+          echo "Unhandled failure type: $failure_type"
+          echo "Fix manually, push, then re-run:"
           echo "  ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
           exit 0
           ;;
       esac
       ;;
   esac
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: fix-lint
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_fix_lint() {
+  require_tool "$CLAUDE_CMD"
+
+  echo "Vyasa AI Dev — Fix Lint: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+
+  # Step 1: Auto-fix
+  echo "Running eslint --fix + prettier --write..."
+  npm run lint -- --fix --quiet 2>/dev/null || true
+  local fmt_files
+  fmt_files=$(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ')
+  [ -n "$fmt_files" ] && npx prettier --write $fmt_files 2>/dev/null || true
+
+  # Step 2: Check if errors remain
+  local errors_after
+  errors_after=$(npm run lint -- --format=compact 2>/dev/null | grep -c " error " || echo "0")
+
+  if [ "$errors_after" -gt 0 ]; then
+    echo "Auto-fix left ${errors_after} error(s) — invoking fix-lint agent..."
+    local error_output
+    error_output=$(npm run lint -- --format=compact 2>/dev/null | grep " error " | head -50)
+
+    run_agent agents/fix-lint-agent/instructions.md 0.25 haiku \
+      TICKET_ID="$TICKET_ID" \
+      CHANGED_FILES="$(git diff main --name-only | tr '\n' ',')" \
+      REMAINING_ERRORS="$error_output"
+  else
+    echo "Auto-fix resolved all lint errors — agent not needed."
+  fi
+
+  # Step 3: Final gate
+  if ! npm run lint -- --quiet 2>/dev/null; then
+    echo ""
+    echo "Error: ESLint still failing after fix attempt."
+    echo "Manual intervention required."
+    exit 1
+  fi
+
+  # Re-run prettier on any newly modified files
+  local final_fmt_files
+  final_fmt_files=$(git diff main --name-only | grep -E '\.(ts|tsx|js|jsx|json|md)$' | tr '\n' ' ')
+  [ -n "$final_fmt_files" ] && npx prettier --write $final_fmt_files 2>/dev/null || true
+
+  # Step 4: Commit if changes exist
+  git add -u
+  if git diff --cached --quiet; then
+    echo "No changes to commit — already clean."
+  else
+    local fix_count
+    fix_count=$(git diff --cached --numstat | wc -l | tr -d ' ')
+    git commit -m "fix: resolve lint violations [${TICKET_ID}]"
+    git push
+    echo "Fix committed and pushed."
+
+    if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+      jira_add_comment "$TICKET_ID" \
+        "Fixed ${fix_count} file(s) with lint/prettier violations. Pushed to branch. Re-run deploy-ship to check CI."
+    fi
+  fi
+
+  echo ""
+  echo "fix-lint complete."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: fix-types
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_fix_types() {
+  require_tool "$CLAUDE_CMD"
+
+  echo "Vyasa AI Dev — Fix Types: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+  local changed_files
+  changed_files=$(git diff main --name-only | tr '\n' ',')
+
+  local max_attempts=2
+  local attempt=0
+
+  while [ "$attempt" -lt "$max_attempts" ]; do
+    attempt=$((attempt + 1))
+
+    local tsc_errors
+    tsc_errors=$(npx tsc --noEmit 2>&1 || true)
+
+    if [ -z "$(echo "$tsc_errors" | grep "error TS" | head -1)" ]; then
+      echo "No TypeScript errors found."
+      break
+    fi
+
+    echo "Attempt ${attempt}/${max_attempts} — invoking fix-types agent..."
+    run_agent agents/fix-types-agent/instructions.md 0.50 sonnet \
+      TICKET_ID="$TICKET_ID" \
+      CHANGED_FILES="$changed_files" \
+      TSC_ERRORS="$tsc_errors"
+  done
+
+  # Final gate
+  local final_errors
+  final_errors=$(npx tsc --noEmit 2>&1 || true)
+  if echo "$final_errors" | grep -q "error TS"; then
+    echo ""
+    echo "Error: TypeScript errors remain after ${max_attempts} attempt(s)."
+    echo "Cannot auto-fix — manual intervention needed."
+    echo ""
+    echo "$final_errors" | head -20
+    exit 1
+  fi
+
+  # Commit if changes exist
+  git add -u
+  if git diff --cached --quiet; then
+    echo "No changes to commit — already clean."
+  else
+    git commit -m "fix: resolve TypeScript type errors [${TICKET_ID}]"
+    git push
+    echo "Fix committed and pushed."
+
+    if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+      jira_add_comment "$TICKET_ID" \
+        "Fixed TypeScript type errors. Pushed to branch. Re-run deploy-ship to check CI."
+    fi
+  fi
+
+  echo ""
+  echo "fix-types complete."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: fix-tests
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_fix_tests() {
+  require_tool "$CLAUDE_CMD"
+
+  echo "Vyasa AI Dev — Fix Tests: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+  local req_path="docs/features/$TICKET_ID/requirements.md"
+
+  if [ ! -f "$req_path" ]; then
+    echo "Warning: requirements.md not found at $req_path — agent will run without spec context."
+  fi
+
+  local max_attempts=2
+  local attempt=0
+
+  while [ "$attempt" -lt "$max_attempts" ]; do
+    attempt=$((attempt + 1))
+
+    local jest_output
+    jest_output=$(npm run test:affected -- --no-coverage 2>&1 || true)
+
+    if ! echo "$jest_output" | grep -q "FAIL "; then
+      echo "All tests passing."
+      break
+    fi
+
+    echo "Attempt ${attempt}/${max_attempts} — invoking fix-tests agent..."
+    run_agent agents/fix-tests-agent/instructions.md 1.00 sonnet \
+      TICKET_ID="$TICKET_ID" \
+      REQUIREMENTS_PATH="$req_path" \
+      JEST_FAILURES="$jest_output"
+  done
+
+  # Final gate
+  local final_output
+  final_output=$(npm run test:affected -- --no-coverage 2>&1 || true)
+  if echo "$final_output" | grep -q "FAIL "; then
+    echo ""
+    echo "Error: Tests still failing after ${max_attempts} attempt(s)."
+    echo "Cannot auto-fix — manual intervention needed."
+    echo ""
+    echo "$final_output" | grep -E "FAIL |●" | head -20
+    exit 1
+  fi
+
+  # Commit if changes exist
+  git add -u
+  if git diff --cached --quiet; then
+    echo "No changes to commit — already clean."
+  else
+    git commit -m "fix: resolve test failures (spec-driven) [${TICKET_ID}]"
+    git push
+    echo "Fix committed and pushed."
+
+    if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+      jira_add_comment "$TICKET_ID" \
+        "Fixed test failures using spec as tiebreaker. Pushed to branch. Re-run deploy-ship to check CI."
+    fi
+  fi
+
+  echo ""
+  echo "fix-tests complete."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: fix-build
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_fix_build() {
+  require_tool "$CLAUDE_CMD"
+
+  echo "Vyasa AI Dev — Fix Build: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+  local changed_files
+  changed_files=$(git diff main --name-only | tr '\n' ',')
+
+  local max_attempts=2
+  local attempt=0
+
+  while [ "$attempt" -lt "$max_attempts" ]; do
+    attempt=$((attempt + 1))
+
+    local build_errors
+    build_errors=$(npm run build 2>&1 || true)
+
+    if npm run build > /dev/null 2>&1; then
+      echo "Build passing."
+      break
+    fi
+
+    echo "Attempt ${attempt}/${max_attempts} — invoking fix-build agent..."
+    run_agent agents/fix-build-agent/instructions.md 0.50 sonnet \
+      TICKET_ID="$TICKET_ID" \
+      CHANGED_FILES="$changed_files" \
+      BUILD_ERRORS="$build_errors"
+  done
+
+  # Final gate
+  if ! npm run build > /dev/null 2>&1; then
+    local final_errors
+    final_errors=$(npm run build 2>&1 || true)
+    echo ""
+    echo "Error: Build still failing after ${max_attempts} attempt(s)."
+    echo "Cannot auto-fix — manual intervention needed."
+    echo ""
+    echo "$final_errors" | tail -20
+    exit 1
+  fi
+
+  # Commit if changes exist
+  git add -u
+  if git diff --cached --quiet; then
+    echo "No changes to commit — already clean."
+  else
+    git commit -m "fix: resolve build errors [${TICKET_ID}]"
+    git push
+    echo "Fix committed and pushed."
+
+    if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+      jira_add_comment "$TICKET_ID" \
+        "Fixed build errors. Pushed to branch. Re-run deploy-ship to check CI."
+    fi
+  fi
+
+  echo ""
+  echo "fix-build complete."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: fix-security
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_fix_security() {
+  require_tool "$CLAUDE_CMD"
+  require_tool jq
+
+  echo "Vyasa AI Dev — Fix Security: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+
+  # Step 1: Non-breaking auto-fix
+  echo "Running npm audit fix (non-breaking)..."
+  npm audit fix --audit-level=high 2>/dev/null || true
+
+  # Step 2: Check remaining HIGH/CRITICAL vulnerabilities
+  local audit_json
+  audit_json=$(npm audit --json 2>/dev/null || true)
+
+  local high_count
+  high_count=$(echo "$audit_json" | jq '[.vulnerabilities // {} | to_entries[] | select(.value.severity == "high" or .value.severity == "critical")] | length' 2>/dev/null || echo "0")
+
+  if [ "$high_count" -gt 0 ]; then
+    echo "${high_count} HIGH/CRITICAL vulnerabilities remain — invoking fix-security agent..."
+    run_agent agents/fix-security-agent/instructions.md 0.50 sonnet \
+      TICKET_ID="$TICKET_ID" \
+      AUDIT_JSON="$audit_json"
+  else
+    echo "No HIGH/CRITICAL vulnerabilities — agent not needed."
+  fi
+
+  # Final gate
+  if ! npm audit --audit-level=high > /dev/null 2>&1; then
+    local remaining
+    remaining=$(npm audit --json 2>/dev/null | jq '[.vulnerabilities // {} | to_entries[] | select(.value.severity == "high" or .value.severity == "critical")] | length' 2>/dev/null || echo "?")
+    local security_review
+    security_review="$(feature_dir)/SECURITY_REVIEW.md"
+    if [ -f "$security_review" ] && grep -q "## Accepted Risks" "$security_review"; then
+      echo "Remaining vulnerabilities documented in SECURITY_REVIEW.md as accepted risks."
+    else
+      echo ""
+      echo "Error: ${remaining} HIGH/CRITICAL vulnerabilities unresolved and not documented."
+      echo "  Run npm audit --audit-level=high for details."
+      exit 1
+    fi
+  fi
+
+  # Commit if changes exist
+  git add -u
+  if git diff --cached --quiet; then
+    echo "No changes to commit — already clean."
+  else
+    git commit -m "fix: resolve security vulnerabilities [${TICKET_ID}]"
+    git push
+    echo "Fix committed and pushed."
+
+    if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+      jira_add_comment "$TICKET_ID" \
+        "Resolved security vulnerabilities. Pushed to branch. Re-run deploy-ship to check CI."
+    fi
+  fi
+
+  echo ""
+  echo "fix-security complete."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Subcommand: fix-conflicts
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_fix_conflicts() {
+  require_tool "$CLAUDE_CMD"
+  require_tool gh
+
+  echo "Vyasa AI Dev — Fix Conflicts: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+
+  local tdd_path="docs/features/$TICKET_ID/TDD.md"
+  local req_path="docs/features/$TICKET_ID/requirements.md"
+
+  # Step 1: Fetch latest main
+  echo "Fetching origin/main..."
+  git fetch origin main
+
+  # Step 2: Attempt rebase
+  echo "Rebasing onto origin/main..."
+  if git rebase origin/main; then
+    echo "Rebase succeeded cleanly — no conflicts."
+    git push --force-with-lease
+    echo "Pushed with --force-with-lease."
+    echo ""
+    echo "fix-conflicts complete."
+    echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
+    return 0
+  fi
+
+  # Step 3: Conflicts found — count them
+  local conflicted_files
+  conflicted_files=$(git diff --name-only --diff-filter=U)
+  local conflict_count
+  conflict_count=$(echo "$conflicted_files" | grep -c . || echo "0")
+
+  if [ "$conflict_count" -gt 10 ]; then
+    git rebase --abort
+    echo ""
+    echo "Error: ${conflict_count} conflicted files — too risky for auto-resolution."
+    echo "Manual intervention required."
+    echo ""
+    echo "Conflicted files:"
+    echo "$conflicted_files"
+    exit 1
+  fi
+
+  echo "${conflict_count} conflicted file(s) — invoking fix-conflicts agent..."
+
+  run_agent agents/fix-conflicts-agent/instructions.md 0.75 sonnet \
+    TICKET_ID="$TICKET_ID" \
+    TDD_PATH="$tdd_path" \
+    REQUIREMENTS_PATH="$req_path" \
+    CONFLICTED_FILES="$conflicted_files"
+
+  # Step 4: Stage resolved files and continue rebase
+  git add -u
+  if ! GIT_EDITOR=true git rebase --continue; then
+    git rebase --abort
+    echo ""
+    echo "Error: Rebase continue failed — agent may not have resolved all conflicts."
+    echo "Run: git status"
+    exit 1
+  fi
+
+  # Step 5: Post-resolution validation
+  echo ""
+  echo "Running validate to confirm conflict resolution didn't break anything..."
+  if ! cmd_validate 2>/dev/null; then
+    echo ""
+    echo "Error: Validation failed after conflict resolution."
+    echo "Conflict resolution introduced a breakage — manual fix required."
+    exit 1
+  fi
+
+  # Step 6: Regenerate lockfile if package.json was conflicted
+  if echo "$conflicted_files" | grep -q "package.json"; then
+    echo "package.json was conflicted — regenerating lockfile..."
+    npm install
+    git add package-lock.json
+    git commit -m "chore: regenerate lockfile after rebase [${TICKET_ID}]" || true
+  fi
+
+  # Step 7: Push
+  git push --force-with-lease
+  echo "Pushed with --force-with-lease."
+
+  if [ -n "${JIRA_BASE_URL:-}" ] && [ -n "${JIRA_EMAIL:-}" ] && [ -n "${JIRA_API_TOKEN:-}" ]; then
+    jira_add_comment "$TICKET_ID" \
+      "Resolved ${conflict_count} merge conflict(s), rebased onto main. Pushed with --force-with-lease. Re-run deploy-ship."
+  fi
+
+  echo ""
+  echo "fix-conflicts complete."
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-ship"
 }
 
 # ══════════════════════════════════════════════════════════════════════
@@ -2112,6 +2550,12 @@ case "$SUBCOMMAND" in
   deploy-pr)     cmd_deploy_pr ;;
   deploy-ship)   cmd_deploy_ship ;;
   deploy)        cmd_deploy ;;
+  fix-lint)      cmd_fix_lint ;;
+  fix-types)     cmd_fix_types ;;
+  fix-tests)     cmd_fix_tests ;;
+  fix-build)     cmd_fix_build ;;
+  fix-security)  cmd_fix_security ;;
+  fix-conflicts) cmd_fix_conflicts ;;
   status)        cmd_status ;;
   help|--help|-h) cmd_help ;;
   "")            cmd_help ;;
