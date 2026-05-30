@@ -118,12 +118,16 @@ Create `docs/features/{TICKET_ID}/requirements.md`:
 - `infra/` — [reason]
 - `libs/shared-types/` — [reason]
 
-## Open Questions
+## Design Decisions
 
-[Any remaining ambiguities the human reviewer should resolve]
+[Include one block per open question requiring PO input. If there are no open questions, omit this section.]
 
-- [Question 1]
-- ...
+### Q1: [Short question title]
+
+[Optional one-line context sentence explaining why this choice matters]
+Option1: [first option with brief rationale]
+Option2: [second option with brief rationale]
+**Recommendation**: [agent recommendation with brief reasoning]
 ```
 
 ### Step 4 — Validate completeness

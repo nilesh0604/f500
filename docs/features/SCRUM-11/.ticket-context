@@ -1,0 +1,42 @@
+Ticket: SCRUM-11
+Title: fix(ai-dev): preserve full Open Questions context in Design Decisions section of requirements.md
+Description: ## Problem
+
+When `cmd_resolve` writes design decisions back to `requirements.md`, it only records the PO's short answer (e.g. `- **Q1 Decision**: Left slide-in`) without preserving the original question text, options, or reasoning. Future readers have no context to understand *why* a decision was made.
+
+## Expected behaviour
+
+Each entry in `## Design Decisions (resolved)` should include:
+- The original question text
+- The options that were offered
+- The PO's chosen answer (highlighted)
+- The agent's recommendation (for audit trail)
+
+Example output:
+
+## Design Decisions (resolved)
+
+### Q1: Sidebar drawer direction
+**Decision**: Left slide-in (matching desktop position)
+**Options**: Left slide-in · Bottom sheet
+**Recommendation**: Left slide-in — preserves muscle memory and consistent with desktop layout.
+
+## Root cause
+
+`cmd_resolve` only parses `Q[N]: answer` lines from the Jira reply comment and discards everything else. It does not cross-reference the original question block from `requirements.md` before overwriting it.
+
+## Fix approach
+
+1. Before replacing `## Open Questions`, parse each question block (text + options + recommendation) into an in-memory map keyed by Q number.
+2. After parsing PO answers from the Jira comment, merge: original question + options + recommendation + PO answer → write structured decision entry.
+3. Keep `cmd_resolve` output format consistent for downstream agents (design-agent reads `requirements.md`).
+
+## Acceptance criteria
+
+- `requirements.md` `## Design Decisions (resolved)` section contains original question text, all options, PO answer, and recommendation for each Q.
+- Existing `resolve` flow (no regression on round-counter, gate check, Jira confirmation comment) unchanged.
+- Tested against SCRUM-5 fixture.
+
+---
+GitHub Issue: https://github.com/nilesh0604/f500/issues/2
+

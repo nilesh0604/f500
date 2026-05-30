@@ -92,16 +92,28 @@ Mobile users accessing the Vyasa Intelligence chat interface at `d2j5xbveesoc8s.
 
 ---
 
-## Design Decisions (resolved)
+## Design Decisions
 
-1. **Sidebar drawer direction**: Should the mobile sidebar drawer slide in from the **left** (matching its desktop position, preserving muscle memory) or slide up from the **bottom** (a more native mobile pattern common in iOS/Android apps)? The choice affects animation direction, accessibility semantics, and the position of the close affordance.
+### Q1: Sidebar drawer direction
 
-- **Q1 Decision**: Left slide-in
+Should the mobile sidebar drawer slide in from the left or slide up from the bottom?
+Option1: Left slide-in — matching desktop position, preserving muscle memory
+Option2: Bottom sheet — more native mobile pattern common in iOS/Android apps
+**Recommendation**: Left slide-in — preserves muscle memory and stays consistent with the desktop layout.
+Decision: Left slide-in
 
-2. **Suggestion chip count on mobile**: Should all four quick-start suggestion chips be shown on mobile in a horizontally scrollable strip, or should the count be reduced to two on mobile to minimise vertical space consumption and reduce cognitive load? If horizontally scrollable, the discoverability of off-screen chips must be considered.
+### Q2: Suggestion chip count on mobile
 
-- **Q2 Decision**: Horizontal scroll — all chips visible
+Should all four quick-start suggestion chips be shown in a horizontally scrollable strip, or reduced to two on mobile?
+Option1: Horizontal scroll — all chips visible
+Option2: Reduce to two chips on mobile to minimise vertical space and cognitive load
+**Recommendation**: Horizontal scroll — maintains full feature parity with desktop; off-screen chips discoverable via scroll affordance.
+Decision: Horizontal scroll — all chips visible
 
-3. **iOS safe-area bottom inset**: Should the chat input area account for the iOS home indicator safe area using `env(safe-area-inset-bottom)` padding? This would prevent the send button from sitting directly behind the home indicator bar on iPhone X and later — this is a quality-of-life detail but adds implementation complexity for Tailwind-only styling.
+### Q3: iOS safe-area bottom inset
 
-- **Q3 Decision**: Apply
+Should the chat input area account for the iOS home indicator safe area using `env(safe-area-inset-bottom)` padding?
+Option1: Apply — prevents send button from sitting behind the home indicator on iPhone X and later
+Option2: Skip — simpler implementation but degrades UX on modern iPhones
+**Recommendation**: Apply — a targeted one-line CSS addition that prevents a known iOS UX pitfall with minimal added complexity.
+Decision: Apply
