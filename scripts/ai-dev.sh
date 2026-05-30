@@ -50,6 +50,10 @@ fix_retries_file() {
   echo "$(feature_dir)/.fix_retries.json"
 }
 
+release_marker_file() {
+  echo "$(feature_dir)/.last-known-good-commit"
+}
+
 require_tool() {
   local tool="$1"
   if ! command -v "$tool" &>/dev/null; then
@@ -60,6 +64,7 @@ require_tool() {
       claude)         echo "  Install: npm install -g @anthropic-ai/claude-code" ;;
       curl)           echo "  Install: should be available on all systems" ;;
       gh)             echo "  Install: brew install gh (macOS) or https://cli.github.com" ;;
+      aws)            echo "  Install: brew install awscli (macOS) or https://aws.amazon.com/cli/" ;;
     esac
     exit 1
   fi
@@ -483,6 +488,28 @@ check_prerequisite() {
       if [ ! -f "$pr_file" ]; then
         echo "Error: No PR found for $TICKET_ID. Run deploy-pr first."
         echo "  Run: ./scripts/ai-dev.sh $TICKET_ID deploy-pr"
+        exit 1
+      fi
+      ;;
+    release)
+      local ship_key
+      ship_key=$(get_subtask_key "deploy-ship")
+      if [ -z "$ship_key" ]; then
+        echo "Error: Pipeline not initialized. Run init first."
+        echo "  ./scripts/ai-dev.sh $TICKET_ID init"
+        exit 1
+      fi
+      local ship_status
+      ship_status=$(jira_get_status "$ship_key")
+      if [ "$ship_status" != "Done" ]; then
+        echo "Error: Deploy-ship not complete (status: $ship_status)."
+        echo "  Run deploy-ship until CI is green, then merge the PR, then run release."
+        exit 1
+      fi
+      local pr_file
+      pr_file="$(pr_number_file)"
+      if [ ! -f "$pr_file" ]; then
+        echo "Error: No PR found for $TICKET_ID. Run deploy-pr first."
         exit 1
       fi
       ;;
