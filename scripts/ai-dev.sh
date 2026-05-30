@@ -174,6 +174,12 @@ validate_step_report() {
     echo "Error: commit_message does not match Conventional Commits format: $msg" >&2
     return 1
   fi
+  local st
+  st=$(jq -r '.status' "$report")
+  if [ "$st" != "success" ] && [ "$st" != "failure" ]; then
+    echo "Error: .status must be 'success' or 'failure', got: $st" >&2
+    return 1
+  fi
 }
 
 # commit_step_changes
@@ -182,6 +188,7 @@ validate_step_report() {
 commit_step_changes() {
   local report
   report="$(feature_dir)/.step-report.json"
+  [ -f "$report" ] || { echo "Error: .step-report.json not found" >&2; return 1; }
   local msg
   msg=$(jq -r '.commit_message' "$report")
 
@@ -200,6 +207,7 @@ commit_step_changes() {
 post_parent_changelog() {
   local report
   report="$(feature_dir)/.step-report.json"
+  [ -f "$report" ] || { echo "Warning: .step-report.json not found — skipping parent changelog" >&2; return 0; }
 
   local step status summary commit_message
   step=$(jq -r '.step' "$report")
@@ -220,11 +228,10 @@ post_parent_changelog() {
     files_text="  (No files modified)"
   else
     local visible overflow
-    visible=$(jq -r '.files_changed[0:9][] | "  • \(.)"' "$report")
-    overflow=$(jq -r 'if (.files_changed | length) > 9 then "  • ...and \((.files_changed | length) - 9) more" else "" end' "$report")
+    visible=$(jq -r '.files_changed[0:10][] | "  • \(.)"' "$report")
+    overflow=$(jq -r 'if (.files_changed | length) > 10 then "  • ...and \((.files_changed | length) - 10) more" else "" end' "$report")
     files_text="$visible"
-    [ -n "$overflow" ] && files_text="${files_text}
-${overflow}"
+    [ -n "$overflow" ] && files_text="${files_text}"$'\n'"${overflow}"
   fi
 
   local validation_text
@@ -268,11 +275,11 @@ write_shell_step_report() {
   local validation_json="{}"
   for kv in "$@"; do
     local k="${kv%%=*}" v="${kv#*=}"
-    validation_json=$(echo "$validation_json" | jq --arg k "$k" --arg v "$v" '. + {($k): $v}')
+    validation_json=$(printf '%s' "$validation_json" | jq --arg k "$k" --arg v "$v" '. + {($k): $v}')
   done
 
   local files_json
-  files_json=$(git -C "$REPO_ROOT" diff main --name-only 2>/dev/null \
+  files_json=$(git -C "$REPO_ROOT" diff "${BASE_BRANCH:-main}" --name-only 2>/dev/null \
     | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null || echo "[]")
 
   local report
