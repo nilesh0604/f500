@@ -101,3 +101,19 @@ Branch: {BRANCH}
 Commits: 1
 Files changed: [count]
 ```
+
+---
+
+## Post-PR Next Step
+
+After the PR is merged by a human reviewer, the post-merge deployment is handled by the `release` subcommand — **not by this agent**:
+
+```
+./scripts/ai-dev.sh {TICKET_ID} release
+```
+
+This deploys CDK stacks to production, syncs S3/CloudFront for the UI, runs smoke tests, and transitions the Jira parent ticket to Done. If smoke tests fail, run:
+
+```
+./scripts/ai-dev.sh {TICKET_ID} rollback
+```
