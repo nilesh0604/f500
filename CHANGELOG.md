@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- code-security-agent, code-perf-agent, and deploy-agent now write `.step-report.json` as their final action
 - code-impl-agent now writes `.step-report.json` as its final action
 - requirements-agent and design-agent now write `.step-report.json` as their final action
 

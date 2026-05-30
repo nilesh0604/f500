@@ -106,6 +106,42 @@ Files changed: [count]
 
 ## Post-PR Next Step
 
+---
+
+## Final Step: Write Step Report (deploy-pr only)
+
+This section applies only to the `deploy-pr` sub-step (opening the PR). The shell handles
+`deploy-ship` without agent involvement.
+
+After completing all steps above, write the following JSON to
+`docs/features/{TICKET_ID}/.step-report.json` (replace `{TICKET_ID}` with the actual ticket ID, e.g., `SCRUM-42`):
+
+```json
+{
+  "step": "deploy-pr",
+  "status": "success",
+  "summary": "<one sentence: PR number and title, or what failed>",
+  "files_changed": [],
+  "validation": {
+    "pr_number": 0,
+    "checks_passing": 0,
+    "checks_failing": 0
+  },
+  "commit_message": "chore(SCRUM-42): deploy-pr checkpoint"
+}
+```
+
+**Rules:**
+
+- Use commit type `chore`, scope is the ticket ID (e.g., `chore(SCRUM-42): deploy-pr checkpoint`)
+- If the step failed, set `"status": "failure"` and add `[FAILED]` in the commit_message subject, e.g., `"chore(SCRUM-42): [FAILED] deploy-pr checkpoint"`
+- On failure, write `summary` describing what blocked completion (e.g., `"Agent halted — PR creation failed: branch has no upstream"`)
+- `files_changed` is typically `[]` — the PR open step does not modify source files
+- `pr_number` = the GitHub PR number opened (integer), `checks_passing` and `checks_failing` = count of CI checks at time of writing the report
+- Do NOT include any other fields not shown above
+
+## Post-PR Next Step
+
 After the PR is merged by a human reviewer, the post-merge deployment is handled by the `release` subcommand — **not by this agent**:
 
 ```

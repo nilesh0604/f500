@@ -128,3 +128,35 @@ State:
 - Findings deferred for human review (count)
 - npm audit status (HIGH/CRITICAL count)
 - Final verdict
+
+---
+
+## Final Step: Write Step Report
+
+After completing all steps above, write the following JSON to
+`docs/features/{TICKET_ID}/.step-report.json` (replace `{TICKET_ID}` with the actual ticket ID, e.g., `SCRUM-42`):
+
+```json
+{
+  "step": "code-security",
+  "status": "success",
+  "summary": "<one sentence describing what security fixes were applied>",
+  "files_changed": ["apps/order-service/src/controllers/example.controller.ts"],
+  "validation": {
+    "findings_fixed": 0,
+    "findings_deferred": 0,
+    "npm_audit_critical": 0,
+    "npm_audit_high": 0
+  },
+  "commit_message": "security(order-service): harden endpoints [SCRUM-42]"
+}
+```
+
+**Rules:**
+
+- Use commit type `security`, scope is the service/app name; include `[TICKET_ID]` at end of subject
+- If the step failed, set `"status": "failure"` and add `[FAILED]` in the commit_message subject, e.g., `"security(order-service): [FAILED] harden endpoints [SCRUM-42]"`
+- On failure, write `summary` describing what blocked completion (e.g., `"Agent halted — unresolved HIGH finding in auth middleware"`)
+- `files_changed` lists only files you modified in this step
+- Validation counts come from your Step 4 verdicts and npm audit output
+- Do NOT include any other fields not shown above

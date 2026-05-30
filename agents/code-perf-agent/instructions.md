@@ -114,3 +114,33 @@ State:
 - Issues noted for human review (count)
 - E2E stub files created (paths)
 - k6 stub files created (paths, or "none — no load requirements in TDD")
+
+---
+
+## Final Step: Write Step Report
+
+After completing all steps above, write the following JSON to
+`docs/features/{TICKET_ID}/.step-report.json` (replace `{TICKET_ID}` with the actual ticket ID, e.g., `SCRUM-42`):
+
+```json
+{
+  "step": "code-perf",
+  "status": "success",
+  "summary": "<one sentence describing what performance improvements were applied>",
+  "files_changed": ["apps/order-service/src/controllers/example.controller.ts"],
+  "validation": {
+    "perf_fixes_applied": 0,
+    "issues_deferred": 0
+  },
+  "commit_message": "perf(order-service): optimise query path [SCRUM-42]"
+}
+```
+
+**Rules:**
+
+- Use commit type `perf`, scope is the service/app name; include `[TICKET_ID]` at end of subject
+- If the step failed, set `"status": "failure"` and add `[FAILED]` in the commit_message subject, e.g., `"perf(order-service): [FAILED] optimise query path [SCRUM-42]"`
+- On failure, write `summary` describing what blocked completion (e.g., `"Agent halted — p99 latency target in TDD.md could not be met"`)
+- `files_changed` lists only files you modified in this step
+- `perf_fixes_applied` = count of anti-patterns fixed; `issues_deferred` = count deferred for human review
+- Do NOT include any other fields not shown above
