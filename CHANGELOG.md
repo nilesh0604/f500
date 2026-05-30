@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ai-dev: step-level changelog tracking wired into `cmd_code_test`** — Shell writes `.step-report.json` using coverage gate results (pass/fail, summary line); determines scope from first changed `apps/<name>` path; calls `commit_step_changes` and `post_parent_changelog`.
+
 - **ai-dev: step-level changelog tracking wired into `cmd_code_impl`** — After the code-impl agent runs, `validate_step_report` checks the agent-written `.step-report.json`, `commit_step_changes` commits all staged changes using the JSON-supplied message, and `post_parent_changelog` posts a structured changelog comment to the parent Jira ticket.
 
 - **ai-dev: `release` subcommand** — Post-merge production deployment lifecycle. Verifies PR merged via GitHub CLI, switches to main, validates AWS credentials (`aws sts get-caller-identity`), runs `cdk synth` pre-flight, `npm ci`, builds affected apps, deploys `OrderFlow-VyasaVector`, `OrderFlow-VyasaRag`, and `OrderFlow-VyasaUi` CDK stacks (from `infra/`), syncs UI assets to S3 and invalidates CloudFront, runs health-check smoke tests against live endpoints (20s wait for RAG Lambda cold start, 30s for CloudFront propagation), auto-rolls back to `main~1` state if smoke tests fail, transitions parent Jira ticket to Done, and posts a deployment summary comment (endpoints, timing, commit SHA). Usage: `./scripts/ai-dev.sh SCRUM-123 release`

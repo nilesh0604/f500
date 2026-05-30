@@ -1521,6 +1521,25 @@ cmd_code_test() {
   local coverage_summary
   coverage_summary=$(echo "$coverage_output" | grep -E "^All files" | head -1 || echo "Coverage data unavailable")
 
+  # Step-report: shell writes using coverage gate results
+  local test_scope
+  test_scope=$(git -C "$REPO_ROOT" diff main --name-only 2>/dev/null \
+    | grep 'apps/' | head -1 | awk -F'/' '{print $2}' || true)
+  [ -z "$test_scope" ] && test_scope="$TICKET_ID"
+  local test_status test_summary_text
+  if [ "$coverage_pass" = true ]; then
+    test_status="success"
+    test_summary_text="Coverage at/above 80% threshold. ${coverage_summary}"
+  else
+    test_status="failure"
+    test_summary_text="Coverage below 80% after retry. ${coverage_summary}"
+  fi
+  write_shell_step_report "code-test" "$test_status" "$test_summary_text" \
+    "test(${test_scope}): spec compliance tests [${TICKET_ID}]" \
+    "coverage=${coverage_summary}"
+  commit_step_changes
+  post_parent_changelog
+
   local comment_body
   comment_body="AI Pipeline — Spec Compliance Tests Complete
 
