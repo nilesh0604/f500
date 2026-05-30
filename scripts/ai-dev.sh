@@ -2011,6 +2011,11 @@ cmd_deploy_pr() {
     BRANCH="$branch" \
     CHANGED_FILES="$changed_files"
 
+  # Step-report: validate, commit (may be no-op), changelog
+  validate_step_report || exit 1
+  commit_step_changes
+  post_parent_changelog
+
   # Gate: PR must now exist
   local pr_number pr_url
   pr_number=$(gh pr view --json number --jq '.number' 2>/dev/null || true)

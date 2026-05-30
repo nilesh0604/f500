@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ai-dev: step-level changelog tracking wired into `cmd_deploy_pr`** — After the deploy agent opens the PR, validates `.step-report.json`, commits any staged artifacts (may be a no-op), and posts the step changelog to the parent Jira ticket before the PR-existence gate.
+
 - **ai-dev: step-level changelog tracking wired into `cmd_code_security` and `cmd_code_perf`** — Both agent-driven steps now validate the agent-written `.step-report.json` immediately after the agent returns, then commit and post changelog before their gate checks proceed.
 
 - **ai-dev: step-level changelog tracking wired into `cmd_code_quality`** — Shell writes `.step-report.json` after final ESLint and TypeScript gates; records lint/tsc pass/fail state and lint error count in step metadata; calls `commit_step_changes` and `post_parent_changelog`.
