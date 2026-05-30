@@ -318,7 +318,7 @@ check_prerequisite() {
         exit 1
       fi
       local req_file="$(feature_dir)/requirements.md"
-      if grep -q "^## Open Questions" "$req_file" 2>/dev/null; then
+      if has_unresolved_questions "$req_file" 2>/dev/null; then
         echo "Error: Unresolved open questions in requirements.md."
         echo "  Run: ./scripts/ai-dev.sh $TICKET_ID resolve"
         exit 1
@@ -747,13 +747,16 @@ Review the requirements document. When satisfied, transition this subtask to Don
   # Upload attachment
   jira_upload_attachment "$subtask_key" "$req_file"
 
-  # Parse and post Open Questions if present
+  # Parse and post unresolved Design Decision blocks if present
   local open_questions
-  open_questions=$(sed -n '/^## Open Questions/,/^## /{
-    /^## Open Questions/d
-    /^## /d
-    p
-  }' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
+  open_questions=$(awk '
+    /^## Design Decisions/{s=1;next}
+    s && /^## /{if(qb&&!dq)print qb;s=0;qb="";dq=0;next}
+    s && /^### Q[0-9]/{if(qb&&!dq)print qb;qb=$0"\n";dq=0;next}
+    s && /^Decision:/{dq=1;next}
+    s{qb=qb $0"\n"}
+    END{if(s&&qb&&!dq)print qb}
+  ' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
 
   if [ -n "$open_questions" ]; then
     local round_file="$(feature_dir)/.questions-round"
@@ -788,6 +791,25 @@ ${open_questions}"
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# Helper: has_unresolved_questions <file>
+# Returns 0 (true) if any ### Q[N]: block in ## Design Decisions lacks a
+# Decision: line, or if the old ## Open Questions section is present.
+# Returns 1 (false) when all blocks are resolved or no section exists.
+# ══════════════════════════════════════════════════════════════════════
+
+has_unresolved_questions() {
+  local file="$1"
+  grep -q "^## Open Questions" "$file" 2>/dev/null && return 0
+  awk '
+    /^## Design Decisions/{s=1;next}
+    s && /^## /{s=0}
+    s && /^### Q[0-9]/{b++;d[b]=0}
+    s && /^Decision:/{if(b)d[b]=1}
+    END{for(i=1;i<=b;i++)if(!d[i]){exit 0}exit 1}
+  ' "$file"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # Subcommand: resolve
 # ══════════════════════════════════════════════════════════════════════
 
@@ -805,6 +827,12 @@ cmd_resolve() {
   local req_file="$(feature_dir)/requirements.md"
   if [ ! -f "$req_file" ]; then
     echo "Error: requirements.md not found. Run requirements step first."
+    exit 1
+  fi
+
+  if ! grep -q "^## Design Decisions" "$req_file" 2>/dev/null; then
+    echo "Error: requirements.md uses the old ## Open Questions format."
+    echo "  Re-run the requirements step to generate the structured ## Design Decisions format."
     exit 1
   fi
 
@@ -836,48 +864,52 @@ cmd_resolve() {
 
   echo "Answers found. Updating requirements.md..."
 
-  # Parse each Q answer line and build decision block
-  local decisions=""
+  # Build answers file: lines of "qnum|answer text" (case/whitespace tolerant)
+  local answers_file="${req_file}.answers"
+  rm -f "$answers_file"
   while IFS= read -r line; do
-    if echo "$line" | grep -qE '^Q[0-9]+:'; then
+    if echo "$line" | grep -qiE '^Q[[:space:]]*[0-9]+[[:space:]]*:'; then
       local q_num answer_text
-      q_num=$(echo "$line" | grep -oE '^Q[0-9]+')
-      answer_text=$(echo "$line" | sed 's/^Q[0-9]*:[[:space:]]*//')
-      decisions="${decisions}- **${q_num} Decision**: ${answer_text}
-"
+      q_num=$(echo "$line" | grep -oiE 'Q[[:space:]]*[0-9]+' | tr -cd '0-9')
+      answer_text=$(echo "$line" | sed 's/^[Qq][[:space:]]*[0-9]*[[:space:]]*:[[:space:]]*//')
+      echo "${q_num}|${answer_text}" >> "$answers_file"
     fi
   done <<< "$latest_answers"
 
-  # Write decisions to a temp file to avoid awk -v newline limitations
-  local decisions_file="${req_file}.decisions"
-  printf '%s' "$decisions" > "$decisions_file"
-
-  # Replace ## Open Questions section with ## Design Decisions (resolved),
-  # then inject the decisions block immediately after the heading.
+  # In-place Decision: insertion per ### Q[N]: block; preserves all existing fields.
+  # If a Decision: line already exists for a block, PO answer overwrites it.
   local tmp_file="${req_file}.tmp"
-  awk -v dfile="$decisions_file" '
-    /^## Open Questions/ {
-      skip=1
-      print "## Design Decisions (resolved)"
-      print ""
-      while ((getline line < dfile) > 0) print line
-      close(dfile)
-      next
+  awk -v afile="$answers_file" '
+    BEGIN {
+      while ((getline al < afile) > 0) {
+        n=index(al,"|"); ans[substr(al,1,n-1)]=substr(al,n+1)
+      }
+      close(afile); s=0; q=0; buf=""; ex=""
     }
-    skip && /^## / { skip=0 }
-    skip { next }
+    /^## Design Decisions/ { s=1; print; next }
+    s && /^## /            { flush(); s=0; print; next }
+    s && /^### Q[0-9]/     { flush(); match($0,/[0-9]+/); q=substr($0,RSTART,RLENGTH)+0; buf=$0"\n"; next }
+    s && q && /^Decision:/ { ex=substr($0,11); next }
+    s && q                 { buf=buf $0"\n"; next }
     { print }
+    function flush(    i,n,lines,dec) {
+      if (!q) return
+      dec=(q in ans)?ans[q]:ex
+      n=split(buf,lines,"\n")
+      while (n>0 && lines[n]~/^[[:space:]]*$/) n--
+      for (i=1;i<=n;i++) print lines[i]
+      if (dec!="") print "Decision: " dec
+      print ""; q=0; buf=""; ex=""
+    }
+    END { flush() }
   ' "$req_file" > "$tmp_file"
 
   mv "$tmp_file" "$req_file"
-  rm -f "$decisions_file"
+  rm -f "$answers_file"
 
-  # Check if new Open Questions arose after the update
-  local remaining_questions
-  remaining_questions=$(grep -c "^## Open Questions" "$req_file" 2>/dev/null || echo "0")
-
-  if [ "$remaining_questions" -gt 0 ]; then
-    # Increment round counter and post new questions
+  # Check if any Q blocks remain without a Decision: line
+  if has_unresolved_questions "$req_file"; then
+    # Increment round counter and post remaining unresolved blocks
     local round_file="$(feature_dir)/.questions-round"
     local round=1
     [ -f "$round_file" ] && round=$(cat "$round_file")
@@ -885,11 +917,14 @@ cmd_resolve() {
     echo "$round" > "$round_file"
 
     local new_questions
-    new_questions=$(sed -n '/^## Open Questions/,/^## /{
-      /^## Open Questions/d
-      /^## /d
-      p
-    }' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
+    new_questions=$(awk '
+      /^## Design Decisions/{s=1;next}
+      s && /^## /{if(qb&&!dq)print qb;s=0;qb="";dq=0;next}
+      s && /^### Q[0-9]/{if(qb&&!dq)print qb;qb=$0"\n";dq=0;next}
+      s && /^Decision:/{dq=1;next}
+      s{qb=qb $0"\n"}
+      END{if(s&&qb&&!dq)print qb}
+    ' "$req_file" 2>/dev/null | sed '/^[[:space:]]*$/d')
 
     local new_comment
     new_comment="⚠️  Open Questions — Round ${round}
