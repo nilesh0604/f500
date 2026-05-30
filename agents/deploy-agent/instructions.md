@@ -104,10 +104,6 @@ Files changed: [count]
 
 ---
 
-## Post-PR Next Step
-
----
-
 ## Final Step: Write Step Report (deploy-pr only)
 
 This section applies only to the `deploy-pr` sub-step (opening the PR). The shell handles
