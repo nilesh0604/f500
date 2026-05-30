@@ -1626,6 +1626,26 @@ cmd_code_quality() {
   npm run lint -- --quiet 2>/dev/null || lint_pass=false
   npx tsc --noEmit 2>/dev/null || tsc_pass=false
 
+  # Step-report: shell writes using gate results
+  local qual_scope
+  qual_scope=$(git -C "$REPO_ROOT" diff main --name-only 2>/dev/null \
+    | grep 'apps/' | head -1 | awk -F'/' '{print $2}' || true)
+  [ -z "$qual_scope" ] && qual_scope="$TICKET_ID"
+  local qual_status qual_summary
+  if [ "$lint_pass" = true ] && [ "$tsc_pass" = true ]; then
+    qual_status="success"
+    qual_summary="ESLint and TypeScript checks passed (${errors_before} lint errors resolved)"
+  else
+    qual_status="failure"
+    qual_summary="Quality checks failed — lint: ${lint_pass}, tsc: ${tsc_pass}"
+  fi
+  write_shell_step_report "code-quality" "$qual_status" "$qual_summary" \
+    "refactor(${qual_scope}): quality pass [${TICKET_ID}]" \
+    "lint_errors=$([ "$lint_pass" = true ] && echo "0" || echo "remaining")" \
+    "type_errors=$([ "$tsc_pass" = true ] && echo "0" || echo "remaining")"
+  commit_step_changes
+  post_parent_changelog
+
   local comment_body
   comment_body="AI Pipeline — Code Quality Complete
 
