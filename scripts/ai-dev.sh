@@ -151,6 +151,150 @@ run_agent() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# Step-Report Helpers
+# ══════════════════════════════════════════════════════════════════════
+
+# validate_step_report
+# Verifies .step-report.json exists and has all required fields.
+# Aborts (return 1) if missing or malformed — caller should exit.
+validate_step_report() {
+  local report
+  report="$(feature_dir)/.step-report.json"
+  if [ ! -f "$report" ]; then
+    echo "Error: .step-report.json not found — agent did not write step report." >&2
+    return 1
+  fi
+  if ! jq -e '.step and .status and .summary and .commit_message' "$report" > /dev/null 2>&1; then
+    echo "Error: .step-report.json missing required fields (step, status, summary, commit_message)." >&2
+    return 1
+  fi
+  local msg
+  msg=$(jq -r '.commit_message' "$report")
+  if ! echo "$msg" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\([a-z0-9-]+\))?: .+'; then
+    echo "Error: commit_message does not match Conventional Commits format: $msg" >&2
+    return 1
+  fi
+}
+
+# commit_step_changes
+# Stages all changes and commits using commit_message from .step-report.json.
+# Silently skips if nothing is staged.
+commit_step_changes() {
+  local report
+  report="$(feature_dir)/.step-report.json"
+  local msg
+  msg=$(jq -r '.commit_message' "$report")
+
+  git -C "$REPO_ROOT" add -A
+  if git -C "$REPO_ROOT" diff --cached --quiet; then
+    echo "  [step-report] Nothing staged — skipping commit."
+    return 0
+  fi
+  git -C "$REPO_ROOT" commit -m "$msg"
+  echo "  [step-report] Committed: $msg"
+}
+
+# post_parent_changelog
+# Reads .step-report.json and posts a structured comment to the parent Jira ticket.
+# Non-fatal: a Jira failure logs a warning but does not abort the step.
+post_parent_changelog() {
+  local report
+  report="$(feature_dir)/.step-report.json"
+
+  local step status summary commit_message
+  step=$(jq -r '.step' "$report")
+  status=$(jq -r '.status' "$report")
+  summary=$(jq -r '.summary' "$report")
+  commit_message=$(jq -r '.commit_message' "$report")
+
+  local status_icon
+  [ "$status" = "success" ] && status_icon="✅" || status_icon="❌"
+  local status_upper
+  status_upper=$(echo "$status" | tr '[:lower:]' '[:upper:]')
+
+  local file_count
+  file_count=$(jq '.files_changed | length' "$report")
+
+  local files_text
+  if [ "$file_count" -eq 0 ]; then
+    files_text="  (No files modified)"
+  else
+    local visible overflow
+    visible=$(jq -r '.files_changed[0:9][] | "  • \(.)"' "$report")
+    overflow=$(jq -r 'if (.files_changed | length) > 9 then "  • ...and \((.files_changed | length) - 9) more" else "" end' "$report")
+    files_text="$visible"
+    [ -n "$overflow" ] && files_text="${files_text}
+${overflow}"
+  fi
+
+  local validation_text
+  validation_text=$(jq -r '
+    .validation // {} |
+    to_entries |
+    map("  \(.key): \(.value)") |
+    if length > 0 then join("\n") else "  N/A" end
+  ' "$report")
+
+  local short_sha timestamp
+  short_sha=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  timestamp=$(date -u '+%Y-%m-%d %H:%M UTC')
+
+  local comment_body
+  comment_body="🔖 Step Checkpoint: ${step} [${status_icon} ${status_upper}]
+
+Summary:
+  ${summary}
+
+Files Changed (${file_count}):
+${files_text}
+
+Validation:
+${validation_text}
+
+Commit: ${commit_message} [${short_sha}] • ${timestamp}"
+
+  jira_add_comment "$TICKET_ID" "$comment_body" 2>/dev/null \
+    || echo "Warning: Failed to post step changelog to parent ticket $TICKET_ID" >&2
+}
+
+# write_shell_step_report <step> <status> <summary> <commit_message> [key=value ...]
+# Generates .step-report.json for steps where the shell (not an agent) owns the report.
+# Optional key=value pairs populate the validation object.
+# files_changed is populated from `git diff main --name-only`.
+write_shell_step_report() {
+  local step="$1" status="$2" summary="$3" commit_message="$4"
+  shift 4
+
+  local validation_json="{}"
+  for kv in "$@"; do
+    local k="${kv%%=*}" v="${kv#*=}"
+    validation_json=$(echo "$validation_json" | jq --arg k "$k" --arg v "$v" '. + {($k): $v}')
+  done
+
+  local files_json
+  files_json=$(git -C "$REPO_ROOT" diff main --name-only 2>/dev/null \
+    | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null || echo "[]")
+
+  local report
+  report="$(feature_dir)/.step-report.json"
+  jq -n \
+    --arg step "$step" \
+    --arg status "$status" \
+    --arg summary "$summary" \
+    --arg commit_message "$commit_message" \
+    --argjson files "$files_json" \
+    --argjson validation "$validation_json" \
+    '{
+      step: $step,
+      status: $status,
+      summary: $summary,
+      files_changed: $files,
+      validation: $validation,
+      commit_message: $commit_message
+    }' > "$report"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # Jira REST API Helpers
 # ══════════════════════════════════════════════════════════════════════
 
