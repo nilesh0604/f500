@@ -136,7 +136,7 @@ After completing all steps above, write the following JSON to
   "step": "code-impl",
   "status": "success",
   "summary": "<one sentence describing what implementation was produced>",
-  "files_changed": ["apps/SCRUM-42/src/controllers/example.controller.ts"],
+  "files_changed": ["apps/order-service/src/controllers/example.controller.ts"],
   "validation": {
     "impl_checklist_items": 0,
     "impl_checklist_failures": 0
