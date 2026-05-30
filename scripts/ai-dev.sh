@@ -512,7 +512,9 @@ Subcommands:
   code-security    Run security-agent → SECURITY_REVIEW.md (needs: code-quality Done)
   code-perf        Run perf-agent → E2E stubs (needs: code-security Done)
   validate         Script-only CI dry-run: lint, tsc, tests, build, audit (needs: code-perf Done)
-  deploy           Open PR (needs: validate passed)
+  deploy-pr        Push branch + open PR (needs: validate passed)
+  deploy-ship      Monitor CI; classify + fix failures (needs: deploy-pr done)
+  deploy           Deprecated — use deploy-pr then deploy-ship
   status           Show pipeline progress from Jira
 
 Workflow:
@@ -529,7 +531,8 @@ Workflow:
   4b. OR run step-by-step (each requires human Done transition before next):
       code-impl → code-test → code-quality → code-security → code-perf
   5. ./scripts/ai-dev.sh OF-456 validate       (zero agent cost — CI gate)
-  6. ./scripts/ai-dev.sh OF-456 deploy
+  6a. ./scripts/ai-dev.sh OF-456 deploy-pr     (push branch, open PR)
+  6b. ./scripts/ai-dev.sh OF-456 deploy-ship   (monitor CI; re-run until green or hard-blocked)
 
 Approval (gated steps): Transition the subtask to "Done" in Jira UI.
 Auto-approve (alias):   Running "code" auto-transitions each sub-step on success.
@@ -1953,6 +1956,8 @@ cmd_deploy_ship() {
 # ══════════════════════════════════════════════════════════════════════
 
 cmd_deploy() {
+  echo "Warning: 'deploy' is deprecated — use 'deploy-pr' then 'deploy-ship'."
+  echo ""
   require_tool "$CLAUDE_CMD"
   require_jira_creds
   check_prerequisite deploy
@@ -2104,6 +2109,8 @@ case "$SUBCOMMAND" in
     echo ""
     cmd_validate
     ;;
+  deploy-pr)     cmd_deploy_pr ;;
+  deploy-ship)   cmd_deploy_ship ;;
   deploy)        cmd_deploy ;;
   status)        cmd_status ;;
   help|--help|-h) cmd_help ;;
