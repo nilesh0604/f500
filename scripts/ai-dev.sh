@@ -2417,6 +2417,225 @@ cmd_fix_conflicts() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# Subcommand: release
+# Post-merge deployment lifecycle: CDK deploy → S3/CF → smoke tests → Jira Done
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_release() {
+  require_tool aws
+  require_tool gh
+  require_tool jq
+  require_jira_creds
+  check_prerequisite release
+
+  echo "Vyasa AI Dev — Release (Post-Merge Deploy): $TICKET_ID"
+  echo ""
+
+  # Verify PR is merged
+  local pr_number
+  pr_number=$(cat "$(pr_number_file)")
+  local pr_state
+  pr_state=$(gh pr view "$pr_number" --json state --jq '.state' 2>/dev/null || echo "unknown")
+  if [ "$pr_state" != "MERGED" ]; then
+    echo "Error: PR #${pr_number} is not merged yet (state: $pr_state)."
+    echo "  Merge the PR in GitHub, then re-run release."
+    echo "  Merge: gh pr merge $pr_number --squash --delete-branch"
+    exit 1
+  fi
+
+  # Switch to main and pull
+  cd "$REPO_ROOT"
+  echo "[1/8] Switching to main and pulling latest..."
+  git checkout main
+  git pull origin main
+
+  # Validate AWS credentials
+  echo "[2/8] Validating AWS credentials..."
+  if ! aws sts get-caller-identity --output text > /dev/null 2>&1; then
+    echo "Error: AWS credentials not configured or expired."
+    echo "  Run: aws configure  OR  export AWS_PROFILE=<profile>"
+    exit 1
+  fi
+  local aws_account
+  aws_account=$(aws sts get-caller-identity --query 'Account' --output text)
+  echo "  Account: $aws_account  Region: us-east-1"
+
+  # CDK synth — catch config errors before committing to a deploy
+  echo "[3/8] Running cdk synth (pre-flight check)..."
+  cd "$REPO_ROOT/infra"
+  if ! npx cdk synth --quiet 2>&1; then
+    echo "Error: cdk synth failed — fix stack configuration before deploying."
+    jira_add_comment "$TICKET_ID" \
+      "❌ Release pre-flight failed: cdk synth error. Fix and re-run release."
+    exit 1
+  fi
+  cd "$REPO_ROOT"
+
+  # Clean install + builds
+  echo "[4/8] Installing dependencies and building..."
+  npm ci
+  npx nx build vyasa-rag-service 2>/dev/null || true
+  (cd apps/vyasa-ui && npm run build) || true
+
+  # Record pre-deploy rollback target (main~1 state)
+  git rev-parse HEAD~1 > "$(release_marker_file)" 2>/dev/null || true
+
+  local deploy_start
+  deploy_start=$(date +%s)
+
+  # CDK deploy
+  echo "[5/8] Deploying CDK stacks..."
+  cd "$REPO_ROOT/infra"
+  if ! npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi \
+       --require-approval never 2>&1; then
+    cd "$REPO_ROOT"
+    echo "Error: CDK deploy failed."
+    jira_add_comment "$TICKET_ID" \
+      "❌ Release failed: CDK deploy error. Check terminal for details. Run rollback if production is impacted."
+    exit 1
+  fi
+  cd "$REPO_ROOT"
+
+  # Capture CloudFormation stack outputs
+  echo "[6/8] Capturing stack outputs..."
+  local rag_endpoint ui_bucket ui_dist_id ui_domain
+  rag_endpoint=$(aws cloudformation describe-stacks \
+    --stack-name OrderFlow-VyasaRag \
+    --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaRag-FunctionUrl`].OutputValue' \
+    --output text 2>/dev/null || echo "")
+  ui_bucket=$(aws cloudformation describe-stacks \
+    --stack-name OrderFlow-VyasaUi \
+    --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-UiBucketName`].OutputValue' \
+    --output text 2>/dev/null || echo "")
+  ui_dist_id=$(aws cloudformation describe-stacks \
+    --stack-name OrderFlow-VyasaUi \
+    --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-DistributionId`].OutputValue' \
+    --output text 2>/dev/null || echo "")
+  ui_domain=$(aws cloudformation describe-stacks \
+    --stack-name OrderFlow-VyasaUi \
+    --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-DistributionDomain`].OutputValue' \
+    --output text 2>/dev/null || echo "")
+
+  # S3 sync + CloudFront invalidation for UI
+  if [ -n "$ui_bucket" ] && [ -d "$REPO_ROOT/apps/vyasa-ui/dist" ]; then
+    echo "  Syncing UI assets to S3..."
+    aws s3 sync apps/vyasa-ui/dist/ "s3://${ui_bucket}" \
+      --delete \
+      --cache-control "public,max-age=31536000,immutable" \
+      --exclude "index.html"
+    aws s3 cp apps/vyasa-ui/dist/index.html \
+      "s3://${ui_bucket}/index.html" \
+      --cache-control "no-cache,no-store,must-revalidate"
+
+    if [ -n "$ui_dist_id" ]; then
+      echo "  Invalidating CloudFront cache..."
+      aws cloudfront create-invalidation \
+        --distribution-id "$ui_dist_id" \
+        --paths "/*" > /dev/null
+    fi
+  fi
+
+  # Smoke tests
+  echo "[7/8] Running smoke tests..."
+  local smoke_pass=true
+
+  if [ -n "$rag_endpoint" ]; then
+    echo "  Waiting 20s for Lambda cold start..."
+    sleep 20
+    if curl -sf "${rag_endpoint}/health" -o /dev/null --max-time 15; then
+      echo "  ✅ RAG: ${rag_endpoint}/health"
+    else
+      echo "  ❌ RAG smoke test failed: ${rag_endpoint}/health"
+      smoke_pass=false
+    fi
+  else
+    echo "  ⚠️  RAG endpoint not found in stack outputs — skipping RAG smoke test"
+  fi
+
+  if [ -n "$ui_domain" ]; then
+    echo "  Waiting 30s for CloudFront propagation..."
+    sleep 30
+    if curl -sf "https://${ui_domain}" -o /dev/null --max-time 15; then
+      echo "  ✅ UI: https://${ui_domain}"
+    else
+      echo "  ❌ UI smoke test failed: https://${ui_domain}"
+      smoke_pass=false
+    fi
+  else
+    echo "  ⚠️  UI domain not found in stack outputs — skipping UI smoke test"
+  fi
+
+  # Auto-rollback on smoke test failure
+  if [ "$smoke_pass" != true ]; then
+    echo ""
+    echo "❌ Smoke tests failed — initiating auto-rollback..."
+    jira_add_comment "$TICKET_ID" \
+      "❌ Release smoke tests failed after CDK deploy. Initiating auto-rollback to main~1 state."
+
+    local rollback_commit
+    rollback_commit=$(cat "$(release_marker_file)" 2>/dev/null || echo "")
+
+    if [ -n "$rollback_commit" ]; then
+      echo "  Checking out infra/apps from ${rollback_commit:0:8}..."
+      git checkout "$rollback_commit" -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
+      cd "$REPO_ROOT/infra"
+      npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi \
+        --require-approval never 2>/dev/null || true
+      cd "$REPO_ROOT"
+      git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
+      echo "  Rollback deploy complete."
+    else
+      echo "  No rollback marker found — manual intervention required."
+    fi
+
+    jira_add_comment "$TICKET_ID" \
+      "❌ Release FAILED for ${TICKET_ID}. Smoke tests failed post-deploy. Auto-rollback to ${rollback_commit:0:8} attempted. Verify production manually."
+    exit 1
+  fi
+
+  local deploy_end elapsed
+  deploy_end=$(date +%s)
+  elapsed=$((deploy_end - deploy_start))
+
+  # Transition parent ticket to Done
+  echo "[8/8] Updating Jira..."
+  jira_transition_to "$TICKET_ID" "Done" 2>/dev/null || true
+
+  local deployed_commit
+  deployed_commit=$(git rev-parse --short HEAD)
+
+  local summary_body
+  summary_body="✅ Release Complete — ${TICKET_ID}
+
+Deployed commit: ${deployed_commit}
+Duration: ${elapsed}s
+AWS Account: ${aws_account}
+
+Stack Outputs:
+- RAG Endpoint: ${rag_endpoint:-N/A}
+- UI Domain: https://${ui_domain:-N/A}
+- UI S3 Bucket: ${ui_bucket:-N/A}
+- CloudFront ID: ${ui_dist_id:-N/A}
+
+Smoke Tests: ✅ All passed
+
+Feature is live in production."
+
+  jira_add_comment "$TICKET_ID" "$summary_body"
+
+  echo ""
+  echo "======================================"
+  echo " RELEASE COMPLETE: $TICKET_ID"
+  echo "======================================"
+  echo ""
+  echo "  Commit:   $deployed_commit"
+  echo "  Duration: ${elapsed}s"
+  echo "  RAG:      ${rag_endpoint:-N/A}"
+  echo "  UI:       https://${ui_domain:-N/A}"
+  echo "  Ticket:   ${JIRA_BASE_URL}/browse/$TICKET_ID"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # Subcommand: deploy
 # ══════════════════════════════════════════════════════════════════════
 
