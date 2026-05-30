@@ -1407,6 +1407,11 @@ cmd_code_impl() {
     TDD_PATH="$tdd_path" \
     REQUIREMENTS_PATH="$req_path"
 
+  # Step-report: validate, commit, changelog
+  validate_step_report || exit 1
+  commit_step_changes
+  post_parent_changelog
+
   # Gate: IMPL_CHECKLIST.md must exist with no ❌ items
   local checklist_file="$(feature_dir)/IMPL_CHECKLIST.md"
   if [ ! -f "$checklist_file" ]; then
