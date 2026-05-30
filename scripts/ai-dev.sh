@@ -542,6 +542,8 @@ Subcommands:
   deploy-pr        Push branch + open PR (needs: validate passed)
   deploy-ship      Monitor CI; classify + fix failures (needs: deploy-pr done)
   deploy           Deprecated — use deploy-pr then deploy-ship
+  release          Post-merge CDK deploy: synth, build, deploy, smoke tests, Jira Done (needs: PR merged)
+  rollback         Revert CDK stacks to previous known-good state (main~1 or release marker)
   fix-lint         Fix ESLint/Prettier CI failures (can run any time)
   fix-types        Fix TypeScript type errors from CI (can run any time)
   fix-tests        Fix failing Jest tests using spec as tiebreaker (can run any time)
@@ -566,6 +568,9 @@ Workflow:
   5. ./scripts/ai-dev.sh OF-456 validate       (zero agent cost — CI gate)
   6a. ./scripts/ai-dev.sh OF-456 deploy-pr     (push branch, open PR)
   6b. ./scripts/ai-dev.sh OF-456 deploy-ship   (monitor CI; re-run until green or hard-blocked)
+  7.  Merge the PR in GitHub: gh pr merge <number> --squash --delete-branch
+  8.  ./scripts/ai-dev.sh OF-456 release       (CDK deploy to prod + smoke tests + Jira Done)
+      On failure: ./scripts/ai-dev.sh OF-456 rollback
 
 Approval (gated steps): Transition the subtask to "Done" in Jira UI.
 Auto-approve (alias):   Running "code" auto-transitions each sub-step on success.
@@ -1651,7 +1656,7 @@ cmd_validate() {
 
   echo ""
   echo "All checks passed. Ready to deploy."
-  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy"
+  echo "  Next: ./scripts/ai-dev.sh $TICKET_ID deploy-pr"
 }
 
 # ══════════════════════════════════════════════════════════════════════
@@ -2887,6 +2892,8 @@ case "$SUBCOMMAND" in
   deploy-pr)     cmd_deploy_pr ;;
   deploy-ship)   cmd_deploy_ship ;;
   deploy)        cmd_deploy ;;
+  release)       cmd_release ;;
+  rollback)      cmd_rollback ;;
   fix-lint)      cmd_fix_lint ;;
   fix-types)     cmd_fix_types ;;
   fix-tests)     cmd_fix_tests ;;
