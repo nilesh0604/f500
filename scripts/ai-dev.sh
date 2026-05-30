@@ -2636,6 +2636,97 @@ Feature is live in production."
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# Subcommand: rollback
+# Redeploy CDK stacks to main~1 state as a manual escape hatch
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_rollback() {
+  require_tool aws
+  require_tool jq
+  require_jira_creds
+
+  echo "Vyasa AI Dev — Rollback: $TICKET_ID"
+  echo ""
+
+  cd "$REPO_ROOT"
+
+  # Validate AWS credentials
+  echo "[1/4] Validating AWS credentials..."
+  if ! aws sts get-caller-identity --output text > /dev/null 2>&1; then
+    echo "Error: AWS credentials not configured or expired."
+    echo "  Run: aws configure  OR  export AWS_PROFILE=<profile>"
+    exit 1
+  fi
+
+  # Determine rollback target
+  local rollback_commit
+  local release_marker
+  release_marker="$(release_marker_file)"
+  if [ -f "$release_marker" ]; then
+    rollback_commit=$(cat "$release_marker")
+    echo "  Using release marker: ${rollback_commit:0:8} (saved by last release run)"
+  else
+    echo "  No release marker found — falling back to HEAD~1"
+    rollback_commit=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+  fi
+
+  if [ -z "$rollback_commit" ]; then
+    echo "Error: Cannot determine rollback target."
+    echo "  Ensure you are on main and have at least 2 commits."
+    exit 1
+  fi
+
+  echo "  Rolling back to commit: ${rollback_commit:0:8}"
+  echo ""
+
+  # Switch to main
+  echo "[2/4] Switching to main..."
+  git checkout main
+  git pull origin main
+
+  # Checkout infra + app code from rollback target
+  echo "[3/4] Checking out previous infra and app state..."
+  git checkout "$rollback_commit" -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || {
+    echo "Error: Could not checkout state from ${rollback_commit:0:8}."
+    echo "  The commit may not include the paths infra/, apps/vyasa-rag-service/, apps/vyasa-ui/"
+    exit 1
+  }
+
+  echo "  Deploying CDK stacks with rollback state..."
+  cd "$REPO_ROOT/infra"
+  if ! npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi \
+       --require-approval never 2>&1; then
+    cd "$REPO_ROOT"
+    git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
+    echo ""
+    echo "Error: Rollback CDK deploy failed."
+    jira_add_comment "$TICKET_ID" \
+      "❌ Rollback FAILED for ${TICKET_ID}. CDK deploy with state ${rollback_commit:0:8} failed. Manual AWS Console intervention required."
+    exit 1
+  fi
+  cd "$REPO_ROOT"
+
+  # Restore working tree to HEAD
+  git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
+
+  echo "[4/4] Updating Jira..."
+  jira_add_comment "$TICKET_ID" \
+    "⏪ Rollback executed for ${TICKET_ID}. Reverted CDK stacks to commit ${rollback_commit:0:8}. Infrastructure redeployed to previous known-good state. Re-investigate the issue before re-running release."
+  jira_transition_to "$TICKET_ID" "In Progress" 2>/dev/null || true
+
+  echo ""
+  echo "======================================"
+  echo " ROLLBACK COMPLETE: $TICKET_ID"
+  echo "======================================"
+  echo ""
+  echo "  Reverted to: ${rollback_commit:0:8}"
+  echo "  Ticket:      ${JIRA_BASE_URL}/browse/$TICKET_ID"
+  echo ""
+  echo "Investigate the smoke test failure, fix the issue, then:"
+  echo "  ./scripts/ai-dev.sh $TICKET_ID release"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # Subcommand: deploy
 # ══════════════════════════════════════════════════════════════════════
 
