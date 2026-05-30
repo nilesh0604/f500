@@ -1051,6 +1051,11 @@ cmd_requirements() {
     TICKET_ID="$TICKET_ID" \
     TICKET_CONTEXT="$context"
 
+  # Step-report: validate, commit, changelog
+  validate_step_report || exit 1
+  commit_step_changes
+  post_parent_changelog
+
   # Verify output
   local req_file="$(feature_dir)/requirements.md"
   if [ ! -f "$req_file" ]; then
@@ -1330,6 +1335,11 @@ cmd_design() {
     TICKET_ID="$TICKET_ID" \
     TICKET_CONTEXT="$context" \
     REQUIREMENTS_PATH="$req_path"
+
+  # Step-report: validate, commit, changelog
+  validate_step_report || exit 1
+  commit_step_changes
+  post_parent_changelog
 
   # Verify output
   local tdd_file="$(feature_dir)/TDD.md"
