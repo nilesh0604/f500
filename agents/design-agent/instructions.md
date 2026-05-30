@@ -164,11 +164,11 @@ After completing all steps above, write the following JSON to
   "step": "design",
   "status": "success",
   "summary": "<one sentence describing what was produced>",
-  "files_changed": ["docs/features/{TICKET_ID}/TDD.md"],
+  "files_changed": ["docs/features/SCRUM-42/TDD.md"],
   "validation": {
-    "acceptance_criteria_covered": "<count>",
-    "api_endpoints_designed": "<count>",
-    "open_questions": "<count>"
+    "acceptance_criteria_covered": 0,
+    "api_endpoints_designed": 0,
+    "open_questions": 0
   },
   "commit_message": "docs({TICKET_ID}): design checkpoint"
 }
@@ -178,6 +178,7 @@ After completing all steps above, write the following JSON to
 
 - Use commit type `docs`, scope is the ticket ID (e.g., `docs(SCRUM-42): design checkpoint`)
 - If this step failed, set `"status": "failure"` and change `commit_message` subject to include `[FAILED]`, e.g., `"docs(SCRUM-42): [FAILED] design checkpoint"`
+- On failure, write `summary` describing what blocked completion (e.g., `"Agent halted — ticket lacked acceptance criteria"`)
 - Only include `validation` fields relevant to this step — `acceptance_criteria_covered`, `api_endpoints_designed`, `open_questions` are appropriate here
 - `files_changed` must list only the files you actually wrote to in this step (typically `TDD.md` and optionally additional design artifacts)
 - Do NOT include any other fields not shown above

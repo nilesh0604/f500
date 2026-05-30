@@ -167,11 +167,11 @@ After completing all steps above, write the following JSON to
   "step": "requirements",
   "status": "success",
   "summary": "<one sentence describing what was produced>",
-  "files_changed": ["docs/features/{TICKET_ID}/requirements.md"],
+  "files_changed": ["docs/features/SCRUM-42/requirements.md"],
   "validation": {
-    "acceptance_criteria": "<count>",
-    "edge_cases": "<count>",
-    "open_questions": "<count>"
+    "acceptance_criteria": 0,
+    "edge_cases": 0,
+    "open_questions": 0
   },
   "commit_message": "docs({TICKET_ID}): requirements checkpoint"
 }
@@ -181,6 +181,7 @@ After completing all steps above, write the following JSON to
 
 - Use commit type `docs`, scope is the ticket ID (e.g., `docs(SCRUM-42): requirements checkpoint`)
 - If this step failed, set `"status": "failure"` and change `commit_message` subject to include `[FAILED]`, e.g., `"docs(SCRUM-42): [FAILED] requirements checkpoint"`
+- On failure, write `summary` describing what blocked completion (e.g., `"Agent halted — ticket lacked acceptance criteria"`)
 - Only include `validation` fields relevant to this step — `acceptance_criteria`, `edge_cases`, `open_questions` are appropriate here
 - `files_changed` must list only the files you actually wrote to in this step
 - Do NOT include any other fields not shown above
