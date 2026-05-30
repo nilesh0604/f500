@@ -1880,6 +1880,20 @@ cmd_validate() {
   npm audit --audit-level=high \
     || { echo "FAIL: npm audit — fix with: ./scripts/ai-dev.sh $TICKET_ID code-security"; failed=1; }
 
+  # Step-report: shell writes based on validation results
+  local val_status val_summary
+  if [ "$failed" -eq 0 ]; then
+    val_status="success"
+    val_summary="All 5 CI checks passed (eslint, tsc, jest, build, npm audit)"
+  else
+    val_status="failure"
+    val_summary="One or more CI checks failed — see output above for which steps to re-run"
+  fi
+  write_shell_step_report "validate" "$val_status" "$val_summary" \
+    "chore(${TICKET_ID}): validate checkpoint"
+  commit_step_changes
+  post_parent_changelog
+
   if [ "$failed" -eq 1 ]; then
     echo ""
     echo "Validation FAILED for $TICKET_ID."
@@ -2105,6 +2119,12 @@ cmd_deploy_ship() {
       echo "    gh pr merge $pr_number --squash --delete-branch"
       echo ""
       echo "  PR: $pr_url"
+      # Step-report: shell writes on CI-green success
+      write_shell_step_report "deploy-ship" "success" \
+        "CI all-green. PR #${pr_number} ready to merge: $pr_url" \
+        "chore(${TICKET_ID}): deploy-ship checkpoint"
+      commit_step_changes
+      post_parent_changelog
       jira_add_comment "$subtask_key" \
         "✅ CI all-green. PR #${pr_number} ready to merge.\n\nMerge: gh pr merge ${pr_number} --squash --delete-branch"
       jira_transition_to "$subtask_key" "Done" 2>/dev/null || true
