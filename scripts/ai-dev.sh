@@ -18,8 +18,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLAUDE_CMD="${AI_DEV_CLAUDE_CMD:-codemie-claude}"
-STEPS_ORDERED=(requirements design code-impl code-test code-quality code-security code-perf validate deploy)
-GATED_STEPS=(requirements design code-impl code-test code-quality code-security code-perf)
+STEPS_ORDERED=(requirements design code-impl code-test code-quality code-security code-perf validate deploy-pr deploy-ship)
+GATED_STEPS=(requirements design code-impl code-test code-quality code-security code-perf deploy-pr)
 _CODE_ALIAS_MODE=false
 
 # ══════════════════════════════════════════════════════════════════════
@@ -724,7 +724,7 @@ EOF
   sf="$(subtasks_file)"
   > "$sf"
 
-  local step_names=("requirements" "design" "code-impl" "code-test" "code-quality" "code-security" "code-perf" "deploy")
+  local step_names=("requirements" "design" "code-impl" "code-test" "code-quality" "code-security" "code-perf" "deploy-pr" "deploy-ship")
   local step_summaries=(
     "[AI] Requirements Analysis"
     "[AI] Technical Design"
@@ -733,7 +733,8 @@ EOF
     "[AI] Code Quality: ${TICKET_ID}"
     "[AI] Security Review: ${TICKET_ID}"
     "[AI] Performance Review: ${TICKET_ID}"
-    "[AI] Deploy & PR"
+    "[AI] PR: ${TICKET_ID}"
+    "[AI] Ship: ${TICKET_ID}"
   )
   local step_descriptions=(
     "AI-generated requirements analysis. Review and transition to Done to approve."
@@ -743,7 +744,8 @@ EOF
     "AI-enforced lint, TypeScript, and formatting. Transitions to Done when all checks pass."
     "AI-generated OWASP review. Produces SECURITY_REVIEW.md. Transition to Done when verdict is acceptable."
     "AI-generated performance review and E2E stubs. Transition to Done when approved."
-    "AI-generated PR. Auto-completes after PR is opened."
+    "AI-generated PR: pushes branch, opens PR with filled template. Transitions to In Review when PR created."
+    "CI monitoring: checks PR status, classifies failures, dispatches fixes. Transitions to Done when CI is green."
   )
 
   for i in "${!step_names[@]}"; do
