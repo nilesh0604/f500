@@ -312,7 +312,7 @@ get_subtask_key() {
   local sf
   sf="$(subtasks_file)"
   if [ -f "$sf" ]; then
-    grep "^${step}=" "$sf" 2>/dev/null | cut -d= -f2
+    grep "^${step}=" "$sf" 2>/dev/null | cut -d= -f2 || true
   fi
 }
 

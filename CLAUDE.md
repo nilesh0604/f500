@@ -34,14 +34,18 @@ When creating/searching issues, always use project key `SCRUM` unless explicitly
 - **Cloud**: AWS (Lambda, Bedrock, API Gateway, CloudFront, S3 Vectors, DynamoDB, ECS Fargate, ALB, EventBridge, SQS, RDS, ElastiCache)
 - **IaC**: AWS CDK (TypeScript) in `infra/`
 - **Message broker**: EventBridge (publish) → SQS (consume)
-- **Environments**: Single `prod` environment (config in `infra/config/environments.ts`, per ADR-011)
+- **Environments**: Single `prod` environment in `us-east-1` (config in `infra/config/environments.ts`, per ADR-011)
+
+> **IMPORTANT — Single prod environment, existing resources only:**
+> One environment (`prod`) in `us-east-1`. Stack names carry a `-dev-` prefix — this is a historical naming artifact; they ARE the prod resources.
+> **Never create new AWS resources for this project.** Always reuse existing stacks, buckets, tables, Lambda, and Bedrock assets. See `docs/INFRASTRUCTURE.md` for the full resource inventory.
 
 ### Services (active)
 
-| Service           | Runtime          | Directory                 | Status                                                                       |
-| ----------------- | ---------------- | ------------------------- | ---------------------------------------------------------------------------- |
-| vyasa-rag-service | Lambda + Bedrock | `apps/vyasa-rag-service/` | ✅ Live — API Gateway `t859xz8d3c` in `us-east-1`                            |
-| vyasa-ui          | React 18 + Vite  | `apps/vyasa-ui/`          | ✅ Live — CloudFront `d2j5xbveesoc8s` (dev) / `vyasa.nshinde.xyz` (external) |
+| Service           | Runtime          | Directory                 | Status                                                                              |
+| ----------------- | ---------------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| vyasa-rag-service | Lambda + Bedrock | `apps/vyasa-rag-service/` | ✅ Live — Lambda `vyasa-rag-dev`, API Gateway `lkbzhoe1pj` in `us-east-1`           |
+| vyasa-ui          | React 18 + Vite  | `apps/vyasa-ui/`          | ✅ Live — CloudFront `d2j5xbveesoc8s` (dist `E1W56P4E23UU5Y`) / `vyasa.nshinde.xyz` |
 
 ### Services (planned — not yet scaffolded)
 
@@ -207,7 +211,7 @@ main          ← production-ready, protected
 ## Known Technical Debt
 
 - `aws-sdk` v2 still in `package.json` root dependencies — do NOT use in new code
-- Route 53 / custom domain not provisioned for OrderFlow — Vyasa uses `vyasa.nshinde.xyz` (external) / `d2j5xbveesoc8s.cloudfront.net` (dev)
+- Route 53 / custom domain not provisioned for OrderFlow — Vyasa uses `vyasa.nshinde.xyz` (Namecheap CNAME) / `d2j5xbveesoc8s.cloudfront.net` (direct CloudFront)
 - Secrets rotation Lambda not wired in CDK yet (tracked in `docs/PRODUCTION_APP_MASTER_PLAN.md`)
 - SSM Parameter Store migration not complete — some config still in ECS env vars
 - `apps/vyasa-rag-service/CLAUDE.md` still says "Claude 3 Haiku" in diagram — actual model is Amazon Nova Pro

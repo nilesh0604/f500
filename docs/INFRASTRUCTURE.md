@@ -4,6 +4,9 @@
 > **Region:** `us-east-1` | **Account:** `947612421212`  
 > **Environment:** Single `prod` only (per [ADR-011](#adr-011-single-environment-cost-optimisation))  
 > **Owner:** Platform Team | **IaC:** AWS CDK (TypeScript) in `infra/`
+>
+> ⚠️ **Stack names carry a `-dev-` prefix — this is a historical naming artifact. These ARE the production resources.**  
+> ⚠️ **Do NOT create new AWS resources. Reuse existing stacks, buckets, tables, Lambda, and Bedrock assets only.**
 
 ---
 
@@ -87,31 +90,42 @@ All stacks are prefixed `OrderFlow-*` (no environment suffix in prod).
 
 ### Vyasa Intelligence Stacks
 
-| Stack                      | File                        | Purpose                                                      |
-| -------------------------- | --------------------------- | ------------------------------------------------------------ |
-| `OrderFlow-VyasaVector`    | `lib/vyasa-vector-stack.ts` | S3 Vectors bucket + index, IAM role for Bedrock KB           |
-| `OrderFlow-Prod-VyasaRag`  | `lib/vyasa-lambda-stack.ts` | Lambda, API Gateway, DynamoDB, CloudWatch alarms             |
-| `OrderFlow-VyasaUi`        | `lib/vyasa-ui-stack.ts`     | CloudFront (custom domain), S3 UI bucket, OAC, CF Function   |
-| `OrderFlow-Prod-VyasaAoss` | `lib/vyasa-aoss-stack.ts`   | Amazon OpenSearch Serverless collection (alternative to S3V) |
+> Stack names use `-dev-` prefix (historical artifact) — these are the live prod stacks.
+
+| Stack (actual CF name)      | File                        | Purpose                                          |
+| --------------------------- | --------------------------- | ------------------------------------------------ |
+| `OrderFlow-dev-VyasaVector` | `lib/vyasa-vector-stack.ts` | S3 Vectors index + IAM role for Bedrock KB       |
+| `OrderFlow-dev-VyasaRag`    | `lib/vyasa-lambda-stack.ts` | Lambda, API Gateway, DynamoDB, CloudWatch alarms |
+| `OrderFlow-dev-VyasaUi`     | `lib/vyasa-ui-stack.ts`     | CloudFront, S3 UI bucket, OAC, CF Function       |
 
 ---
 
 ## 3. Live Resources & Endpoints
 
-| Resource                       | ID / Value                                                       |
-| ------------------------------ | ---------------------------------------------------------------- |
-| **Vyasa UI (external)**        | `https://vyasa.nshinde.xyz` (custom domain for end users)        |
-| **Vyasa UI (dev/internal)**    | `https://d2j5xbveesoc8s.cloudfront.net` (use during development) |
-| **Vyasa RAG API**              | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com`         |
-| **Vyasa RAG health**           | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com/health`  |
-| **CloudFront Distribution ID** | `EP5RB7V8B8LOQ`                                                  |
-| **ACM Certificate ARN**        | `arn:aws:acm:us-east-1:947612421212:certificate/64cc200e-...`    |
-| **S3 UI Bucket**               | `orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y`           |
-| **Bedrock KB ID**              | `OYAKPT9RLA`                                                     |
-| **Bedrock Data Source ID**     | `B2VQSKC6IS`                                                     |
-| **S3 Corpus Bucket**           | `vyasa-rag-corpus-dev-947612421212` (RETAIN policy)              |
-| **S3 Prompts Bucket**          | `vyasa-rag-prompts-dev-947612421212` (RETAIN policy)             |
-| **S3 Vectors Bucket**          | `vyasa-vectors-dev-947612421212`                                 |
+| Resource                       | ID / Value                                                         |
+| ------------------------------ | ------------------------------------------------------------------ |
+| **Vyasa UI (custom domain)**   | `https://vyasa.nshinde.xyz` (Namecheap CNAME → CloudFront)         |
+| **Vyasa UI (direct)**          | `https://d2j5xbveesoc8s.cloudfront.net`                            |
+| **CloudFront Distribution ID** | `E1W56P4E23UU5Y`                                                   |
+| **CloudFront OAC**             | `E2E7JDA13AWNM9`                                                   |
+| **CloudFront Function**        | `vyasa-api-rewrite-dev-v2`                                         |
+| **Vyasa RAG API**              | `https://lkbzhoe1pj.execute-api.us-east-1.amazonaws.com`           |
+| **Vyasa RAG health**           | `https://lkbzhoe1pj.execute-api.us-east-1.amazonaws.com/health`    |
+| **Lambda Function**            | `vyasa-rag-dev` (arm64, 1024 MB, Node.js 22)                       |
+| **S3 UI Bucket**               | `orderflow-dev-vyasaui-vyasauibucket7b9068a5-eegjs5vw5mij`         |
+| **S3 Access Logs Bucket**      | `orderflow-dev-vyasaui-vyasauiaccesslogsbucketbb002-xteeykke9i2y`  |
+| **Bedrock KB ID**              | `OYAKPT9RLA` (`vyasa-rag-kb-dev`, ACTIVE)                          |
+| **Bedrock Data Source ID**     | `B2VQSKC6IS`                                                       |
+| **Bedrock Embedding Model**    | `amazon.titan-embed-text-v2:0` (1024-dim)                          |
+| **Bedrock LLM**                | `amazon.nova-pro-v1:0`                                             |
+| **S3 Vectors Index**           | `vyasa-vectors-dev-947612421212 / vyasa-index-dev` (S3 Vectors)    |
+| **S3 Corpus Bucket**           | `vyasa-rag-corpus-prod-947612421212`                               |
+| **S3 Prompts Bucket**          | `vyasa-rag-prompts-prod-947612421212`                              |
+| **DynamoDB Sessions**          | `vyasa-rag-sessions-dev` (PAY_PER_REQUEST, TTL 7 days)             |
+| **DynamoDB Rate Limits**       | `vyasa-rag-rate-limits-dev` (PAY_PER_REQUEST)                      |
+| **IAM Role (RAG)**             | `OrderFlow-dev-VyasaRag-VyasaRagFunctionServiceRole3-NSCvroR0lMPF` |
+| **IAM Role (KB)**              | `vyasa-rag-kb-role-dev`                                            |
+| **CloudWatch Log Group**       | `/aws/lambda/vyasa-rag-dev` (90-day retention)                     |
 
 > **Note:** `.xyz` TLD may be blocked by corporate DNS. Use the CloudFront URL on managed devices.
 
@@ -278,27 +292,29 @@ Architecture decision: [ADR-010 — Serverless Lambda over ECS Fargate](#adr-010
 
 ## 10. CDN & Custom Domain
 
-| Resource                 | Value                                                    |
-| ------------------------ | -------------------------------------------------------- |
-| CloudFront Distribution  | `EP5RB7V8B8LOQ`                                          |
-| CloudFront Domain (dev)  | `d2j5xbveesoc8s.cloudfront.net` (use during development) |
-| Custom Domain (external) | `vyasa.nshinde.xyz` (for end users)                      |
-| Price Class              | `PriceClass_All`                                         |
-| CloudFront Function      | `vyasa-api-rewrite-prod-v2` (rewrites `/api/*` → `/*`)   |
-| ACM Certificate          | `us-east-1` (required for CloudFront)                    |
+| Resource                | Value                                                 |
+| ----------------------- | ----------------------------------------------------- |
+| CloudFront Distribution | `E1W56P4E23UU5Y`                                      |
+| CloudFront Domain       | `d2j5xbveesoc8s.cloudfront.net`                       |
+| Custom Domain           | `vyasa.nshinde.xyz` (Namecheap CNAME)                 |
+| Price Class             | `PriceClass_100`                                      |
+| CloudFront Function     | `vyasa-api-rewrite-dev-v2` (rewrites `/api/*` → `/*`) |
+| OAC                     | `E2E7JDA13AWNM9`                                      |
+| ACM Certificate         | `us-east-1` (required for CloudFront)                 |
 
 ### Deploy UI Assets
 
 ```bash
-# After stack deploy, sync assets if the bucket is empty
-aws s3 sync s3://vyasa-ui-prod-947612421212 \
-  s3://orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y \
+# Build and sync UI to the prod S3 bucket
+cd apps/vyasa-ui && npm run build
+aws s3 sync dist/ \
+  s3://orderflow-dev-vyasaui-vyasauibucket7b9068a5-eegjs5vw5mij \
   --region us-east-1
 
+# Invalidate CloudFront cache
 aws cloudfront create-invalidation \
-  --distribution-id EP5RB7V8B8LOQ \
-  --paths "/*" \
-  --region us-east-1
+  --distribution-id E1W56P4E23UU5Y \
+  --paths "/*"
 ```
 
 ---
@@ -475,8 +491,8 @@ aws rds restore-db-instance-to-point-in-time \
 ```bash
 git clone https://github.com/nilesh0604/orderflow.git
 cd orderflow/infra && npm ci
-npx cdk bootstrap aws://947612421212/us-east-1
-npx cdk deploy --all --require-approval never
+CDK_DEFAULT_REGION=us-east-1 npx cdk bootstrap aws://947612421212/us-east-1
+npx cdk deploy OrderFlow-dev-VyasaVector OrderFlow-dev-VyasaRag OrderFlow-dev-VyasaUi --require-approval never
 ```
 
 ### DR Test Schedule
@@ -501,9 +517,8 @@ cdk synth                                    # Synthesize CloudFormation
 cdk diff                                     # Diff against deployed stack
 cdk deploy --require-approval broadening     # Deploy with approval
 
-# Vyasa UI only (region must be explicit — AWS CLI default may be us-east-2)
-AWS_DEFAULT_REGION=us-east-1 CDK_DEFAULT_REGION=us-east-1 \
-  npx cdk deploy OrderFlow-VyasaUi --exclusively --require-approval never
+# Vyasa UI only
+CDK_DEFAULT_REGION=us-east-1 npx cdk deploy OrderFlow-dev-VyasaUi --exclusively --require-approval never
 ```
 
 ### CDK Tests

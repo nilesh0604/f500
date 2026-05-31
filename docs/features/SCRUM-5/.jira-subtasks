@@ -1,5 +1,9 @@
 requirements=SCRUM-6
 design=SCRUM-7
 code=SCRUM-8
+code-impl=SCRUM-8
 test=SCRUM-9
+code-test=SCRUM-9
 deploy=SCRUM-10
+deploy-pr=SCRUM-10
+deploy-ship=SCRUM-10

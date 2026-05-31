@@ -100,7 +100,7 @@ npx nx build vyasa-rag-service
 npx nx test vyasa-rag-service
 
 # Deploy (via CDK)
-cd infra && npx cdk deploy OrderFlow-VyasaRag
+cd infra && npx cdk deploy OrderFlow-dev-VyasaRag
 ```
 
 ## Cost Optimization
