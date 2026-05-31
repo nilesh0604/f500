@@ -50,3 +50,9 @@ dist/cypress/
 # Misc
 *.log
 .worktrees/
+
+# ai-dev.sh runtime state — generated per release run, not source
+docs/features/**/.last-known-good-commit
+docs/features/**/.pr_number
+docs/features/**/.fix_retries.json
+docs/features/**/.jira-subtasks
