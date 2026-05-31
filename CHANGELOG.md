@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release: Build failures now abort deployment** — `ai-dev.sh release` previously treated `vyasa-rag-service` and `vyasa-ui` build failures as soft warnings and continued deploying stale artifacts. Both builds now fail fast with a Jira comment on error.
+- **Release: Double S3 sync + double CloudFront invalidation** — When `ui_changed=true` the script was syncing to S3 and invalidating CloudFront twice (once via CF distribution lookup, once from stack outputs). Added `ui_synced` flag; the second block is now skipped if the first already ran.
+- **Release: Scoped auto-rollback** — Auto-rollback on smoke test failure now redeploys only the stacks that were actually deployed in that run, not all three stacks unconditionally.
+- **Release: Working-tree safety on rollback interruption** — `ai-dev.sh rollback` now installs a `trap EXIT INT TERM` before modifying the working tree so interrupting mid-checkout always restores `infra/` and `apps/` to HEAD.
+- **Release: Missing `--region us-east-1` on second S3 sync** — The fallback S3 sync block (post-CDK stack output) was missing the region flag. Both `aws s3 sync` and `aws s3 cp` calls now include `--region us-east-1`.
+- **Release: Redundant `2>&1` on `cdk synth` check** — Removed unnecessary stderr redirect on the pre-flight `cdk synth --quiet` call.
+- **AWS: Deleted orphaned CloudFront distribution `EP41R330H10K2` (`dmz5l917whhxp.cloudfront.net`)** — Left over from the `OrderFlow-Prod-VyasaUi` stack rename (ADR-011). Stack and most resources were already gone; manually emptied and deleted the remaining S3 bucket `vyasa-ui-prod-947612421212` (182 KB, 3 objects).
+
 - **CDK: Smart deployment in release script** — `ai-dev.sh release` now detects what changed in the merged PR and uses the right strategy per service: UI-only changes do `aws s3 sync` + CloudFront invalidation on the existing distribution (no CDK); RAG service changes deploy only `OrderFlow-VyasaRag`; infra changes deploy relevant CDK stacks. Eliminates unnecessary CDK deploys on UI-only PRs and prevents creating duplicate CloudFront distributions.
 - **Release: Pre-flight stack health check** — `ai-dev.sh release` now checks all OrderFlow CloudFormation stacks in both `us-east-1` and `us-east-2` for `ROLLBACK_COMPLETE` / `*_FAILED` states before any deploy. Fails fast with delete instructions instead of getting stuck mid-deploy.
 - **Release: Dynamic UI bucket resolution** — S3 bucket name is now derived at runtime from the CloudFront distribution origin instead of being hardcoded, preventing stale/incorrect bucket names from causing sync failures.

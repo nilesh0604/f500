@@ -1,6 +1,7 @@
 # ADR-012: Custom Domain Configuration for Vyasa UI (CloudFront + ACM)
 
 - **Date:** 2026-05-25
+- **Updated:** 2026-05-31 — migration complete, orphaned resources cleaned up
 - **Status:** Accepted
 - **Author:** Nilesh Shinde
 
@@ -39,15 +40,18 @@ validated via DNS (CNAME record in Namecheap).
 | **CloudFront Function**        | `vyasa-api-rewrite-prod-v2` (rewrites `/api/*` → `/*`)                                    |
 | **API Origin**                 | `https://no24fwwtcl.execute-api.us-east-1.amazonaws.com` (from `OrderFlow-Prod-VyasaRag`) |
 
-### Legacy Resources (Orphaned — do not delete)
+### Legacy Resources (Cleaned Up — 2026-05-31)
 
-| Resource                    | Value                                            | Notes                                            |
-| --------------------------- | ------------------------------------------------ | ------------------------------------------------ |
-| Old CloudFront Distribution | `EP41R330H10K2` / `dmz5l917whhxp.cloudfront.net` | Owned by `OrderFlow-Prod-VyasaUi` — still active |
-| Old S3 UI Bucket            | `vyasa-ui-prod-947612421212`                     | Has live content, RETAIN policy                  |
-| Old S3 Logs Bucket          | `vyasa-ui-access-logs-prod-947612421212`         | RETAIN policy                                    |
-| Old Log Group               | `/vyasa/ui-deploy-prod`                          | Orphaned                                         |
-| Old CF Function             | `vyasa-api-rewrite-prod`                         | Owned by `OrderFlow-Prod-VyasaUi`                |
+All orphaned resources from the old `OrderFlow-Prod-VyasaUi` stack have been deleted.
+
+| Resource                    | Value                                            | Status                       |
+| --------------------------- | ------------------------------------------------ | ---------------------------- |
+| Old CloudFront Distribution | `EP41R330H10K2` / `dmz5l917whhxp.cloudfront.net` | ✅ Deleted (stack destroyed) |
+| Old S3 UI Bucket            | `vyasa-ui-prod-947612421212`                     | ✅ Emptied and deleted       |
+| Old S3 Logs Bucket          | `vyasa-ui-access-logs-prod-947612421212`         | ✅ Already gone              |
+| Old Log Group               | `/vyasa/ui-deploy-prod`                          | ✅ Already gone              |
+| Old CF Function             | `vyasa-api-rewrite-prod`                         | ✅ Already gone              |
+| Old Stack                   | `OrderFlow-Prod-VyasaUi`                         | ✅ Already destroyed         |
 
 ---
 
@@ -125,23 +129,49 @@ aws cloudfront create-invalidation \
 
 ## Access URLs
 
-| URL                                     | Status  | Notes                                                             |
-| --------------------------------------- | ------- | ----------------------------------------------------------------- |
-| `https://vyasa.nshinde.xyz`             | ✅ Live | Custom domain (external users) — may be blocked by org DNS policy |
-| `https://d2j5xbveesoc8s.cloudfront.net` | ✅ Live | CloudFront direct — use for dev/testing on corp devices           |
-| `https://dmz5l917whhxp.cloudfront.net`  | ✅ Live | Old distribution (`OrderFlow-Prod-VyasaUi`) — still active        |
+| URL                                     | Status     | Notes                                                             |
+| --------------------------------------- | ---------- | ----------------------------------------------------------------- |
+| `https://vyasa.nshinde.xyz`             | ✅ Live    | Custom domain (external users) — may be blocked by org DNS policy |
+| `https://d2j5xbveesoc8s.cloudfront.net` | ✅ Live    | CloudFront direct — use for dev/testing on corp devices           |
+| `https://dmz5l917whhxp.cloudfront.net`  | ❌ Deleted | Old distribution — cleaned up 2026-05-31                          |
 
 ---
 
-## Known Issues
+## FAQ
 
-### Stack Naming Migration
+### Why did the CloudFront domain change from `dmz5l917whhxp` to `d2j5xbveesoc8s`?
+
+This was a **one-time event** caused by renaming the CDK stack from
+`OrderFlow-Prod-VyasaUi` → `OrderFlow-VyasaUi` (ADR-011 single-env
+simplification). CDK treats a stack rename as a new stack — it creates all
+resources fresh, including a new CloudFront distribution with a new auto-assigned
+domain. **This will not happen again** on normal deployments; CDK tracks the
+existing distribution via its logical ID and reuses it.
+
+Future deploys only update assets in-place (S3 sync + CloudFront invalidation).
+The domain `d2j5xbveesoc8s.cloudfront.net` is stable.
+
+### Will new resources be created on every `release`?
+
+No. The release script does **not** create new AWS resources. It:
+
+1. Syncs built UI assets to the existing S3 bucket
+2. Invalidates the existing CloudFront distribution
+3. Runs `cdk deploy` which is idempotent — CloudFormation updates in-place or
+   does nothing if there are no changes
+
+New resources would only be created if the CDK stack were destroyed and
+recreated, which requires explicit manual intervention.
+
+---
+
+## Known Issues (Resolved)
+
+### Stack Naming Migration — RESOLVED 2026-05-31
 
 The stack was renamed from `OrderFlow-Prod-VyasaUi` → `OrderFlow-VyasaUi` as
-part of the single-env simplification (ADR-011). The old stack (`OrderFlow-Prod-VyasaRag`,
-`OrderFlow-Prod-VyasaVector`) remains active. The new `OrderFlow-VyasaUi` stack
-references the old RAG API endpoint directly until `OrderFlow-VyasaRag` is
-redeployed under the new naming convention.
+part of ADR-011. The migration is complete. All orphaned resources from the old
+stack have been deleted. The active stack is `OrderFlow-VyasaUi` in `us-east-1`.
 
 ### Corporate DNS Blocking
 

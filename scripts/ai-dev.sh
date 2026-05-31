@@ -2525,7 +2525,7 @@ cmd_release() {
   # CDK synth — catch config errors before committing to a deploy
   echo "[3/8] Running cdk synth (pre-flight check)..."
   cd "$REPO_ROOT/infra"
-  if ! npx cdk synth --quiet 2>&1; then
+  if ! npx cdk synth --quiet; then
     echo "Error: cdk synth failed — fix stack configuration before deploying."
     jira_add_comment "$TICKET_ID" \
       "❌ Release pre-flight failed: cdk synth error. Fix and re-run release."
@@ -2536,8 +2536,16 @@ cmd_release() {
   # Clean install + builds
   echo "[4/8] Installing dependencies and building..."
   npm ci
-  npx nx build vyasa-rag-service 2>&1 || echo "Warning: vyasa-rag-service build failed (continuing)"
-  (cd apps/vyasa-ui && npm run build 2>&1) || echo "Warning: vyasa-ui build failed (continuing)"
+  if ! npx nx build vyasa-rag-service; then
+    echo "Error: vyasa-rag-service build failed — cannot deploy stale artifact."
+    jira_add_comment "$TICKET_ID" "❌ Release failed: vyasa-rag-service build error."
+    exit 1
+  fi
+  if ! (cd apps/vyasa-ui && npm run build); then
+    echo "Error: vyasa-ui build failed — cannot deploy stale artifact."
+    jira_add_comment "$TICKET_ID" "❌ Release failed: vyasa-ui build error."
+    exit 1
+  fi
 
   # Record pre-deploy rollback target (main~1 state)
   git rev-parse HEAD~1 > "$(release_marker_file)" 2>/dev/null || true
@@ -2547,12 +2555,10 @@ cmd_release() {
 
   # Detect what changed in the merged PR to decide deployment strategy
   echo "[5/8] Deploying changed services..."
-  local pr_number_val
-  pr_number_val=$(cat "$(pr_number_file)")
   local changed_files
-  changed_files=$(gh pr view "$pr_number_val" --json files --jq '.files[].path' 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+  changed_files=$(gh pr view "$(cat "$(pr_number_file)")" --json files --jq '.files[].path' 2>/dev/null || git diff --name-only HEAD~1 HEAD)
 
-  local ui_changed=false rag_changed=false infra_changed=false
+  local ui_changed=false rag_changed=false infra_changed=false ui_synced=false deployed_stacks=""
   echo "$changed_files" | grep -qE '^apps/vyasa-ui/'              && ui_changed=true
   echo "$changed_files" | grep -qE '^apps/vyasa-rag-service/'     && rag_changed=true
   echo "$changed_files" | grep -qE '^infra/'                      && infra_changed=true
@@ -2587,6 +2593,7 @@ cmd_release() {
     echo "  Invalidating CloudFront distribution $cf_dist_id ..."
     aws cloudfront create-invalidation --distribution-id "$cf_dist_id" --paths "/*" \
       --query "Invalidation.{Id:Id,Status:Status}" --output table
+    ui_synced=true
   fi
 
   # RAG service change: deploy only the Lambda stack
@@ -2599,6 +2606,7 @@ cmd_release() {
       exit 1
     fi
     cd "$REPO_ROOT"
+    deployed_stacks="OrderFlow-VyasaRag"
   fi
 
   # Infrastructure-level changes: CDK deploy relevant stacks
@@ -2616,6 +2624,7 @@ cmd_release() {
       exit 1
     fi
     cd "$REPO_ROOT"
+    deployed_stacks="$stacks_to_deploy"
   fi
 
   if ! $ui_changed && ! $rag_changed && ! $infra_changed; then
@@ -2642,16 +2651,18 @@ cmd_release() {
     --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-DistributionDomain`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
-  # S3 sync from CDK stack outputs (only when stack exists and bucket resolved)
-  if [ -n "$ui_bucket" ] && [ "$ui_bucket" != "None" ] && [ -d "$REPO_ROOT/apps/vyasa-ui/dist" ]; then
+  # S3 sync from CDK stack outputs — only when infra deployed the UI stack and sync hasn't run yet
+  if ! $ui_synced && [ -n "$ui_bucket" ] && [ "$ui_bucket" != "None" ] && [ -d "$REPO_ROOT/apps/vyasa-ui/dist" ]; then
     echo "  Syncing UI assets to S3 (from stack output)..."
     aws s3 sync apps/vyasa-ui/dist/ "s3://${ui_bucket}" \
       --delete \
       --cache-control "public,max-age=31536000,immutable" \
-      --exclude "index.html"
+      --exclude "index.html" \
+      --region us-east-1
     aws s3 cp apps/vyasa-ui/dist/index.html \
       "s3://${ui_bucket}/index.html" \
-      --cache-control "no-cache,no-store,must-revalidate"
+      --cache-control "no-cache,no-store,must-revalidate" \
+      --region us-east-1
 
     if [ -n "$ui_dist_id" ]; then
       echo "  Invalidating CloudFront cache..."
@@ -2717,8 +2728,9 @@ cmd_release() {
       echo "  Checking out infra/apps from ${rollback_commit:0:8}..."
       git checkout "$rollback_commit" -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
       cd "$REPO_ROOT/infra"
-      npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi \
-        --require-approval never 2>/dev/null || true
+      local rb_stacks="${deployed_stacks:-OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi}"
+      # shellcheck disable=SC2086
+      npx cdk deploy $rb_stacks --require-approval never 2>/dev/null || true
       cd "$REPO_ROOT"
       git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
       echo "  Rollback deploy complete."
@@ -2824,6 +2836,9 @@ cmd_rollback() {
 
   # Checkout infra + app code from rollback target
   echo "[3/4] Checking out previous infra and app state..."
+  # Guard: always restore working tree on exit, Ctrl-C, or error
+  trap 'cd "$REPO_ROOT" && git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true' EXIT INT TERM
+
   git checkout "$rollback_commit" -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || {
     echo "Error: Could not checkout state from ${rollback_commit:0:8}."
     echo "  The commit may not include the paths infra/, apps/vyasa-rag-service/, apps/vyasa-ui/"
@@ -2834,8 +2849,6 @@ cmd_rollback() {
   cd "$REPO_ROOT/infra"
   if ! npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi \
        --require-approval never 2>&1; then
-    cd "$REPO_ROOT"
-    git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
     echo ""
     echo "Error: Rollback CDK deploy failed."
     jira_add_comment "$TICKET_ID" \
@@ -2844,7 +2857,7 @@ cmd_rollback() {
   fi
   cd "$REPO_ROOT"
 
-  # Restore working tree to HEAD
+  trap - EXIT INT TERM
   git checkout HEAD -- infra/ apps/vyasa-rag-service/ apps/vyasa-ui/ 2>/dev/null || true
 
   echo "[4/4] Updating Jira..."
