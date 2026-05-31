@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CDK: Smart deployment in release script** — `ai-dev.sh release` now detects what changed in the merged PR and uses the right strategy per service: UI-only changes do `aws s3 sync` + CloudFront invalidation on the existing distribution (no CDK); RAG service changes deploy only `OrderFlow-VyasaRag`; infra changes deploy relevant CDK stacks. Eliminates unnecessary CDK deploys on UI-only PRs and prevents creating duplicate CloudFront distributions.
+- **Release: Pre-flight stack health check** — `ai-dev.sh release` now checks all OrderFlow CloudFormation stacks in both `us-east-1` and `us-east-2` for `ROLLBACK_COMPLETE` / `*_FAILED` states before any deploy. Fails fast with delete instructions instead of getting stuck mid-deploy.
+- **Release: Dynamic UI bucket resolution** — S3 bucket name is now derived at runtime from the CloudFront distribution origin instead of being hardcoded, preventing stale/incorrect bucket names from causing sync failures.
+- **CDK: CloudFront ACM certificate region mismatch** — `VyasaUiStack` was being deployed to whatever the user's default AWS region was (e.g. `us-east-2`), causing ACM certificate creation to fail because CloudFront requires certificates in `us-east-1`. Fixed by pinning `VyasaUiStack` to `env: { region: 'us-east-1' }` in `infra/bin/app.ts`.
+- **CDK: S3 bucket collision on re-deploy** — `vyasa-rag-corpus-prod` and `vyasa-rag-prompts-prod` buckets already exist in AWS; replaced `new s3.Bucket()` with `s3.Bucket.fromBucketName()` in `VyasaLambdaStack` to reference existing buckets instead of failing with "already exists" on every deploy.
+
 ### Changed
 
 - **CI: Temporarily disabled all non-PR GitHub workflows** — Renamed `llm-security-scan.yml`, `sbom.yml`, `security-scan.yml`, `vyasa-rag-cd.yml`, `vyasa-rag-ci.yml`, `vyasa-rag-eval.yml`, and `vyasa-ui-cd.yml` to `.disabled` to mute all checks except `pr-checks.yml`. Re-enable by renaming files back to `.yml` extension.

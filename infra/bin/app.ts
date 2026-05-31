@@ -54,9 +54,9 @@ vyasaStack.addDependency(vyasaVectorStack);
 const vyasaApiEndpoint =
   process.env.VYASA_API_ENDPOINT ?? vyasaStack.functionUrl;
 
-// Vyasa UI stack
+// Vyasa UI stack — CloudFront + ACM certs must be in us-east-1 regardless of default region
 const vyasaUiStack = new VyasaUiStack(app, `${stackPrefix}-VyasaUi`, {
-  env,
+  env: { account: env.account, region: 'us-east-1' },
   config,
   apiEndpoint: vyasaApiEndpoint,
   domainName: config.vyasaDomainName,

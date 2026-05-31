@@ -2500,6 +2500,28 @@ cmd_release() {
   aws_region=$(aws configure get region 2>/dev/null || echo "${AWS_DEFAULT_REGION:-us-east-1}")
   echo "  Account: $aws_account  Region: $aws_region"
 
+  # Pre-flight: check for stuck CloudFormation stacks that would block CDK deploy
+  echo "[2b/8] Checking CloudFormation stack health..."
+  local bad_stacks=""
+  for stack_name in OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi; do
+    for region in us-east-1 us-east-2; do
+      local stack_status
+      stack_status=$(aws cloudformation describe-stacks \
+        --stack-name "$stack_name" --region "$region" \
+        --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "")
+      if [[ "$stack_status" == *"FAILED"* || "$stack_status" == "ROLLBACK_COMPLETE" ]]; then
+        bad_stacks="$bad_stacks\n  $stack_name ($region): $stack_status"
+      fi
+    done
+  done
+  if [ -n "$bad_stacks" ]; then
+    echo "Error: Stuck CloudFormation stacks detected — delete them before releasing:"
+    echo -e "$bad_stacks"
+    echo "  Run: aws cloudformation delete-stack --stack-name <name> --region <region>"
+    exit 1
+  fi
+  echo "  All stacks healthy."
+
   # CDK synth — catch config errors before committing to a deploy
   echo "[3/8] Running cdk synth (pre-flight check)..."
   cd "$REPO_ROOT/infra"
@@ -2523,18 +2545,82 @@ cmd_release() {
   local deploy_start
   deploy_start=$(date +%s)
 
-  # CDK deploy
-  echo "[5/8] Deploying CDK stacks..."
-  cd "$REPO_ROOT/infra"
-  if ! npx cdk deploy OrderFlow-VyasaVector OrderFlow-VyasaRag OrderFlow-VyasaUi \
-       --require-approval never 2>&1; then
-    cd "$REPO_ROOT"
-    echo "Error: CDK deploy failed."
-    jira_add_comment "$TICKET_ID" \
-      "❌ Release failed: CDK deploy error. Check terminal for details. Run rollback if production is impacted."
-    exit 1
+  # Detect what changed in the merged PR to decide deployment strategy
+  echo "[5/8] Deploying changed services..."
+  local pr_number_val
+  pr_number_val=$(cat "$(pr_number_file)")
+  local changed_files
+  changed_files=$(gh pr view "$pr_number_val" --json files --jq '.files[].path' 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+  local ui_changed=false rag_changed=false infra_changed=false
+  echo "$changed_files" | grep -qE '^apps/vyasa-ui/'              && ui_changed=true
+  echo "$changed_files" | grep -qE '^apps/vyasa-rag-service/'     && rag_changed=true
+  echo "$changed_files" | grep -qE '^infra/'                      && infra_changed=true
+
+  echo "  ui_changed=$ui_changed  rag_changed=$rag_changed  infra_changed=$infra_changed"
+
+  # UI content: always sync + invalidate when UI files changed, regardless of infra changes
+  if $ui_changed; then
+    local cf_dist_id="E1W56P4E23UU5Y"
+    # Derive bucket name from CloudFront origin at runtime — avoids hardcoding
+    local ui_s3_bucket
+    ui_s3_bucket=$(aws cloudfront get-distribution --id "$cf_dist_id" \
+      --query "Distribution.DistributionConfig.Origins.Items[0].DomainName" \
+      --output text | sed 's/\.s3\.[^.]*\.amazonaws\.com$//')
+    if [ -z "$ui_s3_bucket" ] || [ "$ui_s3_bucket" = "None" ]; then
+      echo "Error: Could not resolve UI S3 bucket from CloudFront distribution $cf_dist_id"
+      exit 1
+    fi
+    echo "  Syncing UI to s3://$ui_s3_bucket (us-east-1)..."
+    if ! aws s3 sync apps/vyasa-ui/dist/ "s3://$ui_s3_bucket/" \
+         --delete \
+         --cache-control "public,max-age=31536000,immutable" \
+         --exclude "index.html" \
+         --region us-east-1; then
+      echo "Error: S3 sync failed."
+      jira_add_comment "$TICKET_ID" "❌ Release failed: S3 sync error."
+      exit 1
+    fi
+    aws s3 cp apps/vyasa-ui/dist/index.html "s3://$ui_s3_bucket/index.html" \
+      --cache-control "no-cache,no-store,must-revalidate" \
+      --region us-east-1
+    echo "  Invalidating CloudFront distribution $cf_dist_id ..."
+    aws cloudfront create-invalidation --distribution-id "$cf_dist_id" --paths "/*" \
+      --query "Invalidation.{Id:Id,Status:Status}" --output table
   fi
-  cd "$REPO_ROOT"
+
+  # RAG service change: deploy only the Lambda stack
+  if $rag_changed && ! $infra_changed; then
+    cd "$REPO_ROOT/infra"
+    if ! npx cdk deploy OrderFlow-VyasaRag --require-approval never 2>&1; then
+      cd "$REPO_ROOT"
+      echo "Error: CDK deploy (VyasaRag) failed."
+      jira_add_comment "$TICKET_ID" "❌ Release failed: CDK deploy error (VyasaRag)."
+      exit 1
+    fi
+    cd "$REPO_ROOT"
+  fi
+
+  # Infrastructure-level changes: CDK deploy relevant stacks
+  if $infra_changed; then
+    local stacks_to_deploy="OrderFlow-VyasaVector OrderFlow-VyasaRag"
+    echo "$changed_files" | grep -qE '^infra/lib/vyasa-ui-stack|^infra/bin/app\.ts' \
+      && stacks_to_deploy="$stacks_to_deploy OrderFlow-VyasaUi"
+    echo "  Deploying CDK stacks: $stacks_to_deploy"
+    cd "$REPO_ROOT/infra"
+    # shellcheck disable=SC2086
+    if ! npx cdk deploy $stacks_to_deploy --require-approval never 2>&1; then
+      cd "$REPO_ROOT"
+      echo "Error: CDK deploy failed."
+      jira_add_comment "$TICKET_ID" "❌ Release failed: CDK deploy error. Check terminal for details."
+      exit 1
+    fi
+    cd "$REPO_ROOT"
+  fi
+
+  if ! $ui_changed && ! $rag_changed && ! $infra_changed; then
+    echo "  No deployable changes detected (scripts/docs only) — skipping deploy."
+  fi
 
   # Capture CloudFormation stack outputs
   echo "[6/8] Capturing stack outputs..."
@@ -2556,9 +2642,9 @@ cmd_release() {
     --query 'Stacks[0].Outputs[?ExportName==`OrderFlow-VyasaUi-DistributionDomain`].OutputValue' \
     --output text 2>/dev/null || echo "")
 
-  # S3 sync + CloudFront invalidation for UI
-  if [ -n "$ui_bucket" ] && [ -d "$REPO_ROOT/apps/vyasa-ui/dist" ]; then
-    echo "  Syncing UI assets to S3..."
+  # S3 sync from CDK stack outputs (only when stack exists and bucket resolved)
+  if [ -n "$ui_bucket" ] && [ "$ui_bucket" != "None" ] && [ -d "$REPO_ROOT/apps/vyasa-ui/dist" ]; then
+    echo "  Syncing UI assets to S3 (from stack output)..."
     aws s3 sync apps/vyasa-ui/dist/ "s3://${ui_bucket}" \
       --delete \
       --cache-control "public,max-age=31536000,immutable" \

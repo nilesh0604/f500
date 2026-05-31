@@ -36,43 +36,17 @@ export class VyasaLambdaStack extends cdk.Stack {
     const corpusBucketName = `vyasa-rag-corpus-${config.envName}-${this.account}`;
     const promptsBucketName = `vyasa-rag-prompts-${config.envName}-${this.account}`;
 
-    if (config.envName === 'prod') {
-      // S3 Bucket for Mahabharata corpus (knowledge base data source)
-      this.corpusBucket = new s3.Bucket(this, 'CorpusBucket', {
-        bucketName: corpusBucketName,
-        versioned: true,
-        encryption: s3.BucketEncryption.S3_MANAGED,
-        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-        intelligentTieringConfigurations: [
-          {
-            name: 'ArchiveOldChunks',
-            archiveAccessTierTime: cdk.Duration.days(90),
-            deepArchiveAccessTierTime: cdk.Duration.days(180),
-          },
-        ],
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-      });
-
-      // S3 Bucket for versioned prompts (system, ReAct, reflection)
-      this.promptsBucket = new s3.Bucket(this, 'PromptsBucket', {
-        bucketName: promptsBucketName,
-        versioned: true,
-        encryption: s3.BucketEncryption.S3_MANAGED,
-        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-      });
-    } else {
-      this.corpusBucket = s3.Bucket.fromBucketName(
-        this,
-        'CorpusBucket',
-        corpusBucketName
-      ) as s3.Bucket;
-      this.promptsBucket = s3.Bucket.fromBucketName(
-        this,
-        'PromptsBucket',
-        promptsBucketName
-      ) as s3.Bucket;
-    }
+    // Buckets already exist in AWS — import by name to avoid CloudFormation collision
+    this.corpusBucket = s3.Bucket.fromBucketName(
+      this,
+      'CorpusBucket',
+      corpusBucketName
+    ) as s3.Bucket;
+    this.promptsBucket = s3.Bucket.fromBucketName(
+      this,
+      'PromptsBucket',
+      promptsBucketName
+    ) as s3.Bucket;
 
     // DynamoDB table for sessions (with TTL)
     this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
