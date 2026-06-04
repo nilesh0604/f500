@@ -584,6 +584,12 @@ Approval (gated steps): Transition the subtask to "Done" in Jira UI.
 Auto-approve (alias):   Running "code" auto-transitions each sub-step on success.
 Status:                 All state lives in Jira — no local state files (except validate marker).
 
+Infrastructure Notes:
+  See detailed Lambda function documentation in cmd_release() comments:
+  - 6 Lambda functions: 1 active application + 5 infrastructure-only CDK handlers
+  - Deployment strategy: fast path (RAG only) vs full path (infra changes)
+  - When to modify infra functions vs application code
+
 Environment vars (required):
   JIRA_BASE_URL       e.g. https://yourcompany.atlassian.net
   JIRA_EMAIL          Your Atlassian email
@@ -2458,6 +2464,54 @@ cmd_fix_conflicts() {
 # Subcommand: release
 # Post-merge deployment lifecycle: CDK deploy → S3/CF → smoke tests → Jira Done
 # ══════════════════════════════════════════════════════════════════════
+#
+# INFRASTRUCTURE NOTE: Lambda Functions Overview
+# ----------------------------------------------
+# The Vyasa RAG system has 6 Lambda functions total:
+#
+# 1. ACTIVE APPLICATION (touched on every deploy if RAG service changes):
+#    vyasa-rag-prod - Main RAG API handling /chat, /chat/stream, /health, /admin/ingest
+#    This is the ONLY function that handles actual application traffic.
+#
+# 2. INFRASTRUCTURE-ONLY (CDK Custom Resource handlers - rarely modified):
+#    These run ONLY during CDK deployment to create/manage AWS resources.
+#    DO NOT modify unless changing Bedrock KB config or Vector store settings.
+#
+#    - OrderFlow-VyasaVector-VectorCreatorFn
+#      Creates S3 Vector index (1024 dimensions) for embeddings
+#      Source: infra/lib/vyasa-vector-stack.ts
+#
+#    - OrderFlow-VyasaVector-VectorProvider
+#      CDK provider for vector index lifecycle
+#      Source: infra/lib/vyasa-vector-stack.ts
+#
+#    - OrderFlow-VyasaRag-KbCreatorFn
+#      Creates Bedrock Knowledge Base with S3 vectors storage + S3 corpus data source
+#      Source: infra/lib/vyasa-lambda-stack.ts
+#
+#    - OrderFlow-VyasaRag-KbProvider
+#      CDK provider for KB lifecycle management
+#      Source: infra/lib/vyasa-lambda-stack.ts
+#
+#    - OrderFlow-VyasaRag-CustomCrossRegionExportWriter
+#      Handles cross-region exports (CDK internal)
+#
+# WHEN TO MODIFY INFRA FUNCTIONS:
+#   - Changing embedding model (Titan v2 → v3)
+#   - Changing vector dimensions (1024 → 1536)
+#   - Changing chunking strategy (500 tokens, overlap %)
+#   - Recreating Knowledge Base from scratch
+#
+# CDK SMART BEHAVIOR:
+#   - No code changes → Functions aren't updated/re-invoked
+#   - Same KB exists → Returns existing ID immediately
+#   - Only vyasa-rag-prod changes → Just that function redeploys (~2 seconds)
+#
+# DEPLOYMENT STRATEGY (see infra_changed logic below):
+#   - rag_changed=true, infra_changed=false → Deploy only OrderFlow-VyasaRag (fast)
+#   - infra_changed=true → Deploy OrderFlow-VyasaVector + OrderFlow-VyasaRag (full)
+#   - ui_changed=true → Sync S3 + invalidate CloudFront
+#
 
 cmd_release() {
   require_tool aws

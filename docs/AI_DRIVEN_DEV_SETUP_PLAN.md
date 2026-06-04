@@ -11,10 +11,10 @@
 2. [Phase B — Agent Infrastructure](#phase-b--agent-infrastructure)
 3. [Phase C — MCP Configuration](#phase-c--mcp-configuration)
 4. [Phase D — LLM Security in CI/CD](#phase-d--llm-security-in-cicd)
-5. [Phase E — Operator Script](#phase-e--operator-script-ties-it-all-together)
+5. [Phase E — Operator Script](#phase-e--operator-script-jira-backed-async-pipeline)
 6. [Execution Order & Priority](#execution-order--priority)
 7. [What You Get After Each Phase](#what-you-get-after-each-phase)
-8. [5-Section Agentic Workflow (Optimized)](#5-section-agentic-workflow-optimized)
+8. [Agentic Pipeline (10-Step Workflow)](#agentic-pipeline-10-step-workflow)
 9. [Status Tracking](#status-tracking)
 
 ---
@@ -209,30 +209,72 @@ This is the entry point for any autonomous task. Current implementation is an 8-
 
 Each is a focused, constrained `instructions.md`:
 
-**`agents/design-agent/instructions.md`** — model: `claude-sonnet`
+**`agents/design-agent/instructions.md`** ✅ — model: `claude-sonnet`
 
-- Input: ticket description
-- Output: `docs/features/{TICKET_ID}/TDD.md` with Mermaid diagrams, API contract, DB changes
+- Input: `requirements.md` path, ticket context
+- Output: `docs/features/{TICKET_ID}/TDD.md` — API contract, DB schema, Mermaid sequence diagram, rollback plan, Spec Validation Checklist
 - Tools allowed: read files, write docs only
 - Tools forbidden: git, cdk, npm
 
-**`agents/code-agent/instructions.md`** — model: `claude-sonnet`
+**`agents/code-impl-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$3.00`
 
-- Input: TDD.md path
-- Output: implementation + failing tests fixed
-- Must follow: CLAUDE.md standards, existing patterns in the codebase
-- Run `npm run lint` and `npm test` before finishing
+- Input: `TDD.md` path, `requirements.md` path
+- Output: source files + `docs/features/{TICKET_ID}/IMPL_CHECKLIST.md` (all items ✅)
+- Spec-driven TDD: failing test → implementation → refactor
+- Gate: IMPL_CHECKLIST.md must exist with no ❌ items before `code-test` unlocks
 
-**`agents/test-agent/instructions.md`** — model: `claude-sonnet`
+**`agents/code-test-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$2.00`
 
-- Input: changed files list
-- Output: additional tests to reach 80% coverage threshold
-- Write unit tests only — no integration tests (those need Docker)
+- Input: requirements.md, TDD.md, IMPL_CHECKLIST.md, changed files
+- Output: spec-compliance tests; each AC tagged `// AC: <id>`
+- Gate: 80% coverage (branches/functions/lines/statements) — auto-retries once
 
-**`agents/deploy-agent/instructions.md`** — model: `claude-haiku` (cheapest — it's just scripting)
+**`agents/code-quality-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$0.50`
+
+- Invoked only when `eslint --fix + prettier --write` leave remaining errors
+- Input: changed files, remaining error list
+- Gate: ESLint + `tsc --noEmit` must pass before `code-security` unlocks
+
+**`agents/code-security-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$1.00`
+
+- Input: TDD.md, changed files, `npm audit` output
+- Output: `docs/features/{TICKET_ID}/SECURITY_REVIEW.md` with `## Overall Verdict`
+- Pre-flight: secrets pattern scan on `git diff` (blocks on hit); `npm audit` run before agent
+- Gate: verdict must not be `FAIL` before `code-perf` unlocks
+
+**`agents/code-perf-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$2.00`
+
+- Input: TDD.md, changed files
+- Output: N+1/cache review findings + E2E stubs for new API endpoints
+
+**`agents/deploy-agent/instructions.md`** ✅ — model: `claude-haiku`, budget: `$0.50`
 
 - Input: branch name, ticket ID, changed files
-- Output: PR opened via GitHub MCP with correct labels, linked ticket, checklist
+- Output: PR opened via `gh` CLI with filled PR template, Conventional Commit title, correct labels
+
+**`agents/ticket-creator/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$2.00`
+
+- Input: one-liner idea, project key
+- Output: structured JSON between `---JSON_OUTPUT_START---` markers (summary, description, type, priority, labels)
+- Used by `create` subcommand to generate detailed Jira tickets
+
+**Fix agents** (all ✅, used by `deploy-ship` auto-dispatch and standalone `fix-*` subcommands):
+
+| Agent                 | Model  | Budget | Trigger                                                |
+| --------------------- | ------ | ------ | ------------------------------------------------------ |
+| `fix-lint-agent`      | haiku  | $0.25  | ESLint errors remain after `eslint --fix`              |
+| `fix-types-agent`     | sonnet | $0.50  | `tsc --noEmit` errors (max 2 attempts)                 |
+| `fix-tests-agent`     | sonnet | $1.00  | Jest `FAIL` lines (max 2 attempts, spec as tiebreaker) |
+| `fix-build-agent`     | sonnet | $0.50  | `npm run build` failures (max 2 attempts)              |
+| `fix-security-agent`  | sonnet | $0.50  | HIGH/CRITICAL vulns after `npm audit fix`              |
+| `fix-conflicts-agent` | sonnet | $0.75  | ≤10 conflicted files after failed `git rebase`         |
+
+**Legacy agents** (still present, not called by current pipeline):
+
+- `agents/code-agent/instructions.md` — superseded by `code-impl-agent` + `code-test-agent`
+- `agents/test-agent/instructions.md` — superseded by `code-test-agent`
+- `agents/orchestrator/instructions.md` — superseded by `ai-dev.sh` subcommand dispatcher
+- `agents/requirements-agent/instructions.md` ✅ — active (called by `requirements` subcommand)
 
 ---
 
@@ -426,63 +468,123 @@ run_agent agents/requirements-agent/instructions.md 1.50 sonnet \
 **How it works:**
 
 1. Reads the agent instructions file (Markdown)
-2. Substitutes `{KEY}` placeholders with provided `KEY=VALUE` pairs (using `awk`)
-3. Invokes `$CLAUDE_CMD -p --system-prompt "$instructions" --model <model> --max-budget-usd <budget> --permission-mode default`
+2. Substitutes `{KEY}` placeholders with provided `KEY=VALUE` pairs (using `perl` — handles newlines and special chars safely)
+3. Invokes `$CLAUDE_CMD -p --system-prompt "$instructions" --model <model> --max-budget-usd <budget> --dangerously-skip-permissions`
 
 **Valid CLI flags used (compatible with both `claude` and `codemie-claude`):**
 
-| Flag                        | Purpose                                             |
-| --------------------------- | --------------------------------------------------- |
-| `-p` / `--print`            | Non-interactive mode (exit after response)          |
-| `--system-prompt`           | Agent instructions (with variables pre-substituted) |
-| `--model`                   | Model selection (`sonnet`, `haiku`)                 |
-| `--max-budget-usd`          | Cost cap per invocation (replaces `--max-turns`)    |
-| `--permission-mode default` | Keeps human-in-the-loop for destructive operations  |
+| Flag                             | Purpose                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `-p` / `--print`                 | Non-interactive mode (exit after response)                               |
+| `--system-prompt`                | Agent instructions (with variables pre-substituted)                      |
+| `--model`                        | Model selection (`sonnet`, `haiku`)                                      |
+| `--max-budget-usd`               | Cost cap per invocation                                                  |
+| `--dangerously-skip-permissions` | Full filesystem + shell access. Safe: pipeline owns the repo it runs in. |
+
+> **Trust boundary:** `--dangerously-skip-permissions` is intentional — agents must write source
+> files, docs, and run build/test commands. Never run this script against a repo you do not own.
 
 **Budget allocation per agent:**
 
-| Agent              | Model  | Budget | Rationale                               |
-| ------------------ | ------ | ------ | --------------------------------------- |
-| ticket-creator     | sonnet | $2.00  | Codebase analysis + structured output   |
-| requirements-agent | sonnet | $1.50  | Deep reasoning on requirements          |
-| design-agent       | sonnet | $2.00  | System interaction reasoning            |
-| code-agent         | sonnet | $5.00  | Complex implementation (retries: $3.00) |
-| test-agent         | sonnet | $3.00  | Coverage generation (retries: $2.00)    |
-| deploy-agent       | haiku  | $0.50  | Pure scripting — cheapest model         |
+| Agent               | Model  | Budget | Rationale                                      |
+| ------------------- | ------ | ------ | ---------------------------------------------- |
+| ticket-creator      | sonnet | $2.00  | Codebase analysis + structured JSON output     |
+| requirements-agent  | sonnet | $1.50  | Deep reasoning on ambiguous requirements       |
+| design-agent        | sonnet | $2.00  | System interaction, Mermaid, API contract      |
+| code-impl-agent     | sonnet | $3.00  | Spec-driven implementation + IMPL_CHECKLIST.md |
+| code-test-agent     | sonnet | $2.00  | Spec compliance tests; 80% coverage (1 retry)  |
+| code-quality-agent  | sonnet | $0.50  | Residual lint/tsc errors after auto-fix        |
+| code-security-agent | sonnet | $1.00  | OWASP review → SECURITY_REVIEW.md              |
+| code-perf-agent     | sonnet | $2.00  | N+1/cache review + E2E stubs                   |
+| deploy-agent        | haiku  | $0.50  | Pure scripting — opens PR via `gh` CLI         |
+| fix-lint-agent      | haiku  | $0.25  | ESLint residuals after auto-fix                |
+| fix-types-agent     | sonnet | $0.50  | TypeScript type errors (max 2 attempts)        |
+| fix-tests-agent     | sonnet | $1.00  | Jest failures, spec as tiebreaker (max 2)      |
+| fix-build-agent     | sonnet | $0.50  | Build/compile errors (max 2 attempts)          |
+| fix-security-agent  | sonnet | $0.50  | HIGH/CRITICAL vulns after `npm audit fix`      |
+| fix-conflicts-agent | sonnet | $0.75  | ≤10 conflicted files after failed `git rebase` |
 
 **Configurable CLI:** Set `AI_DEV_CLAUDE_CMD=claude` to bypass CodeMie and use raw Claude Code CLI.
 
-**Architecture:**
+**Subtask architecture (9 subtasks per ticket):**
 
 ```
 Parent ticket: OF-123
-├── Subtask: "[AI] Requirements"     → requirements.md (comment + attachment)
-├── Subtask: "[AI] Design"           → TDD.md (comment + attachment)
-├── Subtask: "[AI] Implementation"   → changed files list
-├── Subtask: "[AI] Testing"          → coverage report (auto-Done)
-└── Subtask: "[AI] Deploy"           → PR URL (auto-Done)
+├── [AI] Requirements Analysis      → requirements.md (gated: human Done)
+├── [AI] Technical Design           → TDD.md (gated: human Done)
+├── [AI] Implementation: OF-123     → IMPL_CHECKLIST.md (gated: human Done)
+├── [AI] Spec Tests: OF-123         → coverage report (gated: human Done)
+├── [AI] Code Quality: OF-123       → lint/tsc pass (gated: human Done)
+├── [AI] Security Review: OF-123    → SECURITY_REVIEW.md (gated: human Done)
+├── [AI] Performance Review: OF-123 → perf findings (gated: human Done)
+├── [AI] PR: OF-123                 → PR opened, transitions to "In Review"
+└── [AI] Ship: OF-123               → CI green, transitions to "Done"
 ```
 
-**Usage:**
+**Local state files** (stored in `docs/features/{TICKET_ID}/`):
+
+| File                      | Purpose                                                   |
+| ------------------------- | --------------------------------------------------------- |
+| `.jira-subtasks`          | step → Jira key mapping (source of truth for subtask IDs) |
+| `.ticket-context`         | ticket summary + description (passed to agents)           |
+| `.pr_number`              | PR number for `deploy-ship` and `release`                 |
+| `.fix_retries.json`       | retry counter per failure type (max 3 before hard-block)  |
+| `.last-known-good-commit` | rollback target written by `release` before CDK deploy    |
+| `.validate-passed`        | marker touched by `validate` — gates `deploy-pr`          |
+| `.questions-round`        | Q&A round counter for `resolve` multi-round loop          |
+
+**Full subcommand reference:**
 
 ```bash
-./scripts/ai-dev.sh OF-123 init           # Create subtasks + branch
-./scripts/ai-dev.sh OF-123 requirements   # → posts to Jira subtask
-# Review in Jira UI → transition subtask to "Done"
-./scripts/ai-dev.sh OF-123 design         # → posts to Jira subtask
-# Review in Jira UI → transition subtask to "Done"
-./scripts/ai-dev.sh OF-123 code           # → posts to Jira subtask
-# Review in Jira UI → transition subtask to "Done"
-./scripts/ai-dev.sh OF-123 test           # → auto-completes
-./scripts/ai-dev.sh OF-123 deploy         # → opens PR, auto-completes
-./scripts/ai-dev.sh OF-123 status         # Query Jira for all subtask statuses
+./scripts/ai-dev.sh <PROJECT_KEY> create "idea"  # AI-generate Jira ticket from one-liner
+./scripts/ai-dev.sh <TICKET_ID>  init             # Parse ticket, create 9 subtasks + branch
+./scripts/ai-dev.sh <TICKET_ID>  requirements     # requirements-agent → requirements.md
+./scripts/ai-dev.sh <TICKET_ID>  resolve          # Pull PO answers from Jira, update requirements.md
+./scripts/ai-dev.sh <TICKET_ID>  design           # design-agent → TDD.md
+./scripts/ai-dev.sh <TICKET_ID>  code             # Alias: runs all 5 sub-steps (auto-approves each)
+./scripts/ai-dev.sh <TICKET_ID>  code-impl        # code-impl-agent → source + IMPL_CHECKLIST.md
+./scripts/ai-dev.sh <TICKET_ID>  code-test        # code-test-agent → spec tests + 80% coverage
+./scripts/ai-dev.sh <TICKET_ID>  code-quality     # auto-fix + quality-agent → ESLint+tsc clean
+./scripts/ai-dev.sh <TICKET_ID>  code-security    # secrets scan + security-agent → SECURITY_REVIEW.md
+./scripts/ai-dev.sh <TICKET_ID>  code-perf        # perf-agent → N+1 review + E2E stubs
+./scripts/ai-dev.sh <TICKET_ID>  validate         # Script-only CI dry-run (lint/tsc/test/build/audit)
+./scripts/ai-dev.sh <TICKET_ID>  deploy-pr        # deploy-agent → push branch, open PR
+./scripts/ai-dev.sh <TICKET_ID>  deploy-ship      # Monitor CI; classify + dispatch fix-* agents
+./scripts/ai-dev.sh <TICKET_ID>  release          # Post-merge: CDK deploy + smoke tests + Jira Done
+./scripts/ai-dev.sh <TICKET_ID>  rollback         # Revert CDK stacks to .last-known-good-commit
+./scripts/ai-dev.sh <TICKET_ID>  fix-lint         # ESLint + Prettier fix → commit + push
+./scripts/ai-dev.sh <TICKET_ID>  fix-types        # TypeScript error fix → commit + push
+./scripts/ai-dev.sh <TICKET_ID>  fix-tests        # Jest failure fix → commit + push
+./scripts/ai-dev.sh <TICKET_ID>  fix-build        # Build error fix → commit + push
+./scripts/ai-dev.sh <TICKET_ID>  fix-security     # npm audit fix + agent → commit + push
+./scripts/ai-dev.sh <TICKET_ID>  fix-conflicts    # Rebase + conflict resolution → force-with-lease
+./scripts/ai-dev.sh <TICKET_ID>  status           # Show live pipeline status from Jira
 ```
 
-**Approval mechanism:** Transition subtask to "Done" in Jira (no CLI `approve` command needed).
+**Gated steps** (each checks the prior subtask = "Done" before running):
+`requirements → design → code-impl → code-test → code-quality → code-security → code-perf → deploy-pr`
 
-**Gated steps:** requirements, design, code (next step checks prior subtask = "Done")
+**Approval mechanism:** Transition subtask to "Done" in Jira UI — no CLI `approve` command.
 
-**Prerequisites:** `codemie-claude` CLI (`npm install -g @codemieai/code`), `jq`, `curl`, Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
+**`deploy-ship` CI failure handling:**
+
+1. Fetches `gh pr checks` output
+2. Classifies failure: `lint | types | tests | build | security | conflicts | unknown`
+3. Dispatches the corresponding `fix-*` subcommand (max 3 retries per type → hard-block)
+4. Commits + pushes fix, re-runs `deploy-ship`
+
+**`release` deployment strategy** (smart CDK targeting):
+
+| Changed paths                  | Stacks deployed                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `apps/vyasa-rag-service/` only | `OrderFlow-VyasaRag` (fast path — ~2s Lambda update)                             |
+| `infra/` (any)                 | `OrderFlow-VyasaVector` + `OrderFlow-VyasaRag` (+ `VyasaUi` if ui-stack changed) |
+| `apps/vyasa-ui/`               | S3 sync + CloudFront invalidation (CF dist ID `E1W56P4E23UU5Y`)                  |
+| scripts/docs only              | No deploy                                                                        |
+
+`release` also runs smoke tests on the RAG `/health` endpoint and UI domain; auto-rollbacks on failure.
+
+**Prerequisites:** `codemie-claude` CLI (`npm install -g @codemieai/code`), `jq`, `curl`, `gh` (GitHub CLI), `aws` (AWS CLI), Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
 
 > **Note:** Set `AI_DEV_CLAUDE_CMD=claude` to use raw Claude Code CLI instead of the CodeMie enterprise wrapper.
 
@@ -518,115 +620,169 @@ Parent ticket: OF-123
 
 ---
 
-## 5-Section Agentic Workflow (Optimized)
+## Agentic Pipeline (10-Step Workflow)
 
-> **Goal:** Token-efficient, accuracy-optimized pipeline with natural human checkpoints.
->
-> **Status:** Target architecture — partially implemented. The current orchestrator
-> (Phase B.2) uses the 8-step linear pipeline. This section defines the evolution path.
+> **Status:** Fully implemented in `scripts/ai-dev.sh`. The original 5-section model has
+> evolved into a 10-step pipeline with dedicated code sub-phases (impl → test → quality →
+> security → perf), automated CI monitoring, and a post-merge release/rollback lifecycle.
 
 ### Overview
 
-Replaces the linear 8-step pipeline with 5 specialized sections. Each section is a self-contained agentic flow with defined inputs, outputs, and human review gates.
+Each step is independently triggerable. State lives in Jira subtasks + local marker files.
+Human approval = transitioning the subtask to "Done". The `code` subcommand is an alias that
+runs all 5 code sub-steps automatically (useful for trusted changes).
 
-### Section 1: Requirements Analysis
+### Step 1: Requirements Analysis
 
-| Aspect       | Details                                                                       |
-| ------------ | ----------------------------------------------------------------------------- |
-| **Agent**    | `requirements-agent` ❌ **not yet created**                                   |
-| **Input**    | Jira ticket (fetched via Jira MCP)                                            |
-| **Output**   | `docs/features/TICKET/requirements.md`                                        |
-| **Model**    | Claude Sonnet (deep reasoning on ambiguous requirements)                      |
-| **Contents** | Problem statement, constraints, user stories, acceptance criteria, edge cases |
+| Aspect      | Details                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| **Agent**   | `requirements-agent` ✅                                                                   |
+| **Input**   | Jira ticket context (`.ticket-context`)                                                   |
+| **Output**  | `docs/features/TICKET/requirements.md` (Given/When/Then ACs + Design Decisions)           |
+| **Model**   | Sonnet — $1.50                                                                            |
+| **Resolve** | Open questions posted to Jira as `## Design Decisions` blocks; `resolve` pulls PO answers |
 
-**Why separate from Technical Design:** Prevents token waste. If requirements are wrong, technical design will be wrong too. Clean input = better output.
-
-**TODO:** Create `agents/requirements-agent/instructions.md` with read-only permissions (Jira MCP + file read/write to `docs/` only).
-
-🚪 **Human Gate:** Review requirements accuracy before proceeding to design.
+🚪 **Human Gate:** Review `requirements.md`, transition subtask to "Done". Run `resolve` if open questions remain (multi-round Q&A loop).
 
 ---
 
-### Section 2: Technical Design
+### Step 2: Technical Design
 
-| Aspect       | Details                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------ |
-| **Agent**    | `design-agent` (existing)                                                                              |
-| **Input**    | Approved `requirements.md`                                                                             |
-| **Output**   | `docs/features/TICKET/TDD.md`                                                                          |
-| **Model**    | Claude Sonnet (system interaction reasoning)                                                           |
-| **Contents** | API contract diff, DB schema changes, Mermaid sequence diagram, rollback plan, security considerations |
+| Aspect     | Details                                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Agent**  | `design-agent` ✅                                                                                                           |
+| **Input**  | Approved `requirements.md`                                                                                                  |
+| **Output** | `docs/features/TICKET/TDD.md` — API contract, DB schema, Mermaid sequence diagram, rollback plan, Spec Validation Checklist |
+| **Model**  | Sonnet — $2.00                                                                                                              |
 
-**Guardrail:** Read-only agent — no git, npm, or file writes outside docs folder.
-
-🚪 **Human Gate:** Review TDD (API contract, schema design, rollback plan) before implementation.
+🚪 **Human Gate:** Review TDD (API contract, schema, rollback plan, open questions section). Transition to "Done".
 
 ---
 
-### Section 3: Implementation
+### Step 3: Implementation
 
-| Aspect       | Details                                               |
-| ------------ | ----------------------------------------------------- |
-| **Agent**    | `code-agent` (existing)                               |
-| **Input**    | Approved `TDD.md`                                     |
-| **Output**   | Source files + unit test skeletons                    |
-| **Model**    | Sonnet (complex logic), Haiku (boilerplate/templates) |
-| **Approach** | Strict TDD: failing test → implementation → refactor  |
+| Aspect       | Details                                                   |
+| ------------ | --------------------------------------------------------- |
+| **Agent**    | `code-impl-agent` ✅                                      |
+| **Input**    | Approved `TDD.md` + `requirements.md`                     |
+| **Output**   | Source files + `IMPL_CHECKLIST.md` (all items must be ✅) |
+| **Model**    | Sonnet — $3.00                                            |
+| **Approach** | Spec-driven TDD: failing test → implementation → refactor |
 
-**Safety Layer:** `hooks/pre-tool.sh` runs before every file write:
+**Gate:** `IMPL_CHECKLIST.md` must exist with no ❌ before `code-test` can run.
 
-- Blocks force push, `cdk destroy`, `prisma migrate reset`
-- Secret pattern detection (AWS keys, RSA keys, passwords)
-- Blocks `.env` file writes
-
-**Post-write:** `hooks/post-tool.sh` auto-lints with ESLint.
-
-**Checkpoint (optional):** Skeleton + interfaces only → human confirms structure matches TDD → full implementation.
-
-🚪 **Human Gate:** Spot-check implementation vs TDD, run locally.
+🚪 **Human Gate:** Review implementation + IMPL_CHECKLIST.md, run locally. Transition to "Done".
 
 ---
 
-### Section 4: Testing & Validation
+### Step 4: Spec Compliance Testing
 
-| Aspect              | Details                                            |
-| ------------------- | -------------------------------------------------- |
-| **Unit Tests**      | `test-agent` generates tests to reach 80% coverage |
-| **Integration**     | Existing CI workflows (`integration-tests.yml`)    |
-| **Static Analysis** | ESLint, TypeScript type check (CI)                 |
-| **Security Scan**   | `llm-security-scan.yml` (Claude via Bedrock on PR) |
-| **Model**           | Sonnet for test generation                         |
+| Aspect     | Details                                                                      |
+| ---------- | ---------------------------------------------------------------------------- |
+| **Agent**  | `code-test-agent` ✅                                                         |
+| **Input**  | `requirements.md`, `TDD.md`, `IMPL_CHECKLIST.md`, changed files              |
+| **Output** | Tests with `// AC: <id>` tags tracing each acceptance criterion              |
+| **Model**  | Sonnet — $2.00 (+ $2.00 retry if coverage < 80%)                             |
+| **Gate**   | 80% branches/functions/lines/statements (`jest --coverage`) — blocks on fail |
 
-**Why no dedicated "Code Review" agent:** Style → ESLint (deterministic). Security → Bedrock workflow. Logic review → human reviews PR diff directly. No token waste on deterministic checks.
-
-🚪 **Human Gate:** Review coverage report + CI status.
+🚪 **Human Gate:** Review coverage report. Transition to "Done".
 
 ---
 
-### Section 5: Deployment
+### Step 5: Code Quality
 
-| Aspect         | Details                                                                            |
-| -------------- | ---------------------------------------------------------------------------------- |
-| **Approach A** | `deploy-agent` with Claude Haiku (cheapest model — pure scripting)                 |
-| **Approach B** | Direct MCP calls from bash (no LLM — maximum efficiency)                           |
-| **Actions**    | Git stage → commit (Conventional Commits) → push → open PR via GitHub MCP          |
-| **Output**     | PR opened with title `[TICKET-123] description`, body with summary + test evidence |
+| Aspect       | Details                                                                 |
+| ------------ | ----------------------------------------------------------------------- |
+| **Agent**    | `code-quality-agent` ✅ (invoked only if auto-fix leaves errors)        |
+| **Input**    | Changed files, residual ESLint error list                               |
+| **Auto-fix** | `eslint --fix` + `prettier --write` run first; agent handles remainders |
+| **Model**    | Sonnet — $0.50                                                          |
+| **Gate**     | `eslint` clean + `tsc --noEmit` pass                                    |
 
-**Skill reference:** `skills/open-pr/skill.md`
-
-🚪 **Human Gate:** Review PR diff + security findings → merge.
+🚪 **Human Gate:** Transition to "Done" when quality checks pass.
 
 ---
 
-### Token Efficiency Improvements
+### Step 6: Security Review
 
-| Technique                                   | Savings                                                  |
-| ------------------------------------------- | -------------------------------------------------------- |
-| Separate requirements → design calls        | ~30% — design agent gets clean input, not raw Jira noise |
-| Haiku for deployment (scripting only)       | ~60% vs Sonnet — no reasoning needed                     |
-| Skip code-review agent (use CI gates)       | 100% of that section's tokens                            |
-| Human gates prevent bad-context propagation | Saves re-running downstream agents                       |
-| Direct MCP calls for deterministic tasks    | 100% LLM tokens eliminated                               |
+| Aspect         | Details                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| **Agent**      | `code-security-agent` ✅                                                                         |
+| **Pre-flight** | Secrets scan on `git diff` (regex patterns for credentials/keys); `npm audit --audit-level=high` |
+| **Output**     | `docs/features/TICKET/SECURITY_REVIEW.md` with `## Overall Verdict`                              |
+| **Model**      | Sonnet — $1.00                                                                                   |
+| **Gate**       | Verdict must not be `FAIL`; secrets scan must be clean                                           |
+
+🚪 **Human Gate:** Review `SECURITY_REVIEW.md`. Transition to "Done" when verdict is acceptable.
+
+---
+
+### Step 7: Performance Review
+
+| Aspect     | Details                                         |
+| ---------- | ----------------------------------------------- |
+| **Agent**  | `code-perf-agent` ✅                            |
+| **Input**  | `TDD.md`, changed files                         |
+| **Output** | N+1 query review, cache hit analysis, E2E stubs |
+| **Model**  | Sonnet — $2.00                                  |
+
+🚪 **Human Gate:** Transition to "Done" when performance findings are acceptable.
+
+---
+
+### Step 8: Validate (CI Dry-Run)
+
+| Aspect     | Details                                                                         |
+| ---------- | ------------------------------------------------------------------------------- |
+| **Type**   | Script-only — no agent, no Jira subtask                                         |
+| **Checks** | [1] ESLint, [2] `tsc --noEmit`, [3] jest 80% coverage, [4] build, [5] npm audit |
+| **Output** | `.validate-passed` marker (gates `deploy-pr`)                                   |
+
+No human gate — either passes and unlocks `deploy-pr`, or fails with per-check fix guidance.
+
+---
+
+### Step 9: Deploy PR + Ship
+
+| Subcommand    | Agent                            | Details                                                                           |
+| ------------- | -------------------------------- | --------------------------------------------------------------------------------- |
+| `deploy-pr`   | `deploy-agent` (haiku — $0.50)   | Push branch, open PR with filled template via `gh` CLI; poll CI for 60s           |
+| `deploy-ship` | `fix-*` agents (auto-dispatched) | Monitor CI; classify failure type → dispatch fix agent → commit + push → re-check |
+
+**CI failure classification (`deploy-ship`):**
+
+| CI Failure  | Fix dispatched                       | Max retries |
+| ----------- | ------------------------------------ | ----------- |
+| `lint`      | `fix-lint-agent` (haiku $0.25)       | 3           |
+| `types`     | `fix-types-agent` (sonnet $0.50)     | 3           |
+| `tests`     | `fix-tests-agent` (sonnet $1.00)     | 3           |
+| `build`     | `fix-build-agent` (sonnet $0.50)     | 3           |
+| `security`  | `fix-security-agent` (sonnet $0.50)  | 3           |
+| `conflicts` | `fix-conflicts-agent` (sonnet $0.75) | 3           |
+| `unknown`   | — (manual required)                  | —           |
+
+No auto-merge — Fortune 500 compliance requires human approval: `gh pr merge <N> --squash --delete-branch`
+
+---
+
+### Step 10: Release + Rollback
+
+| Subcommand | Details                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `release`  | Verifies PR merged; `cdk synth` pre-flight; builds; smart CDK deploy; smoke tests; auto-rollback on failure; Jira "Done" |
+| `rollback` | Manual escape hatch: reads `.last-known-good-commit`, checks out infra + apps at that commit, re-deploys CDK stacks      |
+
+---
+
+### Token Efficiency
+
+| Technique                                             | Savings                                                  |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| Separate requirements → design → impl phases          | ~30% — each agent gets clean, focused input              |
+| Auto-fix before quality agent                         | ~80% of quality agent calls eliminated                   |
+| Haiku for deploy + fix-lint (scripting only)          | ~60% vs Sonnet per call                                  |
+| Script-only `validate` (no LLM)                       | 100% LLM tokens for CI check eliminated                  |
+| `deploy-ship` classifies then fixes (not blind retry) | Avoids re-running whole pipeline on simple lint failures |
 
 ---
 
@@ -634,65 +790,48 @@ Replaces the linear 8-step pipeline with 5 specialized sections. Each section is
 
 ```mermaid
 flowchart TD
-    S1["Section 1: Requirements Analysis\nAgent: requirements-agent\nOutput: requirements.md"]
-    G1{{"HUMAN GATE: Review requirements"}}
-    S2["Section 2: Technical Design\nAgent: design-agent\nOutput: TDD.md"]
-    G2{{"HUMAN GATE: Review TDD"}}
-    S3["Section 3: Implementation\nAgent: code-agent\nHooks: pre-tool.sh, post-tool.sh\nOutput: Source + unit tests"]
-    G3{{"HUMAN GATE: Spot-check locally"}}
-    S4["Section 4: Testing & Validation\nCI: unit, integration, ESLint, type check\nCI: llm-security-scan.yml (Bedrock)"]
-    G4{{"HUMAN GATE: Review coverage + CI"}}
-    S5["Section 5: Deployment\nAgent: deploy-agent (Haiku)\nOutput: Commit + PR opened"]
-    G5{{"HUMAN GATE: Review PR + merge"}}
+    S0["create: ticket-creator-agent\nOutput: Jira ticket"]
+    S1["requirements: requirements-agent\nOutput: requirements.md + Design Decisions"]
+    R1{{"resolve loop: PO answers → update requirements.md"}}
+    G1{{"HUMAN GATE: requirements Done"}}
+    S2["design: design-agent\nOutput: TDD.md + Spec Checklist"]
+    G2{{"HUMAN GATE: design Done"}}
+    S3["code-impl: code-impl-agent\nOutput: source + IMPL_CHECKLIST.md"]
+    G3{{"HUMAN GATE: code-impl Done"}}
+    S4["code-test: code-test-agent\nOutput: AC-tagged tests, 80% coverage"]
+    G4{{"HUMAN GATE: code-test Done"}}
+    S5["code-quality: auto-fix + quality-agent\nOutput: ESLint + tsc clean"]
+    G5{{"HUMAN GATE: code-quality Done"}}
+    S6["code-security: secrets scan + security-agent\nOutput: SECURITY_REVIEW.md"]
+    G6{{"HUMAN GATE: code-security Done"}}
+    S7["code-perf: perf-agent\nOutput: N+1 review + E2E stubs"]
+    G7{{"HUMAN GATE: code-perf Done"}}
+    S8["validate: script-only CI dry-run\nESLint / tsc / jest / build / audit"]
+    S9a["deploy-pr: deploy-agent\nOutput: PR opened"]
+    S9b["deploy-ship: CI monitor + fix-* agents\nLoop until green"]
+    G9{{"HUMAN: merge PR\ngh pr merge N --squash"}}
+    S10["release: CDK deploy + smoke tests\nAuto-rollback on failure"]
 
-    S1 --> G1 --> S2 --> G2 --> S3 --> G3 --> S4 --> G4 --> S5 --> G5
+    S0 --> S1 --> R1 --> G1 --> S2 --> G2 --> S3 --> G3
+    G3 --> S4 --> G4 --> S5 --> G5 --> S6 --> G6 --> S7 --> G7
+    G7 --> S8 --> S9a --> S9b --> G9 --> S10
 ```
 
 ### Implementation Readiness
 
-| Section | Agent                | Status                          |
-| ------- | -------------------- | ------------------------------- |
-| 1       | `requirements-agent` | Not yet created                 |
-| 2       | `design-agent`       | Exists (`agents/design-agent/`) |
-| 3       | `code-agent`         | Exists (`agents/code-agent/`)   |
-| 4       | `test-agent`         | Exists (`agents/test-agent/`)   |
-| 5       | `deploy-agent`       | Exists (`agents/deploy-agent/`) |
-
-<details>
-<summary>ASCII fallback (for terminals without Mermaid support)</summary>
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ SECTION 1: Requirements Analysis                                    │
-│ Output: requirements.md                                             │
-├─────────────────────────────────────────────────────────────────────┤
-│ 🚪 HUMAN GATE: Review requirements                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│ SECTION 2: Technical Design                                         │
-│ Output: TDD.md                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 🚪 HUMAN GATE: Review TDD                                          │
-├─────────────────────────────────────────────────────────────────────┤
-│ SECTION 3: Implementation                                           │
-│ Output: Source + unit tests                                         │
-│ Hooks: pre-tool.sh (security), post-tool.sh (lint)                 │
-├─────────────────────────────────────────────────────────────────────┤
-│ 🚪 HUMAN GATE: Spot-check locally                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ SECTION 4: Testing & Validation                                       │
-│ CI: unit tests, integration tests, ESLint, type check                 │
-│ CI: llm-security-scan.yml (Bedrock Claude review)                  │
-├─────────────────────────────────────────────────────────────────────┤
-│ 🚪 HUMAN GATE: Review coverage + CI status                         │
-├─────────────────────────────────────────────────────────────────────┤
-│ SECTION 5: Deployment                                               │
-│ Output: Commit + PR opened                                          │
-├─────────────────────────────────────────────────────────────────────┤
-│ 🚪 HUMAN GATE: Review PR diff + security findings → MERGE            │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-</details>
+| Step | Subcommand                  | Agent                    | Status |
+| ---- | --------------------------- | ------------------------ | ------ |
+| 0    | `create`                    | `ticket-creator`         | ✅     |
+| 1    | `requirements` + `resolve`  | `requirements-agent`     | ✅     |
+| 2    | `design`                    | `design-agent`           | ✅     |
+| 3    | `code-impl`                 | `code-impl-agent`        | ✅     |
+| 4    | `code-test`                 | `code-test-agent`        | ✅     |
+| 5    | `code-quality`              | `code-quality-agent`     | ✅     |
+| 6    | `code-security`             | `code-security-agent`    | ✅     |
+| 7    | `code-perf`                 | `code-perf-agent`        | ✅     |
+| 8    | `validate`                  | script-only              | ✅     |
+| 9    | `deploy-pr` + `deploy-ship` | `deploy-agent` + `fix-*` | ✅     |
+| 10   | `release` + `rollback`      | script-only + CDK        | ✅     |
 
 ---
 
@@ -702,7 +841,6 @@ flowchart TD
 
 - [x] A.1 — `.claudeignore`
 - [x] A.2 — Root `CLAUDE.md`
-  - [ ] ⚠️ Fix stale environments line (line 25 still says dev → staging → pre-prod → prod)
 - [x] A.3 — Per-service `CLAUDE.md` files
   - [x] `apps/vyasa-rag-service/CLAUDE.md`
   - [x] `infra/CLAUDE.md`
@@ -715,8 +853,23 @@ flowchart TD
 ### Phase B — Agent Infrastructure
 
 - [x] B.1 — `.cloud/permissions.yaml`
-- [x] B.2 — `agents/orchestrator/instructions.md` (9-step pipeline — 3 mandatory human gates at Steps 3, 4, 5)
-- [x] B.3 — Sub-agent instruction files (ticket-creator, requirements, design, code, test, deploy)
+- [x] B.2 — `agents/orchestrator/instructions.md` (legacy — superseded by `ai-dev.sh` dispatcher)
+- [x] B.3 — Sub-agent instruction files
+  - [x] `agents/requirements-agent/instructions.md`
+  - [x] `agents/design-agent/instructions.md`
+  - [x] `agents/code-impl-agent/instructions.md`
+  - [x] `agents/code-test-agent/instructions.md`
+  - [x] `agents/code-quality-agent/instructions.md`
+  - [x] `agents/code-security-agent/instructions.md`
+  - [x] `agents/code-perf-agent/instructions.md`
+  - [x] `agents/deploy-agent/instructions.md`
+  - [x] `agents/ticket-creator/instructions.md`
+  - [x] `agents/fix-lint-agent/instructions.md`
+  - [x] `agents/fix-types-agent/instructions.md`
+  - [x] `agents/fix-tests-agent/instructions.md`
+  - [x] `agents/fix-build-agent/instructions.md`
+  - [x] `agents/fix-security-agent/instructions.md`
+  - [x] `agents/fix-conflicts-agent/instructions.md`
 - [x] B.4 — `hooks/pre-tool.sh` + `hooks/post-tool.sh`
 - [x] B.5 — Skills library
   - [x] `skills/create-test-file/skill.md`
@@ -732,37 +885,37 @@ flowchart TD
 
 - [x] D.1 — AWS Bedrock model access enabled (Claude Sonnet 4.5 + Nova Pro)
 - [x] D.2 — IAM role created: `orderflow-github-bedrock-role` (arn:aws:iam::947612421212:role/orderflow-github-bedrock-role)
-- [x] D.2b — Add `AWS_BEDROCK_ROLE_ARN` secret to GitHub repo
+- [x] D.2b — `AWS_BEDROCK_ROLE_ARN` secret added to GitHub repo
 - [ ] D.3 — VPC endpoint for Bedrock ⚠️ OPTIONAL — recommended for production
 - [x] D.4 — `.github/workflows/llm-security-scan.yml`
 
-### Phase E — Operator Script (Jira-Backed Async Pipeline)
+### Phase E — Operator Script (10-Step Pipeline)
 
-- [x] E.1 — `scripts/ai-dev.sh` rewritten as Jira-backed subcommand dispatcher
-  - [x] Subcommand routing (create, init, requirements, design, code, test, deploy, status)
-  - [x] Jira REST API helpers (create subtask, add comment, upload attachment, get status, transition)
-  - [x] Subtask creation during init (5 subtasks per ticket)
-  - [x] Prerequisite validation via Jira subtask status checks
-  - [x] Summary comments + file attachments posted to Jira subtasks
-  - [x] Status display sourced from live Jira data
-  - [x] Error recovery (re-runnable steps)
-  - [x] No local state files — Jira is single source of truth
-  - [x] `create` subcommand — AI generates detailed Jira ticket from one-liner idea
-  - [x] Migrated to `codemie-claude` (CodeMie enterprise wrapper) with valid CLI flags
-  - [x] `run_agent()` helper — centralized agent invocation with `{VAR}` substitution
-  - [x] Budget-based cost control (`--max-budget-usd`) per agent invocation
-  - [x] Configurable via `AI_DEV_CLAUDE_CMD` env var (fallback to raw `claude` CLI)
-- [x] E.2 — `agents/orchestrator/instructions.md` rewritten for Jira-backed async model
-- [x] E.3 — `agents/ticket-creator/instructions.md` — generates structured tickets from one-liners
+- [x] E.1 — `scripts/ai-dev.sh` — Jira-backed subcommand dispatcher
+  - [x] 22 subcommands: `create, init, requirements, resolve, design, code, code-impl, code-test, code-quality, code-security, code-perf, validate, deploy-pr, deploy-ship, deploy (deprecated), release, rollback, fix-lint, fix-types, fix-tests, fix-build, fix-security, fix-conflicts, status`
+  - [x] `run_agent()` helper — `perl`-based `{VAR}` substitution, `--dangerously-skip-permissions`
+  - [x] 9 Jira subtasks created per ticket (requirements → deploy-ship)
+  - [x] 8 gated steps (each validates prior subtask = "Done" in Jira)
+  - [x] Jira REST API helpers (create, comment, attachment, transition, get status)
+  - [x] `resolve` — multi-round PO Q&A loop via Jira comments
+  - [x] `validate` — script-only CI dry-run (5 checks, no LLM, no Jira subtask)
+  - [x] `deploy-ship` — CI classification + auto-dispatch to `fix-*` agents (max 3 retries/type)
+  - [x] `release` — smart CDK deploy + smoke tests + auto-rollback on failure
+  - [x] `rollback` — manual CDK revert to `.last-known-good-commit`
+  - [x] Local state files: `.jira-subtasks`, `.pr_number`, `.fix_retries.json`, `.last-known-good-commit`, `.validate-passed`, `.questions-round`
+  - [x] Budget-based cost control (`--max-budget-usd`) per agent
+  - [x] `AI_DEV_CLAUDE_CMD` env var (default: `codemie-claude`; set to `claude` for raw CLI)
+- [x] E.2 — `agents/ticket-creator/instructions.md` — structured JSON output from one-liner idea
 
-### 5-Section Agentic Workflow (implemented)
+### Agentic Pipeline (all steps implemented)
 
-- [x] Create `agents/requirements-agent/instructions.md`
-- [x] Design-agent updated: consumes `requirements.md`, appends Spec Validation Checklist to TDD.md
-- [x] Orchestrator passes `REQUIREMENTS_PATH` to design-agent
-- [x] Human gate after requirements — enforced via Jira subtask "Done" transition
-- [x] Human gate after TDD review — enforced via Jira subtask "Done" transition
-- [x] Human gate after implementation — enforced via Jira subtask "Done" transition
-- [x] Async model: each step independently triggerable, no single-session requirement
-- [x] State in Jira: subtask statuses, comments, attachments — no local state files
-- [x] Output artifacts posted to Jira: summary comments + file attachments for offline review
+- [x] Step 1: `requirements` — requirements-agent + `resolve` Q&A loop
+- [x] Step 2: `design` — design-agent, Spec Validation Checklist in TDD.md
+- [x] Step 3: `code-impl` — code-impl-agent, IMPL_CHECKLIST.md gate
+- [x] Step 4: `code-test` — code-test-agent, 80% coverage gate with 1 auto-retry
+- [x] Step 5: `code-quality` — auto-fix first, quality-agent for remainders
+- [x] Step 6: `code-security` — secrets scan pre-flight + security-agent + SECURITY_REVIEW.md gate
+- [x] Step 7: `code-perf` — perf-agent, N+1 review + E2E stubs
+- [x] Step 8: `validate` — script-only 5-check CI dry-run, `.validate-passed` marker
+- [x] Step 9: `deploy-pr` + `deploy-ship` — PR creation + CI monitoring + auto-fix dispatch
+- [x] Step 10: `release` + `rollback` — CDK deploy, smoke tests, auto-rollback, Jira Done

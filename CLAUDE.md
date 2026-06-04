@@ -40,6 +40,31 @@ When creating/searching issues, always use project key `SCRUM` unless explicitly
 > One environment (`prod`) in `us-east-1`. Stack names carry a `-dev-` prefix — this is a historical naming artifact; they ARE the prod resources.
 > **Never create new AWS resources for this project.** Always reuse existing stacks, buckets, tables, Lambda, and Bedrock assets. See `docs/INFRASTRUCTURE.md` for the full resource inventory.
 
+### Lambda Functions (Vyasa RAG)
+
+The system has **6 Lambda functions** total. Only modify infrastructure functions when changing Bedrock KB or Vector store configuration.
+
+| Function                                           | Type            | Purpose                                                           | When to Modify                                                |
+| -------------------------------------------------- | --------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| `vyasa-rag-prod`                                   | **Application** | Main RAG API: `/chat`, `/chat/stream`, `/health`, `/admin/ingest` | **Every RAG service deploy** — contains business logic        |
+| `OrderFlow-VyasaVector-VectorCreatorFn`            | Infrastructure  | Creates S3 Vector index (1024 dimensions)                         | Change: embedding dimensions, vector store config             |
+| `OrderFlow-VyasaVector-VectorProvider`             | Infrastructure  | CDK provider for vector index lifecycle                           | Never directly — CDK internal                                 |
+| `OrderFlow-VyasaRag-KbCreatorFn`                   | Infrastructure  | Creates Bedrock Knowledge Base + S3 data source                   | Change: chunking (500 tokens → X), overlap %, embedding model |
+| `OrderFlow-VyasaRag-KbProvider`                    | Infrastructure  | CDK provider for KB lifecycle                                     | Never directly — CDK internal                                 |
+| `OrderFlow-VyasaRag-CustomCrossRegionExportWriter` | Infrastructure  | Cross-region exports                                              | Never — CDK internal                                          |
+
+**CDK Smart Deployment:**
+
+- `rag_changed=true, infra_changed=false` → Deploy only `OrderFlow-VyasaRag` stack (fast path)
+- `infra_changed=true` → Deploy `OrderFlow-VyasaVector` + `OrderFlow-VyasaRag` (full path)
+- No code changes → Infrastructure functions skipped entirely
+
+**Source locations:**
+
+- Application: `apps/vyasa-rag-service/src/index.ts`
+- Vector creator: `infra/lib/vyasa-vector-stack.ts`
+- KB creator: `infra/lib/vyasa-lambda-stack.ts` + `infra/lib/bedrock-kb-creator/`
+
 ### Services (active)
 
 | Service           | Runtime          | Directory                 | Status                                                                              |
