@@ -199,7 +199,7 @@ This is the entry point for any autonomous task. Current implementation is an 8-
 > that adds a dedicated requirements analysis phase and human review gates. The
 > current orchestrator will be updated to align with that model.
 >
-> **CLI note:** Agents are invoked via `run_agent()` in `ai-dev.sh` using valid
+> **CLI note:** Agents are invoked via `runAgent()` in the TypeScript CLI (`scripts/ai-dev/cli.ts`) using valid
 > `codemie-claude`/`claude` CLI flags (`-p --system-prompt --model --max-budget-usd`).
 > The earlier `--var` and `--max-turns` flags were aspirational and never existed in the CLI.
 
@@ -273,7 +273,7 @@ Each is a focused, constrained `instructions.md`:
 
 - `agents/code-agent/instructions.md` — superseded by `code-impl-agent` + `code-test-agent`
 - `agents/test-agent/instructions.md` — superseded by `code-test-agent`
-- `agents/orchestrator/instructions.md` — superseded by `ai-dev.sh` subcommand dispatcher
+- `agents/orchestrator/instructions.md` — superseded by TypeScript CLI (`scripts/ai-dev/`)
 - `agents/requirements-agent/instructions.md` ✅ — active (called by `requirements` subcommand)
 
 ---
@@ -448,41 +448,65 @@ jobs:
 
 _Estimated effort: 2 hours_
 
-### E.1 — `scripts/ai-dev.sh` — Subcommand Dispatcher (Jira State)
+### E.1 — `scripts/ai-dev/` — TypeScript CLI (Migrated from Bash)
+
+> **Status:** Migration complete. The original 3,109-line `scripts/ai-dev.sh` bash script has been migrated to a modular
+> TypeScript CLI. The bash version is preserved as `scripts/ai-dev.sh.bak` (deprecated, can be removed).
 
 An async pipeline where each step is independently triggered. State lives in Jira —
 each pipeline step maps to a subtask under the parent ticket. Human approval = transitioning
 the subtask to "Done" in the Jira UI.
 
-#### CLI Invocation: `codemie-claude` via `run_agent()` helper
-
-The script uses `codemie-claude` (CodeMie enterprise wrapper around Claude Code CLI) as the
-default AI runner. A centralized `run_agent()` helper handles all agent invocations:
+#### CLI Invocation
 
 ```bash
-# run_agent <instructions_file> <budget_usd> <model> [KEY=VALUE ...]
-run_agent agents/requirements-agent/instructions.md 1.50 sonnet \
-  TICKET_ID="OF-123" TICKET_CONTEXT="$context"
+# Development (no build needed):
+npx tsx scripts/ai-dev/cli.ts <TICKET_ID> <command>
+
+# Via npm script (recommended):
+npm run ai-dev -- <TICKET_ID> <command>
 ```
 
-**How it works:**
+#### Module Architecture
 
-1. Reads the agent instructions file (Markdown)
-2. Substitutes `{KEY}` placeholders with provided `KEY=VALUE` pairs (using `perl` — handles newlines and special chars safely)
-3. Invokes `$CLAUDE_CMD -p --system-prompt "$instructions" --model <model> --max-budget-usd <budget> --dangerously-skip-permissions`
+```
+scripts/ai-dev/
+├── cli.ts                    # Entry point — commander setup + dispatch
+├── config.ts                 # Load ai-dlc.config.ts or defaults
+├── types.ts                  # Shared types (StepName, Config, etc.)
+│
+├── clients/
+│   ├── jira-client.ts        # Typed Jira REST API wrapper
+│   ├── http.ts               # fetch wrapper with Basic auth header
+│   ├── github.ts             # gh CLI wrapper
+│   └── aws.ts                # aws CLI wrapper
+│
+├── core/
+│   ├── agent-runner.ts       # runAgent() — read instructions, substitute vars, exec claude
+│   ├── prerequisite.ts       # checkPrerequisite() — gating logic per step
+│   ├── git.ts                # git operations
+│   ├── file-helpers.ts       # featureDir(), subtasksFile(), markers
+│   ├── ci-status.ts          # getCIStatus(), classifyCIFailure()
+│   ├── logger.ts             # Colored console output
+│   └── shell.ts              # execSync wrapper
+│
+└── steps/
+    ├── create.ts, init.ts, status.ts
+    ├── requirements.ts, resolve.ts, design.ts
+    ├── code-impl.ts, code-test.ts, code-quality.ts, code-security.ts, code-perf.ts
+    ├── code.ts (alias), validate.ts
+    ├── deploy-pr.ts, deploy-ship.ts
+    ├── release.ts, rollback.ts
+    └── fix-lint.ts, fix-types.ts, fix-tests.ts, fix-build.ts, fix-security.ts, fix-conflicts.ts
+```
 
-**Valid CLI flags used (compatible with both `claude` and `codemie-claude`):**
+**Agent invocation:** Uses the same `codemie-claude`/`claude` CLI but via Node.js `execSync`:
 
-| Flag                             | Purpose                                                                  |
-| -------------------------------- | ------------------------------------------------------------------------ |
-| `-p` / `--print`                 | Non-interactive mode (exit after response)                               |
-| `--system-prompt`                | Agent instructions (with variables pre-substituted)                      |
-| `--model`                        | Model selection (`sonnet`, `haiku`)                                      |
-| `--max-budget-usd`               | Cost cap per invocation                                                  |
-| `--dangerously-skip-permissions` | Full filesystem + shell access. Safe: pipeline owns the repo it runs in. |
+- Reads agent instructions file (Markdown)
+- Substitutes `{KEY}` placeholders with `String.replaceAll()` (no `perl` needed)
+- Invokes `$CLAUDE_CMD -p --system-prompt "$instructions" --model <model> --max-budget-usd <budget> --dangerously-skip-permissions`
 
-> **Trust boundary:** `--dangerously-skip-permissions` is intentional — agents must write source
-> files, docs, and run build/test commands. Never run this script against a repo you do not own.
+**Eliminated dependencies:** `jq`, `perl`, `curl`, `base64`, `awk`, `sed` — all replaced by Node.js native APIs.
 
 **Budget allocation per agent:**
 
@@ -536,29 +560,30 @@ Parent ticket: OF-123
 **Full subcommand reference:**
 
 ```bash
-./scripts/ai-dev.sh <PROJECT_KEY> create "idea"  # AI-generate Jira ticket from one-liner
-./scripts/ai-dev.sh <TICKET_ID>  init             # Parse ticket, create 9 subtasks + branch
-./scripts/ai-dev.sh <TICKET_ID>  requirements     # requirements-agent → requirements.md
-./scripts/ai-dev.sh <TICKET_ID>  resolve          # Pull PO answers from Jira, update requirements.md
-./scripts/ai-dev.sh <TICKET_ID>  design           # design-agent → TDD.md
-./scripts/ai-dev.sh <TICKET_ID>  code             # Alias: runs all 5 sub-steps (auto-approves each)
-./scripts/ai-dev.sh <TICKET_ID>  code-impl        # code-impl-agent → source + IMPL_CHECKLIST.md
-./scripts/ai-dev.sh <TICKET_ID>  code-test        # code-test-agent → spec tests + 80% coverage
-./scripts/ai-dev.sh <TICKET_ID>  code-quality     # auto-fix + quality-agent → ESLint+tsc clean
-./scripts/ai-dev.sh <TICKET_ID>  code-security    # secrets scan + security-agent → SECURITY_REVIEW.md
-./scripts/ai-dev.sh <TICKET_ID>  code-perf        # perf-agent → N+1 review + E2E stubs
-./scripts/ai-dev.sh <TICKET_ID>  validate         # Script-only CI dry-run (lint/tsc/test/build/audit)
-./scripts/ai-dev.sh <TICKET_ID>  deploy-pr        # deploy-agent → push branch, open PR
-./scripts/ai-dev.sh <TICKET_ID>  deploy-ship      # Monitor CI; classify + dispatch fix-* agents
-./scripts/ai-dev.sh <TICKET_ID>  release          # Post-merge: CDK deploy + smoke tests + Jira Done
-./scripts/ai-dev.sh <TICKET_ID>  rollback         # Revert CDK stacks to .last-known-good-commit
-./scripts/ai-dev.sh <TICKET_ID>  fix-lint         # ESLint + Prettier fix → commit + push
-./scripts/ai-dev.sh <TICKET_ID>  fix-types        # TypeScript error fix → commit + push
-./scripts/ai-dev.sh <TICKET_ID>  fix-tests        # Jest failure fix → commit + push
-./scripts/ai-dev.sh <TICKET_ID>  fix-build        # Build error fix → commit + push
-./scripts/ai-dev.sh <TICKET_ID>  fix-security     # npm audit fix + agent → commit + push
-./scripts/ai-dev.sh <TICKET_ID>  fix-conflicts    # Rebase + conflict resolution → force-with-lease
-./scripts/ai-dev.sh <TICKET_ID>  status           # Show live pipeline status from Jira
+# Via npm script (recommended):
+npm run ai-dev -- SCRUM create "idea"    # AI-generate Jira ticket from one-liner
+npm run ai-dev -- SCRUM-123 init         # Parse ticket, create 9 subtasks + branch
+npm run ai-dev -- SCRUM-123 requirements # requirements-agent → requirements.md
+npm run ai-dev -- SCRUM-123 resolve      # Pull PO answers from Jira, update requirements.md
+npm run ai-dev -- SCRUM-123 design       # design-agent → TDD.md
+npm run ai-dev -- SCRUM-123 code         # Alias: runs all 5 sub-steps (auto-approves each)
+npm run ai-dev -- SCRUM-123 code-impl    # code-impl-agent → source + IMPL_CHECKLIST.md
+npm run ai-dev -- SCRUM-123 code-test    # code-test-agent → spec tests + 80% coverage
+npm run ai-dev -- SCRUM-123 code-quality # auto-fix + quality-agent → ESLint+tsc clean
+npm run ai-dev -- SCRUM-123 code-security# secrets scan + security-agent → SECURITY_REVIEW.md
+npm run ai-dev -- SCRUM-123 code-perf    # perf-agent → N+1 review + E2E stubs
+npm run ai-dev -- SCRUM-123 validate     # Script-only CI dry-run (lint/tsc/test/build/audit)
+npm run ai-dev -- SCRUM-123 deploy-pr    # deploy-agent → push branch, open PR
+npm run ai-dev -- SCRUM-123 deploy-ship  # Monitor CI; classify + dispatch fix-* agents
+npm run ai-dev -- SCRUM-123 release      # Post-merge: CDK deploy + smoke tests + Jira Done
+npm run ai-dev -- SCRUM-123 rollback     # Revert CDK stacks to .last-known-good-commit
+npm run ai-dev -- SCRUM-123 fix-lint     # ESLint + Prettier fix → commit + push
+npm run ai-dev -- SCRUM-123 fix-types    # TypeScript error fix → commit + push
+npm run ai-dev -- SCRUM-123 fix-tests    # Jest failure fix → commit + push
+npm run ai-dev -- SCRUM-123 fix-build    # Build error fix → commit + push
+npm run ai-dev -- SCRUM-123 fix-security # npm audit fix + agent → commit + push
+npm run ai-dev -- SCRUM-123 fix-conflicts# Rebase + conflict resolution → force-with-lease
+npm run ai-dev -- SCRUM-123 status       # Show live pipeline status from Jira
 ```
 
 **Gated steps** (each checks the prior subtask = "Done" before running):
@@ -584,7 +609,7 @@ Parent ticket: OF-123
 
 `release` also runs smoke tests on the RAG `/health` endpoint and UI domain; auto-rollbacks on failure.
 
-**Prerequisites:** `codemie-claude` CLI (`npm install -g @codemieai/code`), `jq`, `curl`, `gh` (GitHub CLI), `aws` (AWS CLI), Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
+**Prerequisites:** Node.js 22+, `codemie-claude` CLI (`npm install -g @codemieai/code`) or `claude` CLI, `gh` (GitHub CLI), `aws` (AWS CLI), Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
 
 > **Note:** Set `AI_DEV_CLAUDE_CMD=claude` to use raw Claude Code CLI instead of the CodeMie enterprise wrapper.
 
@@ -604,7 +629,7 @@ Parent ticket: OF-123
 | **8**  | `.mcp.json` + Jira/Slack tokens | 1 file          | 60 min | API tokens   |
 | **9**  | Bedrock IAM role + model access | AWS setup       | 30 min | AWS access   |
 | **10** | `llm-security-scan.yml`         | 1 file          | 30 min | Step 9       |
-| **11** | `scripts/ai-dev.sh`             | 1 file          | 15 min | Steps 6+8    |
+| **11** | `scripts/ai-dev/` (TS CLI)      | 1 dir           | 15 min | Steps 6+8    |
 
 ---
 
@@ -613,16 +638,16 @@ Parent ticket: OF-123
 | After Phase         | What works                                                                                                                 |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **A** (Brain)       | Every Claude session in Windsurf instantly knows the full project context — no re-explaining stack, patterns, or standards |
-| **B** (Agents)      | `run_agent` helper invokes `codemie-claude -p --system-prompt <instructions> --model sonnet` for autonomous PR generation  |
+| **B** (Agents)      | `runAgent()` helper invokes `codemie-claude -p --system-prompt <instructions> --model sonnet` for autonomous PR generation |
 | **C** (MCPs)        | Orchestrator can read Jira tickets itself + Langfuse observability for RAG eval — no manual copy-paste                     |
 | **D** (Security CI) | Every PR gets AI security review via Bedrock — no code leaves your AWS VPC                                                 |
-| **E** (Script)      | Async pipeline: `./scripts/ai-dev.sh JIRA-456 <step>` — review offline, approve, trigger next step                         |
+| **E** (Script)      | Async pipeline: `npm run ai-dev -- JIRA-456 <step>` — review offline, approve, trigger next step                           |
 
 ---
 
 ## Agentic Pipeline (10-Step Workflow)
 
-> **Status:** Fully implemented in `scripts/ai-dev.sh`. The original 5-section model has
+> **Status:** Fully implemented in TypeScript CLI (`scripts/ai-dev/`). The original 5-section model has
 > evolved into a 10-step pipeline with dedicated code sub-phases (impl → test → quality →
 > security → perf), automated CI monitoring, and a post-merge release/rollback lifecycle.
 
@@ -853,7 +878,7 @@ flowchart TD
 ### Phase B — Agent Infrastructure
 
 - [x] B.1 — `.cloud/permissions.yaml`
-- [x] B.2 — `agents/orchestrator/instructions.md` (legacy — superseded by `ai-dev.sh` dispatcher)
+- [x] B.2 — `agents/orchestrator/instructions.md` (legacy — superseded by TypeScript CLI dispatcher)
 - [x] B.3 — Sub-agent instruction files
   - [x] `agents/requirements-agent/instructions.md`
   - [x] `agents/design-agent/instructions.md`
@@ -891,9 +916,9 @@ flowchart TD
 
 ### Phase E — Operator Script (10-Step Pipeline)
 
-- [x] E.1 — `scripts/ai-dev.sh` — Jira-backed subcommand dispatcher
+- [x] E.1 — `scripts/ai-dev/` — TypeScript CLI (Jira-backed subcommand dispatcher)
   - [x] 22 subcommands: `create, init, requirements, resolve, design, code, code-impl, code-test, code-quality, code-security, code-perf, validate, deploy-pr, deploy-ship, deploy (deprecated), release, rollback, fix-lint, fix-types, fix-tests, fix-build, fix-security, fix-conflicts, status`
-  - [x] `run_agent()` helper — `perl`-based `{VAR}` substitution, `--dangerously-skip-permissions`
+  - [x] `runAgent()` helper — native `{VAR}` substitution via `String.replaceAll()`, `--dangerously-skip-permissions`
   - [x] 9 Jira subtasks created per ticket (requirements → deploy-ship)
   - [x] 8 gated steps (each validates prior subtask = "Done" in Jira)
   - [x] Jira REST API helpers (create, comment, attachment, transition, get status)

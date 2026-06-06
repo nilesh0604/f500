@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **TypeScript migration of ai-dev CLI (Phase 1-3)** — Successfully migrated the 3,109-line bash script to a modular TypeScript CLI at `scripts/ai-dev/`
+  - Created modular architecture with 25+ TypeScript modules
+  - Implemented core utilities (logger, shell, config, types)
+  - Built client wrappers (HTTP, Jira, GitHub, AWS)
+  - Implemented pipeline steps (init, requirements, design, code, validate)
+  - Added prerequisite gating system to enforce step order
+  - Replaced bash dependencies with native Node.js APIs (no jq, perl, curl, base64, awk, sed)
+  - Added type safety throughout the codebase
+  - Improved error handling with try/catch blocks
+
+### Changed
+
+- **ai-dev CLI architecture** — Replaced monolithic bash script with modular TypeScript implementation
+- **Dependencies** — Eliminated external CLI tools, using only Node.js native APIs and commander.js
+
 ### Fixed
 
 - **Release: Build failures now abort deployment** — `ai-dev.sh release` previously treated `vyasa-rag-service` and `vyasa-ui` build failures as soft warnings and continued deploying stale artifacts. Both builds now fail fast with a Jira comment on error.
