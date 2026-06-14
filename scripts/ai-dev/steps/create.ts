@@ -23,7 +23,7 @@ export async function createCommand(
     process.exit(1);
   }
 
-  const projectKey = ctx.ticketId || 'OF';
+  const projectKey = ctx.ticketId || 'SCRUM';
   Logger.banner(`Creating ticket from idea`);
   Logger.info(`  Project: ${projectKey}`);
   Logger.info(`  Idea:    ${idea}`);
@@ -158,24 +158,36 @@ export async function createCommand(
 }
 
 function extractJsonFromOutput(output: string): string | null {
+  // Try custom markers first
   const startMarker = '---JSON_OUTPUT_START---';
   const endMarker = '---JSON_OUTPUT_END---';
-
   const startIndex = output.indexOf(startMarker);
   const endIndex = output.indexOf(endMarker);
 
-  if (startIndex === -1 || endIndex === -1) {
-    return null;
+  if (startIndex !== -1 && endIndex !== -1) {
+    const jsonSection = output.substring(
+      startIndex + startMarker.length,
+      endIndex
+    );
+    return jsonSection
+      .split('\n')
+      .filter(l => !l.includes('---JSON_OUTPUT'))
+      .join('\n')
+      .trim();
   }
 
-  const jsonSection = output.substring(
-    startIndex + startMarker.length,
-    endIndex
-  );
+  // Fall back to ```json code fence
+  const fenceMatch = output.match(/```json\s*\n([\s\S]*?)\n```/);
+  if (fenceMatch) {
+    return fenceMatch[1].trim();
+  }
 
-  // Remove the marker lines and clean up
-  const lines = jsonSection.split('\n');
-  const jsonLines = lines.filter(line => !line.includes('---JSON_OUTPUT'));
+  // Last resort: first { ... } block
+  const first = output.indexOf('{');
+  const last = output.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    return output.substring(first, last + 1).trim();
+  }
 
-  return jsonLines.join('\n').trim();
+  return null;
 }

@@ -356,7 +356,7 @@ async function createPipelineContext(
 
   // Get Jira credentials from environment
   const jira: JiraCredentials = {
-    baseUrl: process.env.JIRA_BASE_URL || 'https://orderflow.atlassian.net',
+    baseUrl: process.env.JIRA_BASE_URL || 'https://nilesh0604.atlassian.net',
     email: process.env.JIRA_EMAIL || '',
     apiToken: process.env.JIRA_API_TOKEN || '',
   };

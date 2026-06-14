@@ -55,7 +55,9 @@ export class JiraClient {
       if (error instanceof HttpError) {
         Logger.error(`Jira API error: ${error.message}`);
         if (error.response) {
-          Logger.debug(`Response: ${JSON.stringify(error.response, null, 2)}`);
+          Logger.error(
+            `Response body: ${JSON.stringify(error.response, null, 2)}`
+          );
         }
       }
       throw error;
@@ -74,15 +76,17 @@ export class JiraClient {
 
   async getIssueTypeId(project: string, typeName: string): Promise<string> {
     Logger.debug(`Getting issue type ID for ${typeName} in project ${project}`);
+    // Use project key endpoint — /issuetype/project requires numeric projectId
     const response = await this.request<any>(
       'GET',
-      `/rest/api/3/issuetype/project?projectId=${project}`
+      `/rest/api/3/project/${project}`
     );
 
-    const issueType = response.issueTypes.find(
-      (it: any) => it.name === typeName
-    );
+    const issueTypes: any[] = response.issueTypes ?? [];
+    const issueType = issueTypes.find((it: any) => it.name === typeName);
     if (!issueType) {
+      const available = issueTypes.map((it: any) => it.name).join(', ');
+      Logger.error(`Available issue types: ${available}`);
       throw new Error(
         `Issue type '${typeName}' not found in project ${project}`
       );

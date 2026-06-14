@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { PipelineContext, AgentConfig } from '../types.js';
 import { Logger } from './logger.js';
 import { Shell } from './shell.js';
@@ -34,11 +34,10 @@ export async function runAgent(
       );
     }
 
-    // 3. Build the claude command
+    // 3. Build claude args — pass instructions as the -p prompt (not --system-prompt,
+    //    which doesn't satisfy Claude Code's "input must be provided" requirement)
     const claudeArgs = [
-      ctx.claudeCmd,
       '-p',
-      '--system-prompt',
       processedInstructions,
       '--model',
       config.model,
@@ -46,21 +45,27 @@ export async function runAgent(
       config.budget.toString(),
     ];
 
-    const command = claudeArgs.join(' ');
-
-    // 4. Execute the agent
+    // 4. Execute the agent via spawnSync to bypass shell interpolation
     Logger.info('Executing Claude agent...');
-    const result = Shell.exec(command, { silent: true });
+    const proc = spawnSync(ctx.claudeCmd, claudeArgs, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
 
-    if (result.exitCode !== 0) {
-      Logger.error(`Agent execution failed with exit code ${result.exitCode}`);
-      if (result.stderr) {
-        Logger.error(`Stderr: ${result.stderr}`);
-      }
-      throw new Error(`Agent failed: ${result.stderr || result.stdout}`);
+    if (proc.error) {
+      throw new Error(`Failed to spawn agent: ${proc.error.message}`);
     }
 
-    const output = result.stdout.trim();
+    if (proc.status !== 0) {
+      Logger.error(`Agent execution failed with exit code ${proc.status}`);
+      if (proc.stderr) {
+        Logger.error(`Stderr: ${proc.stderr}`);
+      }
+      throw new Error(`Agent failed: ${proc.stderr || proc.stdout}`);
+    }
+
+    const output = (proc.stdout ?? '').trim();
     Logger.success('Agent execution completed');
     Logger.debug(`Agent output length: ${output.length} characters`);
 
