@@ -40,8 +40,7 @@ export async function initCommand(ctx: PipelineContext): Promise<void> {
     Logger.info('Creating subtasks...');
     const subtaskKeys: Record<string, string> = {};
 
-    // Skip 'requirements' as it's the first step
-    const stepsToCreate = STEPS_ORDERED.filter(step => step !== 'requirements');
+    const stepsToCreate = STEPS_ORDERED;
 
     for (const step of stepsToCreate) {
       const existing = await getSubtaskKey(
@@ -77,14 +76,6 @@ export async function initCommand(ctx: PipelineContext): Promise<void> {
         throw error;
       }
     }
-
-    // Also save the requirements subtask (the parent ticket itself)
-    await saveSubtaskKey(
-      ctx.repoRoot,
-      ctx.ticketId,
-      'requirements',
-      ctx.ticketId
-    );
 
     // 5. Create initial marker files
     await writeMarker(ctx.repoRoot, ctx.ticketId, 'branch', branchName);
