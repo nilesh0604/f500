@@ -102,20 +102,16 @@ export class JiraClient {
   ): Promise<string> {
     Logger.debug(`Creating subtask under ${parentKey}: ${summary}`);
 
-    // Get parent issue to get project key
-    const parent = await this.getIssue(parentKey);
-    const subtaskTypeId = await this.getIssueTypeId(
-      parent.fields.project.key,
-      'Sub-task'
-    );
+    const projectKey = parentKey.split('-')[0];
+    const subtaskTypeId = await this.getIssueTypeId(projectKey, 'Subtask');
 
-    const request: CreateIssueRequest = {
+    const fields: CreateIssueRequest = {
       summary,
       description: description
-        ? JSON.stringify(this.adfFromText(description))
+        ? (this.adfFromText(description) as unknown as string)
         : undefined,
       project: {
-        key: parent.fields.project.key,
+        key: projectKey,
       },
       issuetype: {
         id: subtaskTypeId,
@@ -125,11 +121,9 @@ export class JiraClient {
       },
     };
 
-    const response = await this.request<any>(
-      'POST',
-      '/rest/api/3/issue',
-      request
-    );
+    const response = await this.request<any>('POST', '/rest/api/3/issue', {
+      fields,
+    });
     return response.key;
   }
 

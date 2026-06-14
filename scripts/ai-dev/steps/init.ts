@@ -4,6 +4,7 @@ import { Logger } from '../core/logger.js';
 import { checkoutNewBranch, currentBranch } from '../core/git.js';
 import {
   ensureFeatureDir,
+  getSubtaskKey,
   saveSubtaskKey,
   writeMarker,
   writePrNumber,
@@ -43,6 +44,17 @@ export async function initCommand(ctx: PipelineContext): Promise<void> {
     const stepsToCreate = STEPS_ORDERED.filter(step => step !== 'requirements');
 
     for (const step of stepsToCreate) {
+      const existing = await getSubtaskKey(
+        ctx.repoRoot,
+        ctx.ticketId,
+        step as any
+      );
+      if (existing) {
+        subtaskKeys[step] = existing;
+        Logger.info(`Subtask ${step} already exists: ${existing}, skipping`);
+        continue;
+      }
+
       const summary = `${step} for ${ctx.ticketId}`;
       const description = `Subtask for ${step} execution on ${ctx.ticketId}: ${ticket.fields.summary}`;
 

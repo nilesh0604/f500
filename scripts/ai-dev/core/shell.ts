@@ -20,7 +20,7 @@ export class Shell {
 
       const stdout = execSync(command, opts);
       return {
-        stdout: stdout.toString(),
+        stdout: stdout != null ? stdout.toString() : '',
         stderr: '',
         exitCode: 0,
       };

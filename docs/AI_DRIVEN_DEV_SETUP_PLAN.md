@@ -340,7 +340,7 @@ _Estimated effort: 1 hour | Needs API tokens_
       "args": ["-y", "@aws/mcp-unified"],
       "env": {
         "AWS_REGION": "${AWS_REGION}",
-        "AWS_PROFILE": "${AWS_PROFILE}"
+        "AWS_PRSCRUMILE": "${AWS_PRSCRUMILE}"
       }
     },
     "jira": {
@@ -368,7 +368,7 @@ _Estimated effort: 1 hour | Needs API tokens_
 - GitHub PAT (`GITHUB_PERSONAL_ACCESS_TOKEN`): `https://github.com/settings/tokens`
 - Jira API token + email (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`): `https://id.atlassian.com/manage-profile/security/api-tokens`
 - Langfuse (`LANGFUSE_API_TOKEN`): Base64-encoded `pk:sk` from Langfuse project settings
-- AWS: Profile configured via `aws configure` or SSO (`AWS_REGION`, `AWS_PROFILE`)
+- AWS: Profile configured via `aws configure` or SSO (`AWS_REGION`, `AWS_PRSCRUMILE`)
 
 > **Note:** Slack MCP was originally planned but replaced by Langfuse MCP for RAG evaluation
 > observability. Slack can be added later if notification integration is needed.
@@ -533,16 +533,16 @@ scripts/ai-dev/
 **Subtask architecture (9 subtasks per ticket):**
 
 ```
-Parent ticket: OF-123
+Parent ticket: SCRUM-123
 ├── [AI] Requirements Analysis      → requirements.md (gated: human Done)
 ├── [AI] Technical Design           → TDD.md (gated: human Done)
-├── [AI] Implementation: OF-123     → IMPL_CHECKLIST.md (gated: human Done)
-├── [AI] Spec Tests: OF-123         → coverage report (gated: human Done)
-├── [AI] Code Quality: OF-123       → lint/tsc pass (gated: human Done)
-├── [AI] Security Review: OF-123    → SECURITY_REVIEW.md (gated: human Done)
-├── [AI] Performance Review: OF-123 → perf findings (gated: human Done)
-├── [AI] PR: OF-123                 → PR opened, transitions to "In Review"
-└── [AI] Ship: OF-123               → CI green, transitions to "Done"
+├── [AI] Implementation: SCRUM-123     → IMPL_CHECKLIST.md (gated: human Done)
+├── [AI] Spec Tests: SCRUM-123         → coverage report (gated: human Done)
+├── [AI] Code Quality: SCRUM-123       → lint/tsc pass (gated: human Done)
+├── [AI] Security Review: SCRUM-123    → SECURITY_REVIEW.md (gated: human Done)
+├── [AI] Performance Review: SCRUM-123 → perf findings (gated: human Done)
+├── [AI] PR: SCRUM-123                 → PR opened, transitions to "In Review"
+└── [AI] Ship: SCRUM-123               → CI green, transitions to "Done"
 ```
 
 **Local state files** (stored in `docs/features/{TICKET_ID}/`):
@@ -559,32 +559,31 @@ Parent ticket: OF-123
 
 **Full subcommand reference:**
 
-```bash
-# Via npm script (recommended):
-npm run ai-dev -- SCRUM create "idea"    # AI-generate Jira ticket from one-liner
-npm run ai-dev -- SCRUM-123 init         # Parse ticket, create 9 subtasks + branch
-npm run ai-dev -- SCRUM-123 requirements # requirements-agent → requirements.md
-npm run ai-dev -- SCRUM-123 resolve      # Pull PO answers from Jira, update requirements.md
-npm run ai-dev -- SCRUM-123 design       # design-agent → TDD.md
-npm run ai-dev -- SCRUM-123 code         # Alias: runs all 5 sub-steps (auto-approves each)
-npm run ai-dev -- SCRUM-123 code-impl    # code-impl-agent → source + IMPL_CHECKLIST.md
-npm run ai-dev -- SCRUM-123 code-test    # code-test-agent → spec tests + 80% coverage
-npm run ai-dev -- SCRUM-123 code-quality # auto-fix + quality-agent → ESLint+tsc clean
-npm run ai-dev -- SCRUM-123 code-security# secrets scan + security-agent → SECURITY_REVIEW.md
-npm run ai-dev -- SCRUM-123 code-perf    # perf-agent → N+1 review + E2E stubs
-npm run ai-dev -- SCRUM-123 validate     # Script-only CI dry-run (lint/tsc/test/build/audit)
-npm run ai-dev -- SCRUM-123 deploy-pr    # deploy-agent → push branch, open PR
-npm run ai-dev -- SCRUM-123 deploy-ship  # Monitor CI; classify + dispatch fix-* agents
-npm run ai-dev -- SCRUM-123 release      # Post-merge: CDK deploy + smoke tests + Jira Done
-npm run ai-dev -- SCRUM-123 rollback     # Revert CDK stacks to .last-known-good-commit
-npm run ai-dev -- SCRUM-123 fix-lint     # ESLint + Prettier fix → commit + push
-npm run ai-dev -- SCRUM-123 fix-types    # TypeScript error fix → commit + push
-npm run ai-dev -- SCRUM-123 fix-tests    # Jest failure fix → commit + push
-npm run ai-dev -- SCRUM-123 fix-build    # Build error fix → commit + push
-npm run ai-dev -- SCRUM-123 fix-security # npm audit fix + agent → commit + push
-npm run ai-dev -- SCRUM-123 fix-conflicts# Rebase + conflict resolution → force-with-lease
-npm run ai-dev -- SCRUM-123 status       # Show live pipeline status from Jira
-```
+| Subcommand                | Agent                   | Model             | Budget | Rationale                                                                                                                  |
+| ------------------------- | ----------------------- | ----------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `create "idea"`           | `ticket-creator`        | Claude Sonnet 4.6 | $1.0   | Maps a vague one-liner to a structured Jira ticket (summary, description, ACs, story points) — requires creative reasoning |
+| `init SCRUM-123`          | — (script)              | —                 | —      | Deterministic: parses ticket via Jira API, creates 9 subtasks, creates git branch — no AI reasoning needed                 |
+| `requirements SCRUM-123`  | `requirements-agent`    | Claude Sonnet 4.6 | $1.5   | Detects ambiguities, writes BDD-style acceptance criteria, generates clarifying questions — requires analytical reasoning  |
+| `resolve SCRUM-123`       | — (script)              | —                 | —      | Pulls PO answers from Jira comments and patches requirements.md — deterministic text merge                                 |
+| `design SCRUM-123`        | `design-agent`          | Claude Sonnet 4.6 | $2.0   | Plans TDD test structure, maps ACs to test cases, reasons about edge cases and mocking strategy                            |
+| `code SCRUM-123`          | alias                   | —                 | —      | Chains code-impl → code-test → code-quality → code-security → code-perf (auto-approves each)                               |
+| `code-impl SCRUM-123`     | `code-impl-agent`       | Claude Sonnet 4.6 | $3.0   | Highest budget — generates multi-file implementation per CLAUDE.md conventions, produces IMPL_CHECKLIST.md                 |
+| `code-test SCRUM-123`     | `code-test-agent`       | Claude Sonnet 4.6 | $2.0   | Writes spec tests targeting 80% branch/line coverage; must reason about async patterns and edge cases                      |
+| `code-quality SCRUM-123`  | `code-quality-agent`    | Claude Sonnet 4.6 | $1.5   | Reviews residual ESLint/tsc errors after auto-fix pass; non-trivial fixes require judgment                                 |
+| `code-security SCRUM-123` | `code-security-agent`   | Claude Sonnet 4.6 | $1.5   | OWASP Top 10 + SOC 2 review — must reason about injection vectors, auth gaps, PII exposure                                 |
+| `code-perf SCRUM-123`     | `code-perf-agent`       | Claude Sonnet 4.6 | $1.5   | Detects N+1 queries, unnecessary re-renders, missing indexes; generates E2E performance stubs                              |
+| `validate SCRUM-123`      | — (script)              | —                 | —      | CI dry-run: runs lint / tsc / jest / build / npm audit sequentially — no AI needed                                         |
+| `deploy-pr SCRUM-123`     | `deploy-agent`          | Claude Sonnet 4.6 | $2.0   | Crafts PR description, applies branch-naming convention, pushes branch, opens GitHub PR                                    |
+| `deploy-ship SCRUM-123`   | — (script + fix agents) | —                 | —      | Monitors CI; classifies failure type; dispatches the matching `fix-*` agent (max 3 retries per type)                       |
+| `release SCRUM-123`       | — (script)              | —                 | —      | Smart CDK targeting (rag-only vs full infra), smoke tests, writes `.last-known-good-commit`                                |
+| `rollback SCRUM-123`      | — (script)              | —                 | —      | Reverts CDK stacks to `.last-known-good-commit` — deterministic git + CDK operation                                        |
+| `fix-lint SCRUM-123`      | `fix-lint-agent`        | Claude Haiku 4.5  | $1.0   | ESLint/Prettier fixes are rule-based and mechanical — Haiku is fast and cost-efficient here                                |
+| `fix-types SCRUM-123`     | `fix-types-agent`       | Claude Haiku 4.5  | $1.0   | TypeScript type annotations are mostly mechanical (add types, fix null checks) — Haiku sufficient                          |
+| `fix-tests SCRUM-123`     | `fix-tests-agent`       | Claude Sonnet 4.6 | $2.0   | Failing tests often need reasoning about what changed vs what was expected — Sonnet required                               |
+| `fix-build SCRUM-123`     | `fix-build-agent`       | Claude Sonnet 4.6 | $2.0   | Build errors can involve complex dependency resolution and config changes — Sonnet required                                |
+| `fix-security SCRUM-123`  | `fix-security-agent`    | Claude Sonnet 4.6 | $2.0   | `npm audit fix` may need reasoning about which CVEs to fix vs accept and manual patching                                   |
+| `fix-conflicts SCRUM-123` | `fix-conflicts-agent`   | Claude Sonnet 4.6 | $2.0   | Semantic merge conflicts require understanding intent of both branches — Sonnet required                                   |
+| `status SCRUM-123`        | — (script)              | —                 | —      | Reads live pipeline state from Jira subtask statuses — no AI needed                                                        |
 
 **Gated steps** (each checks the prior subtask = "Done" before running):
 `requirements → design → code-impl → code-test → code-quality → code-security → code-perf → deploy-pr`
