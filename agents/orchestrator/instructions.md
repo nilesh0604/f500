@@ -15,7 +15,7 @@ Human triggers step → Agent produces output → Posted to Jira subtask → Hum
 ## Architecture
 
 ```
-Parent ticket: OF-123 "Add session timeout"
+Parent ticket: SCRUM-123 "Add session timeout"
 ├── Subtask: OF-124 "[AI] Requirements"     → requirements.md (summary + attachment)
 ├── Subtask: OF-125 "[AI] Design"           → TDD.md (summary + attachment)
 ├── Subtask: OF-126 "[AI] Implementation"   → changed files list, lint/test status
@@ -47,30 +47,30 @@ Parent ticket: OF-123 "Add session timeout"
 # → Review in Jira: edit title, description, priority if needed
 
 # 1. Initialize — creates subtasks + branch
-./scripts/ai-dev.sh OF-123 init
+./scripts/ai-dev.sh SCRUM-123 init
 
 # 2. Requirements analysis
-./scripts/ai-dev.sh OF-123 requirements
+./scripts/ai-dev.sh SCRUM-123 requirements
 # → Review in Jira: transition "[AI] Requirements" subtask to Done
 
 # 3. Technical design
-./scripts/ai-dev.sh OF-123 design
+./scripts/ai-dev.sh SCRUM-123 design
 # → Review in Jira: transition "[AI] Design" subtask to Done
 
 # 4. Implementation
-./scripts/ai-dev.sh OF-123 code
+./scripts/ai-dev.sh SCRUM-123 code
 # → Review branch + Jira comment: transition "[AI] Implementation" to Done
 
 # 5. Test coverage
-./scripts/ai-dev.sh OF-123 test
+./scripts/ai-dev.sh SCRUM-123 test
 # (auto-completes — no approval needed)
 
 # 6. Open PR
-./scripts/ai-dev.sh OF-123 deploy
+./scripts/ai-dev.sh SCRUM-123 deploy
 # (auto-completes — review the PR on GitHub)
 
 # Check progress anytime
-./scripts/ai-dev.sh OF-123 status
+./scripts/ai-dev.sh SCRUM-123 status
 ```
 
 ---

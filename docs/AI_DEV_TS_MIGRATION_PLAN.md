@@ -334,13 +334,13 @@ program
 
 ```bash
 # Development (no build needed):
-npx tsx scripts/ai-dev/cli.ts OF-123 init
+npx tsx scripts/ai-dev/cli.ts SCRUM-123 init
 
 # Production (after build):
-node scripts/ai-dev/dist/cli.js OF-123 init
+node scripts/ai-dev/dist/cli.js SCRUM-123 init
 
 # Via npm script (add to root package.json):
-npm run ai-dev -- OF-123 init
+npm run ai-dev -- SCRUM-123 init
 ```
 
 ### Step 1.7 — Add npm script to root `package.json`
@@ -771,7 +771,7 @@ Swap `JiraClient` → `LinearClient`, `GithubClient` → `GitLabClient` without 
 
 ```bash
 # Eventually:
-npx @yourscope/ai-dlc OF-123 init
+npx @yourscope/ai-dlc SCRUM-123 init
 ```
 
 ---

@@ -62,7 +62,10 @@ Questions:
 
 ### Step 3 — Produce requirements.md
 
-Create `docs/features/{TICKET_ID}/requirements.md`:
+If you have Write tool access, create the file at `docs/features/{TICKET_ID}/requirements.md`.
+If you do not have Write tool access, output the full file contents directly in your response — the pipeline will capture your stdout and write the file. Do NOT wrap the content in a code block.
+
+File content:
 
 ```markdown
 # Requirements — {TICKET_ID}: {title}

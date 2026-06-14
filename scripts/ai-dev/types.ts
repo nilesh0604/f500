@@ -35,6 +35,7 @@ export interface AgentConfig {
   instructionsFile: string;
   budget: number;
   model: 'sonnet' | 'haiku';
+  allowedTools?: string[];
 }
 
 export interface PipelineContext {

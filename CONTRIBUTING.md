@@ -38,7 +38,7 @@ refactor/<short-description>
 
 Examples:
 
-- `feature/OF-123-user-authentication`
+- `feature/SCRUM-123-user-authentication`
 - `hotfix/OF-456-fix-memory-leak`
 - `release/v1.2.0`
 
@@ -125,7 +125,7 @@ git config --global commit.gpgsign true
 
 Examples:
 
-- `feat(auth): implement JWT authentication [OF-123]`
+- `feat(auth): implement JWT authentication [SCRUM-123]`
 - `fix(order-service): resolve race condition in status update [OF-456]`
 
 ### PR Description Template

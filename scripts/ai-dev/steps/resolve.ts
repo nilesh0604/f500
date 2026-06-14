@@ -63,6 +63,18 @@ export async function resolveCommand(ctx: PipelineContext): Promise<void> {
     Logger.info('Fetching comments from Jira...');
     const comments = await jira.getComments(subtaskKey);
 
+    const isDebug = process.argv.includes('--debug');
+    if (isDebug) {
+      Logger.info(`Found ${comments.length} comment(s)`);
+      for (const c of comments) {
+        const text = extractTextFromJiraComment(c.body);
+        Logger.info(`--- Comment by ${c.author?.displayName} ---`);
+        Logger.info(JSON.stringify(c.body, null, 2));
+        Logger.info(`Extracted text: ${JSON.stringify(text)}`);
+        Logger.info(`Matches Q pattern: ${/^Q\d+:/im.test(text)}`);
+      }
+    }
+
     // Find latest comment with Q1:, Q2: answers
     const latestAnswers = extractLatestAnswers(comments);
 
@@ -171,6 +183,17 @@ function extractLatestAnswers(comments: any[]): string | null {
   return null;
 }
 
+const BLOCK_NODES = new Set([
+  'paragraph',
+  'blockquote',
+  'bulletList',
+  'orderedList',
+  'listItem',
+  'heading',
+  'codeBlock',
+  'rule',
+]);
+
 function extractTextFromJiraComment(body: any): string {
   if (!body || !body.content) return '';
 
@@ -179,8 +202,11 @@ function extractTextFromJiraComment(body: any): string {
     for (const node of content) {
       if (node.type === 'text') {
         text += node.text || '';
-      } else if (node.type === 'paragraph' && node.content) {
-        text += extractText(node.content);
+      } else if (node.type === 'hardBreak') {
+        text += '\n';
+      } else if (BLOCK_NODES.has(node.type) && node.content) {
+        const inner = extractText(node.content);
+        text += (text && !text.endsWith('\n') ? '\n' : '') + inner + '\n';
       } else if (node.content) {
         text += extractText(node.content);
       } else if (node.text) {
@@ -192,7 +218,7 @@ function extractTextFromJiraComment(body: any): string {
 
   return extractText(
     Array.isArray(body.content) ? body.content : [body.content]
-  );
+  ).trim();
 }
 
 function parseAnswers(text: string): Map<number, string> {
@@ -201,22 +227,27 @@ function parseAnswers(text: string): Map<number, string> {
 
   let currentQ = 0;
   let currentAnswer = '';
+  let currentDecision = '';
 
   for (const line of lines) {
     const match = line.match(/^Q\s*(\d+)\s*:\s*(.*)/i);
     if (match) {
-      if (currentQ > 0 && currentAnswer) {
-        answers.set(currentQ, currentAnswer.trim());
+      if (currentQ > 0) {
+        answers.set(currentQ, (currentDecision || currentAnswer).trim());
       }
       currentQ = parseInt(match[1], 10);
       currentAnswer = match[2] || '';
-    } else if (currentQ > 0 && line.trim()) {
+      currentDecision = '';
+    } else if (currentQ > 0 && line.startsWith('Decision:')) {
+      // User wrote "Q1: title\nDecision: answer" — prefer the Decision: line
+      currentDecision = line.substring('Decision:'.length).trim();
+    } else if (currentQ > 0 && line.trim() && !currentDecision) {
       currentAnswer += '\n' + line;
     }
   }
 
-  if (currentQ > 0 && currentAnswer) {
-    answers.set(currentQ, currentAnswer.trim());
+  if (currentQ > 0) {
+    answers.set(currentQ, (currentDecision || currentAnswer).trim());
   }
 
   return answers;
@@ -243,7 +274,7 @@ function applyAnswersToRequirements(
 
     if (
       inDesignDecisions &&
-      line.startsWith('## ') &&
+      (line.startsWith('## ') || line === '---') &&
       !line.includes('Design Decisions')
     ) {
       // Flush any pending question
