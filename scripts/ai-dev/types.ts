@@ -46,6 +46,13 @@ export interface PipelineContext {
   codeAliasMode: boolean;
 }
 
+export interface JiraAttachment {
+  id: string;
+  filename: string;
+  content: string;
+  mimeType: string;
+}
+
 export interface JiraIssue {
   id: string;
   key: string;
@@ -62,6 +69,7 @@ export interface JiraIssue {
       id: string;
       name: string;
     };
+    attachment?: JiraAttachment[];
   };
 }
 
