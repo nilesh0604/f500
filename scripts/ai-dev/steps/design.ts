@@ -7,7 +7,6 @@ import {
   getSubtaskKey,
   featureDir,
   writeFileWithDir,
-  readFileIfExists,
 } from '../core/file-helpers.js';
 import { loadConfig } from '../config.js';
 import { join } from 'path';
@@ -42,18 +41,29 @@ export async function designCommand(ctx: PipelineContext): Promise<void> {
       throw new Error('Design agent not found in config');
     }
 
-    // Read requirements for context
+    // Get requirements subtask key
+    const reqSubtaskKey = await getSubtaskKey(
+      ctx.repoRoot,
+      ctx.ticketId,
+      'requirements'
+    );
+    if (!reqSubtaskKey) {
+      throw new Error('Requirements subtask not found. Did you run init?');
+    }
+
+    // Download PO-approved requirements.md from Jira and sync locally
     const requirementsPath = join(
       config.featureDocsDir,
       ctx.ticketId,
       'requirements.md'
     );
-    const requirements = await readFileIfExists(requirementsPath);
-    if (!requirements) {
-      throw new Error(
-        'Requirements file not found. Did you run requirements step?'
-      );
-    }
+    Logger.info('Downloading PO-approved requirements.md from Jira...');
+    const requirements = await jira.downloadAttachment(
+      reqSubtaskKey,
+      'requirements.md'
+    );
+    await writeFileWithDir(requirementsPath, requirements);
+    Logger.success('requirements.md synced from Jira (local copy updated)');
 
     // Get ticket info
     const ticket = await jira.getIssue(ctx.ticketId);
