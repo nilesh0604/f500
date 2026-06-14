@@ -1,5 +1,10 @@
 import { HttpClient, HttpError } from './http.js';
-import { JiraCredentials, JiraIssue, AdfNode } from '../types.js';
+import {
+  JiraCredentials,
+  JiraIssue,
+  JiraAttachment,
+  AdfNode,
+} from '../types.js';
 import { Logger } from '../core/logger.js';
 
 export interface JiraComment {
@@ -187,6 +192,37 @@ export class JiraClient {
     if (!response.ok) {
       throw new Error(`Failed to upload attachment: ${response.statusText}`);
     }
+  }
+
+  async downloadAttachment(
+    issueKey: string,
+    filename: string
+  ): Promise<string> {
+    Logger.debug(`Downloading attachment '${filename}' from ${issueKey}`);
+
+    const issue = await this.request<JiraIssue>(
+      'GET',
+      `/rest/api/3/issue/${issueKey}?fields=attachment`
+    );
+
+    const attachments = issue.fields.attachment ?? [];
+    const attachment = attachments.find(a => a.filename === filename);
+
+    if (!attachment) {
+      throw new Error(`Attachment '${filename}' not found on ${issueKey}`);
+    }
+
+    const response = await fetch(attachment.content, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.credentials.email}:${this.credentials.apiToken}`).toString('base64')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to download attachment: ${response.statusText}`);
+    }
+
+    return response.text();
   }
 
   async getTransitions(issueKey: string): Promise<JiraTransition[]> {
