@@ -8,5 +8,5 @@
   "validate": "SCRUM-29",
   "deploy-pr": "SCRUM-30",
   "deploy-ship": "SCRUM-31",
-  "requirements": "SCRUM-21"
+  "requirements": "SCRUM-32"
 }

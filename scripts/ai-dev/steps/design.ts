@@ -7,9 +7,11 @@ import {
   getSubtaskKey,
   featureDir,
   writeFileWithDir,
+  readFileIfExists,
 } from '../core/file-helpers.js';
 import { loadConfig } from '../config.js';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { readFile } from 'fs/promises';
 
 export async function designCommand(ctx: PipelineContext): Promise<void> {
   Logger.banner(`Running design for ${ctx.ticketId}`);
@@ -58,15 +60,32 @@ export async function designCommand(ctx: PipelineContext): Promise<void> {
       'requirements.md'
     );
     Logger.info('Downloading PO-approved requirements.md from Jira...');
-    const requirements = await jira.downloadAttachment(
-      reqSubtaskKey,
-      'requirements.md'
-    );
-    await writeFileWithDir(requirementsPath, requirements);
-    Logger.success('requirements.md synced from Jira (local copy updated)');
+    let requirements: string;
+    try {
+      requirements = await jira.downloadAttachment(
+        reqSubtaskKey,
+        'requirements.md'
+      );
+      await writeFileWithDir(requirementsPath, requirements);
+      Logger.success('requirements.md synced from Jira (local copy updated)');
+    } catch {
+      const local = await readFileIfExists(requirementsPath);
+      if (!local) {
+        throw new Error(
+          `Attachment 'requirements.md' not found on ${reqSubtaskKey} and no local copy exists. Re-run: ai-dev ${ctx.ticketId} requirements`
+        );
+      }
+      Logger.warn(
+        'requirements.md not found in Jira — using local copy. Run "requirements" again to upload it.'
+      );
+      requirements = local;
+    }
 
     // Get ticket info
     const ticket = await jira.getIssue(ctx.ticketId);
+
+    // Gather brownfield context for the design agent
+    const brownfieldContext = await gatherBrownfieldContext(ctx.repoRoot);
 
     // Prepare variables for the agent
     const variables = {
@@ -75,6 +94,7 @@ export async function designCommand(ctx: PipelineContext): Promise<void> {
       REQUIREMENTS: requirements,
       FEATURE_DIR: featureDir(ctx.repoRoot, ctx.ticketId),
       REPO_ROOT: ctx.repoRoot,
+      BROWNFIELD_CONTEXT: brownfieldContext,
     };
 
     // Run the design agent
@@ -167,4 +187,140 @@ function extractKeyComponents(designOutput: string): string {
   }
 
   return components.slice(0, 5).join('\n') || '* Design document created';
+}
+
+async function gatherBrownfieldContext(repoRoot: string): Promise<string> {
+  const parts: string[] = [];
+
+  parts.push('## Existing Shared Types (libs/shared-types/src/)');
+  parts.push('');
+  parts.push('### Index');
+  try {
+    const indexPath = join(repoRoot, 'libs/shared-types/src/index.ts');
+    parts.push('```typescript');
+    parts.push(await readFile(indexPath, 'utf8'));
+    parts.push('```');
+  } catch {
+    parts.push('_shared-types not found_');
+  }
+
+  parts.push('');
+  parts.push('### Order Types');
+  try {
+    const orderTypesPath = join(
+      repoRoot,
+      'libs/shared-types/src/lib/order.types.ts'
+    );
+    parts.push('```typescript');
+    parts.push(await readFile(orderTypesPath, 'utf8'));
+    parts.push('```');
+  } catch {
+    // skip
+  }
+
+  parts.push('');
+  parts.push('### Event Types');
+  try {
+    const eventTypesPath = join(
+      repoRoot,
+      'libs/shared-types/src/lib/event.types.ts'
+    );
+    parts.push('```typescript');
+    parts.push(await readFile(eventTypesPath, 'utf8'));
+    parts.push('```');
+  } catch {
+    // skip
+  }
+
+  parts.push('');
+  parts.push('### Auth Types');
+  try {
+    const authTypesPath = join(
+      repoRoot,
+      'libs/shared-types/src/lib/auth.types.ts'
+    );
+    parts.push('```typescript');
+    parts.push(await readFile(authTypesPath, 'utf8'));
+    parts.push('```');
+  } catch {
+    // skip
+  }
+
+  parts.push('');
+  parts.push('## Existing Service Patterns (vyasa-rag-service)');
+  parts.push('');
+
+  parts.push('### Handler Structure');
+  try {
+    const handlersDir = join(repoRoot, 'apps/vyasa-rag-service/src/handlers');
+    const handlerFiles = ['index.ts', 'rag-handler.ts'];
+    for (const file of handlerFiles) {
+      const filePath = join(handlersDir, file);
+      try {
+        parts.push(`#### ${file}`);
+        parts.push('```typescript');
+        const content = await readFile(filePath, 'utf8');
+        const trimmed =
+          content.length > 1500
+            ? content.substring(0, 1500) + '\n// ... (truncated)'
+            : content;
+        parts.push(trimmed);
+        parts.push('```');
+        parts.push('');
+      } catch {
+        // skip
+      }
+    }
+  } catch {
+    // skip
+  }
+
+  parts.push('');
+  parts.push('### Service Layer');
+  try {
+    const servicesDir = join(repoRoot, 'apps/vyasa-rag-service/src/services');
+    const serviceFiles = ['rag-service.ts', 'query-planner.ts'];
+    for (const file of serviceFiles) {
+      const filePath = join(servicesDir, file);
+      try {
+        parts.push(`#### ${file}`);
+        parts.push('```typescript');
+        const content = await readFile(filePath, 'utf8');
+        const trimmed =
+          content.length > 1500
+            ? content.substring(0, 1500) + '\n// ... (truncated)'
+            : content;
+        parts.push(trimmed);
+        parts.push('```');
+        parts.push('');
+      } catch {
+        // skip
+      }
+    }
+  } catch {
+    // skip
+  }
+
+  parts.push('');
+  parts.push('### Error Handling Patterns');
+  try {
+    const libDir = join(repoRoot, 'apps/vyasa-rag-service/src/lib');
+    const errorFiles = ['error.ts', 'errors.ts'];
+    for (const file of errorFiles) {
+      const filePath = join(libDir, file);
+      try {
+        parts.push(`#### ${file}`);
+        parts.push('```typescript');
+        parts.push(await readFile(filePath, 'utf8'));
+        parts.push('```');
+        parts.push('');
+      } catch {
+        // skip
+      }
+    }
+  } catch {
+    // skip
+  }
+
+  return parts.join('\n');
 }
