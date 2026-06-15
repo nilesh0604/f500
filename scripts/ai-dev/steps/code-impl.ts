@@ -98,6 +98,7 @@ h3. Files Modified/Created:
 ${changes.length > 0 ? changes.map(f => `* ${f}`).join('\n') : '* No file changes reported'}
 
 h3. Implementation Checklist:
+IMPL_CHECKLIST
 ${generateImplementationChecklist(output)}
 
 h3. Next Steps:
@@ -176,32 +177,32 @@ function extractFileChanges(output: string): string[] {
 
 function generateImplementationChecklist(output: string): string {
   const checklist: string[] = [
-    '* [ ] Code follows project coding standards',
-    '* [ ] Error handling implemented',
-    '* [ ] Logging added where appropriate',
-    '* [ ] Code is self-documenting',
-    '* [ ] No hardcoded values',
-    '* [ ] Performance considerations addressed',
+    '- [ ] Code follows project coding standards',
+    '- [ ] Error handling implemented',
+    '- [ ] Logging added where appropriate',
+    '- [ ] Code is self-documenting',
+    '- [ ] No hardcoded values',
+    '- [ ] Performance considerations addressed',
   ];
 
   // Look for specific implementation details in output
   if (output.includes('test')) {
-    checklist.push('* [ ] Testable code structure');
+    checklist.push('- [ ] Testable code structure');
   }
 
   if (output.includes('API') || output.includes('endpoint')) {
-    checklist.push('* [ ] API endpoints documented');
-    checklist.push('* [ ] Input validation added');
+    checklist.push('- [ ] API endpoints documented');
+    checklist.push('- [ ] Input validation added');
   }
 
   if (output.includes('database') || output.includes('DB')) {
-    checklist.push('* [ ] Database queries optimized');
-    checklist.push('* [ ] Transactions handled correctly');
+    checklist.push('- [ ] Database queries optimized');
+    checklist.push('- [ ] Transactions handled correctly');
   }
 
   if (output.includes('security') || output.includes('auth')) {
-    checklist.push('* [ ] Security best practices followed');
-    checklist.push('* [ ] Authorization implemented');
+    checklist.push('- [ ] Security best practices followed');
+    checklist.push('- [ ] Authorization implemented');
   }
 
   return checklist.join('\n');
