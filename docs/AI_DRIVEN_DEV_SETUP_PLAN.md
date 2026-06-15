@@ -1060,6 +1060,23 @@ The `runAgent()` helper parses this from stdout and uses `status` for determinis
 
 ---
 
+**Status:** ✅ Implemented — 15 Jun 2026
+
+**Implementation:**
+
+Added `## No Fabrication Rule` section to 6 code-writing agent instruction files:
+
+- `agents/code-agent/instructions.md`
+- `agents/code-impl-agent/instructions.md`
+- `agents/code-perf-agent/instructions.md`
+- `agents/code-quality-agent/instructions.md`
+- `agents/code-security-agent/instructions.md`
+- `agents/code-test-agent/instructions.md`
+
+Each section is positioned after "Allowed tools" and before "Inputs" for visibility.
+
+---
+
 ### Gap 8 — No circuit breaker with re-planning
 
 **Current state:** The pipeline has max retries per failure type (3 for `deploy-ship` fix agents, 1 for `code-test` coverage retry). When retries exhaust, the pipeline hard-blocks and the developer must manually investigate.

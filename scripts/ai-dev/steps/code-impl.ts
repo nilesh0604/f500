@@ -115,7 +115,10 @@ h3. Files:
 
     // Commit and push changes if any
     if (changes.length > 0) {
-      const commitMsg = `feat(${ctx.ticketId}): Implement ${ticket.fields.summary}`;
+      const summary = ticket.fields.summary
+        .replace(/["\n\r]/g, ' ')
+        .slice(0, 50);
+      const commitMsg = `feat: ${summary}`;
       const hasChanges = commitAndPush(commitMsg);
       if (hasChanges) {
         Logger.success('Changes committed and pushed');

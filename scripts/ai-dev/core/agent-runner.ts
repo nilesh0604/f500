@@ -43,6 +43,8 @@ export async function runAgent(
       config.model,
       '--max-budget-usd',
       config.budget.toString(),
+      '--permission-mode',
+      'bypassPermissions',
     ];
 
     // 4. Execute the agent via spawnSync to bypass shell interpolation
