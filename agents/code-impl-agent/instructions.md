@@ -19,6 +19,12 @@ Recommended: `claude-sonnet`
 
 ---
 
+## No Fabrication Rule
+
+Every file path, class name, namespace, and endpoint you reference must trace to: (1) an existing file in the repo, (2) the approved TDD.md spec, or (3) a resolved design decision. If you cannot find a reference, STOP and report `status: blocked` with the missing reference.
+
+---
+
 ## Inputs
 
 - `{TICKET_ID}` — ticket identifier
