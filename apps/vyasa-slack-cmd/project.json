@@ -38,7 +38,8 @@
       "executor": "@nx/jest:jest",
       "outputs": ["{workspaceRoot}/coverage/apps/vyasa-slack-cmd"],
       "options": {
-        "jestConfig": "apps/vyasa-slack-cmd/jest.config.ts"
+        "jestConfig": "apps/vyasa-slack-cmd/jest.config.ts",
+        "passWithNoTests": true
       }
     }
   },
