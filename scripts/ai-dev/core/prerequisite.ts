@@ -153,7 +153,7 @@ async function checkStepSpecificPrerequisites(
 
     case 'code-quality':
       // Check that tests are passing
-      const testsPassing = await checkTestsPass(prerequisiteKey);
+      const testsPassing = await checkTestsPass(ctx, prerequisiteKey);
       if (!testsPassing) {
         throw new Error(
           'Tests are not passing. Please fix failing tests before running quality checks'
@@ -273,14 +273,17 @@ function extractTextFromADF(body: { content?: unknown[] }): string {
   return texts.join('\n');
 }
 
-async function checkTestsPass(implKey: string): Promise<boolean> {
+async function checkTestsPass(
+  ctx: PipelineContext,
+  implKey: string
+): Promise<boolean> {
   // This would typically check CI status or run tests locally
   // For now, we'll check if there's a comment indicating tests pass
   const fs = await import('fs/promises');
-  const config = await loadConfig(process.cwd());
+  const config = await loadConfig(ctx.repoRoot);
 
   try {
-    const testResultPath = `${config.featureDocsDir}/${implKey.split('-')[1]}/test-results.json`;
+    const testResultPath = `${config.featureDocsDir}/${ctx.ticketId}/test-results.json`;
     const content = await fs.readFile(testResultPath, 'utf8');
     const results = JSON.parse(content);
     return results.success === true;
