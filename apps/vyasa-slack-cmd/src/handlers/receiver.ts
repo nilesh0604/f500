@@ -29,6 +29,9 @@ const secretsClient = new SecretsManagerClient({
 const lambdaClient = new LambdaClient({ region: 'us-east-1', maxAttempts: 3 });
 
 /** Signing secret cached after first cold-start fetch from Secrets Manager. */
+// PERF: No TTL on this cache — if Secrets Manager rotates the signing secret, the
+// container must be recycled (or redeployed) to pick up the new value. Consider
+// adding a max-age (e.g. 1 hour) in a follow-up if secret rotation is enabled.
 let cachedSigningSecret: string | null = null;
 
 async function getSigningSecret(): Promise<string> {
