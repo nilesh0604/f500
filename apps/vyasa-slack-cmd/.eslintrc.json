@@ -10,6 +10,15 @@
       "rules": {}
     },
     {
+      "files": ["*.spec.ts", "*.test.ts"],
+      "parserOptions": {
+        "project": ["apps/vyasa-slack-cmd/tsconfig.spec.json"]
+      },
+      "rules": {
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    },
+    {
       "files": ["*.ts", "*.tsx"],
       "rules": {}
     },

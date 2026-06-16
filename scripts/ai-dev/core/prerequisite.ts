@@ -221,28 +221,56 @@ async function checkImplementationChecklist(
   jira: JiraClient,
   implKey: string
 ): Promise<boolean> {
+  Logger.debug(`Checking implementation checklist for: ${implKey}`);
   const comments = await jira.getComments(implKey);
+  Logger.debug(`Found ${comments.length} comments`);
 
-  // Look for implementation checklist comment
   for (const comment of comments) {
-    const body = JSON.stringify(comment.body);
-    if (body.includes('IMPL_CHECKLIST')) {
-      // Check if all items are marked as done
-      const lines = body.split('\n');
+    const bodyText = extractTextFromADF(comment.body);
+    if (bodyText.includes('IMPL_CHECKLIST')) {
+      Logger.debug(`Full comment with IMPL_CHECKLIST:\n${bodyText}`);
+      const lines = bodyText.split('\n');
       let totalItems = 0;
       let completedItems = 0;
 
       for (const line of lines) {
-        if (line.includes('- [ ]')) totalItems++;
+        if (line.includes('- [ ]') || line.includes('- [x]')) totalItems++;
         if (line.includes('- [x]')) completedItems++;
       }
+      Logger.debug(
+        `totalItems: ${totalItems}, completedItems: ${completedItems}`
+      );
 
       return totalItems > 0 && totalItems === completedItems;
     }
   }
 
-  // If no checklist found, assume implementation is not complete
   return false;
+}
+
+function extractTextFromADF(body: { content?: unknown[] }): string {
+  if (!body.content) return '';
+
+  const texts: string[] = [];
+
+  function extractFromNode(node: unknown): void {
+    if (typeof node === 'string') {
+      texts.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(extractFromNode);
+      return;
+    }
+    if (node && typeof node === 'object') {
+      const n = node as { text?: string; content?: unknown[] };
+      if (n.text) texts.push(n.text);
+      if (n.content) extractFromNode(n.content);
+    }
+  }
+
+  extractFromNode(body.content);
+  return texts.join('\n');
 }
 
 async function checkTestsPass(implKey: string): Promise<boolean> {

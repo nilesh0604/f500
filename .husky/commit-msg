@@ -8,7 +8,7 @@ commit_msg=$(head -n1 "$commit_msg_file")
 # Conventional Commits pattern
 # Format: type(scope): description
 # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, security
-pattern="^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\([a-z-]+\))?: .+"
+pattern="^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\([a-zA-Z0-9-]+\))?: .+"
 
 if ! echo "$commit_msg" | grep -qE "$pattern"; then
   echo ""

@@ -44,20 +44,43 @@ export async function codeTestCommand(ctx: PipelineContext): Promise<void> {
     }
 
     // Read design and implementation for context
-    const designPath = join(config.featureDocsDir, ctx.ticketId, 'design.md');
-    const implPath = join(
-      config.featureDocsDir,
-      ctx.ticketId,
-      'implementation.md'
-    );
+    const featureDirPath = featureDir(ctx.repoRoot, ctx.ticketId);
+    const requirementsPath = join(featureDirPath, 'requirements.md');
+    const designPath = join(featureDirPath, 'design.md');
+    const tddPath = join(featureDirPath, 'TDD.md');
+    const implPath = join(featureDirPath, 'implementation.md');
+    const implChecklistPath = join(featureDirPath, 'IMPL_CHECKLIST.md');
 
+    const requirements = await readFileIfExists(requirementsPath);
     const design = await readFileIfExists(designPath);
+    const tdd = await readFileIfExists(tddPath);
     const implementation = await readFileIfExists(implPath);
+    const implChecklist = await readFileIfExists(implChecklistPath);
 
     if (!implementation) {
       throw new Error(
         'Implementation document not found. Did you run code-impl step?'
       );
+    }
+
+    // Get changed files from git
+    const { Shell } = await import('../core/shell.js');
+    let changedFiles = '';
+
+    // Try to get changed files from last commit
+    const gitResult = Shell.exec(
+      `git diff --name-only HEAD~1..HEAD -- "apps/*/src/**" "libs/*/src/**" 2>/dev/null | head -20`,
+      { cwd: ctx.repoRoot, silent: true }
+    );
+    if (gitResult.exitCode === 0 && gitResult.stdout.trim()) {
+      changedFiles = gitResult.stdout.trim();
+    } else {
+      // Fall back to untracked files in the feature directory
+      const untrackedResult = Shell.exec(
+        `git ls-files --others --exclude-standard "${featureDirPath}/" 2>/dev/null | head -20`,
+        { cwd: ctx.repoRoot, silent: true }
+      );
+      changedFiles = untrackedResult.stdout.trim();
     }
 
     // Get ticket info
@@ -67,9 +90,15 @@ export async function codeTestCommand(ctx: PipelineContext): Promise<void> {
     const variables = {
       TICKET_ID: ctx.ticketId,
       TICKET_SUMMARY: ticket.fields.summary,
-      DESIGN: design || '',
+      REQUIREMENTS_PATH: requirementsPath,
+      REQUIREMENTS: requirements || '',
+      TDD_PATH: tddPath,
+      TDD: tdd || '',
+      IMPL_CHECKLIST_PATH: implChecklistPath,
+      IMPL_CHECKLIST: implChecklist || '',
       IMPLEMENTATION: implementation,
-      FEATURE_DIR: featureDir(ctx.repoRoot, ctx.ticketId),
+      CHANGED_FILES: changedFiles,
+      FEATURE_DIR: featureDirPath,
       REPO_ROOT: ctx.repoRoot,
     };
 

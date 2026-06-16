@@ -10,6 +10,7 @@ export async function runAgent(
 ): Promise<string> {
   Logger.step(`Running agent: ${config.instructionsFile}`);
   Logger.debug(`Budget: $${config.budget}, Model: ${config.model}`);
+  Logger.debug(`Variables: ${Object.keys(variables).join(', ')}`);
 
   try {
     // 1. Read instructions file
@@ -48,7 +49,9 @@ export async function runAgent(
     ];
 
     // 4. Execute the agent via spawnSync to bypass shell interpolation
-    Logger.info('Executing Claude agent...');
+    Logger.info(
+      `Executing Claude agent: ${ctx.claudeCmd} ${claudeArgs.join(' ')}`
+    );
     const proc = spawnSync(ctx.claudeCmd, claudeArgs, {
       cwd: process.cwd(),
       encoding: 'utf8',
@@ -56,7 +59,14 @@ export async function runAgent(
     });
 
     if (proc.error) {
+      Logger.error(`Spawn error: ${proc.error.message}`);
       throw new Error(`Failed to spawn agent: ${proc.error.message}`);
+    }
+
+    Logger.debug(`Agent exit code: ${proc.status}`);
+
+    if (proc.stderr) {
+      Logger.debug(`Agent stderr: ${proc.stderr.substring(0, 500)}`);
     }
 
     if (proc.status !== 0) {
@@ -68,8 +78,14 @@ export async function runAgent(
     }
 
     const output = (proc.stdout ?? '').trim();
-    Logger.success('Agent execution completed');
-    Logger.debug(`Agent output length: ${output.length} characters`);
+    if (!output) {
+      Logger.warn('Agent produced no output');
+      Logger.debug(`Full stdout: ${proc.stdout}`);
+      Logger.debug(`Full stderr: ${proc.stderr}`);
+    } else {
+      Logger.success('Agent execution completed');
+      Logger.debug(`Agent output length: ${output.length} characters`);
+    }
 
     return output;
   } catch (error) {
