@@ -78,15 +78,21 @@ This closes the feedback loop without requiring the developer to watch the termi
 
 ---
 
-### Gap 5 — No scope drift detection after agent dispatch
+### Gap 5 — No scope drift detection after agent dispatch ✅ DONE
 
-**Current state:** After `code-impl-agent` runs, there is no automated check that the agent only touched files relevant to the task. The `validate` step checks lint/tsc/tests but not file scope.
+**Implemented:** Scope drift detection using design.md as scope declaration.
 
-**Problem:** Agents may write to unexpected locations (unrelated configs, unrelated tests, unrelated services). This goes undetected until human PR review — wasting review bandwidth.
+- Added `core/scope-drift.ts` with `checkScopeDrift()`, `reportDrift()`, `assertNoDrift()`
+- Extracts declared files from design.md using patterns like backtick paths, "File:", "Created:", "Modified:"
+- Compares against `git diff --name-only` to detect out-of-scope changes
+- Integrated into `code.ts` pipeline — runs after code-impl completes
+- Reports drift but does not hard-block (warns user to review)
 
-**Planned fix:** Add a zero-LLM scope-check script (inspired by AI-SDLC's `check-drift.ps1`). After `code-impl`, run `git diff --name-only` and compare against declared file scope from `dev-plan.md`. Drift = hard-block with a clear report of which files were out-of-scope.
+**Note:** Uses design.md instead of dev-plan.md (Gap 1) — achieves ~80% of benefit without waiting for the plan step.
 
-**Effort:** ~1 hour (shell script + wire into CLI)
+**Effort:** ~1 hour
+
+**Status:** Complete — scope drift is now detected and reported after implementation.
 
 ---
 
@@ -326,24 +332,24 @@ The `design-agent`'s brownfield context injection (`gatherBrownfieldContext()`) 
 > **Re-evaluated:** 2026-06-18. Reassessed against current fully-implemented 10-step pipeline
 > (25 subcommands, 15+ agents, Jira gating, CI auto-fix, release/rollback). Solo developer context.
 >
-> **Completed gaps removed:** Gap 3 (brownfield context ✅), Gap 7 (no-fabrication guard ✅)
+> **Completed gaps removed:** Gap 3 (brownfield context ✅), Gap 5 (scope drift ✅), Gap 7 (no-fabrication guard ✅)
 
-| Priority | Gap | Title                                | Impact | Effort | Reasoning                                                                      |
-| -------- | --- | ------------------------------------ | ------ | ------ | ------------------------------------------------------------------------------ |
-| **P1**   | 12  | Trivial-skip gate                    | High   | ~1h    | Direct $ savings — README/config changes don't need $8 security+perf review    |
-| **P1**   | 10  | Warm-continue on retries             | High   | ~1h    | Stops retries from repeating same mistake. Near-zero risk, immediate ROI       |
-| **P1**   | 6   | Structured agent return format       | High   | ~2h    | Eliminates silent failures (exit 0 but incomplete). Smarter orchestration      |
-| **P2**   | 15  | Lightweight per-run telemetry report | High   | ~3h    | Cost visibility per ticket/agent without Docker infra; enables optimization    |
-| **P2**   | 5   | Scope drift detection                | High   | ~1h    | Catches agents touching unrelated files — real observed problem                |
-| **P2**   | 1   | Dev plan step                        | Medium | ~3h    | Only needed for complex multi-file features; TDD.md covers 80% of cases        |
-| **P3**   | 14  | Structured change lifecycle          | Medium | ~3h    | Resume interrupted work + richer status; not critical while pipeline is stable |
-| **P3**   | 16  | Knowledge accumulation (archive)     | Medium | ~2h    | ROI increases with feature count; not urgent with <10 shipped features         |
-| **P3**   | 8   | Circuit breaker + re-planning        | Medium | ~4h    | Over-engineering for solo dev — manual investigation is fast & informative     |
-| **P3**   | 9   | CodeGraph MCP                        | Medium | ~8h    | Codebase too small to justify; brownfield injection covers main use case       |
-| **P4**   | 11  | Code review agent post-impl          | Low    | ~2h    | Redundant — human gate after code-impl catches spec divergence                 |
-| **P4**   | 2   | Enforced human gates                 | Low    | ~2h    | Solo dev controls the flow; no accidental automation to prevent                |
-| **P4**   | 4   | Slack notifications                  | Low    | ~3h    | Terminal output sufficient for solo async workflow                             |
-| **P4**   | 13  | OTLP telemetry dashboard (full)      | Low    | ~6h    | Superseded by Gap 15 for solo use; only relevant at team scale                 |
+| Priority | Gap   | Title                                | Impact   | Effort  | Reasoning                                                                           |
+| -------- | ----- | ------------------------------------ | -------- | ------- | ----------------------------------------------------------------------------------- |
+| **P1**   | 12    | Trivial-skip gate                    | High     | ~1h     | Direct $ savings — README/config changes don't need $8 security+perf review         |
+| **P1**   | 10    | Warm-continue on retries             | High     | ~1h     | Stops retries from repeating same mistake. Near-zero risk, immediate ROI            |
+| **P1**   | 6     | Structured agent return format       | High     | ~2h     | Eliminates silent failures (exit 0 but incomplete). Smarter orchestration           |
+| **P2**   | 15    | Lightweight per-run telemetry report | High     | ~3h     | Cost visibility per ticket/agent without Docker infra; enables optimization         |
+| ~~P2~~   | ~~5~~ | ~~Scope drift detection~~ ✅ DONE    | ~~High~~ | ~~~1h~~ | ~~Catches agents touching unrelated files~~ — now implemented using design.md scope |
+| **P2**   | 1     | Dev plan step                        | Medium   | ~3h     | Only needed for complex multi-file features; TDD.md covers 80% of cases             |
+| **P3**   | 14    | Structured change lifecycle          | Medium   | ~3h     | Resume interrupted work + richer status; not critical while pipeline is stable      |
+| **P3**   | 16    | Knowledge accumulation (archive)     | Medium   | ~2h     | ROI increases with feature count; not urgent with <10 shipped features              |
+| **P3**   | 8     | Circuit breaker + re-planning        | Medium   | ~4h     | Over-engineering for solo dev — manual investigation is fast & informative          |
+| **P3**   | 9     | CodeGraph MCP                        | Medium   | ~8h     | Codebase too small to justify; brownfield injection covers main use case            |
+| **P4**   | 11    | Code review agent post-impl          | Low      | ~2h     | Redundant — human gate after code-impl catches spec divergence                      |
+| **P4**   | 2     | Enforced human gates                 | Low      | ~2h     | Solo dev controls the flow; no accidental automation to prevent                     |
+| **P4**   | 4     | Slack notifications                  | Low      | ~3h     | Terminal output sufficient for solo async workflow                                  |
+| **P4**   | 13    | OTLP telemetry dashboard (full)      | Low      | ~6h     | Superseded by Gap 15 for solo use; only relevant at team scale                      |
 
 ---
 
@@ -366,7 +372,7 @@ The `design-agent`'s brownfield context injection (`gatherBrownfieldContext()`) 
 **Recommended implementation order:**
 
 1. **Quick wins (P1):** Gap 12 → Gap 10 → Gap 6 — ~4 hours total, improve every subsequent pipeline run
-2. **Observability + safety (P2):** Gap 15 → Gap 5 → Gap 1 — telemetry enables data-driven optimization; scope guard catches drift
+2. **Observability + safety (P2):** Gap 15 → ~~Gap 5~~ → Gap 1 — telemetry enables data-driven optimization; ~~scope guard catches drift~~ ✅
 3. **Maturity (P3):** Gap 14 → Gap 16 — structured lifecycle + knowledge accumulation; implement after 10+ features shipped
 4. **Defer until needed (P3–P4):** Gaps 8, 9, 11, 2, 4, 13 — revisit quarterly or when pain emerges
 
@@ -497,19 +503,19 @@ An MCP is justified **only** when the AI agent needs to call the tool **during i
 
 ### Implementation Priority (Updated 2026-06-18)
 
-| Order | Item                          | Type                                 | Effort | Notes                                                             |
-| ----- | ----------------------------- | ------------------------------------ | ------ | ----------------------------------------------------------------- |
-| 1     | Trivial-skip gate (Gap 12)    | CLI module in `scripts/ai-dev/core/` | ~1h    | Biggest cost saver — implement first                              |
-| 2     | Warm-continue on retries (10) | CLI module (modify `runAgent()`)     | ~1h    | Inject `{PREVIOUS_ATTEMPT_CONTEXT}` on retry                      |
-| 3     | Structured agent return (6)   | CLI module (modify `runAgent()`)     | ~2h    | Parse JSON between markers from stdout                            |
-| 4     | Per-run telemetry (Gap 15)    | CLI module (modify `runAgent()`)     | ~3h    | JSONL capture + HTML report; replaces Gap 13 for solo use         |
-| 5     | Scope Guard (Gap 5)           | CLI module in `scripts/ai-dev/core/` | ~1h    | `git diff --name-only` vs declared scope                          |
-| 6     | Change lifecycle (Gap 14)     | CLI module (`state.json` per ticket) | ~3h    | Resume logic + archive step; implement after 10+ features shipped |
-| 7     | Knowledge accumulation (16)   | CLI step (post-release archive)      | ~2h    | Pattern extraction → `docs/patterns/`; pairs with Gap 14          |
-| 8     | Knowledge Base MCP            | Custom MCP                           | ~5h    | Defer — only if design agent struggles with ADRs                  |
-| 9     | CodeGraph MCP                 | Custom MCP                           | ~8h    | Defer — revisit when repo exceeds 100 active files                |
-| —     | ~~OTLP dashboard (Gap 13)~~   | ~~Docker Compose stack~~             | ~~6h~~ | Superseded by Gap 15 for solo dev; team-scale only                |
-| —     | ~~Notification utility~~      | ~~CLI module (`notifySlack()`)~~     | ~~2h~~ | Deprioritized — solo dev, terminal sufficient                     |
+| Order | Item                            | Type                                     | Effort  | Notes                                                                            |
+| ----- | ------------------------------- | ---------------------------------------- | ------- | -------------------------------------------------------------------------------- |
+| 1     | Trivial-skip gate (Gap 12)      | CLI module in `scripts/ai-dev/core/`     | ~1h     | Biggest cost saver — implement first                                             |
+| 2     | Warm-continue on retries (10)   | CLI module (modify `runAgent()`)         | ~1h     | Inject `{PREVIOUS_ATTEMPT_CONTEXT}` on retry                                     |
+| 3     | Structured agent return (6)     | CLI module (modify `runAgent()`)         | ~2h     | Parse JSON between markers from stdout                                           |
+| 4     | Per-run telemetry (Gap 15)      | CLI module (modify `runAgent()`)         | ~3h     | JSONL capture + HTML report; replaces Gap 13 for solo use                        |
+| ~~5~~ | ~~Scope Guard (Gap 5)~~ ✅ DONE | ~~CLI module in `scripts/ai-dev/core/`~~ | ~~~1h~~ | ~~`git diff --name-only` vs declared scope~~ — implemented using design.md scope |
+| 6     | Change lifecycle (Gap 14)       | CLI module (`state.json` per ticket)     | ~3h     | Resume logic + archive step; implement after 10+ features shipped                |
+| 7     | Knowledge accumulation (16)     | CLI step (post-release archive)          | ~2h     | Pattern extraction → `docs/patterns/`; pairs with Gap 14                         |
+| 8     | Knowledge Base MCP              | Custom MCP                               | ~5h     | Defer — only if design agent struggles with ADRs                                 |
+| 9     | CodeGraph MCP                   | Custom MCP                               | ~8h     | Defer — revisit when repo exceeds 100 active files                               |
+| —     | ~~OTLP dashboard (Gap 13)~~     | ~~Docker Compose stack~~                 | ~~6h~~  | Superseded by Gap 15 for solo dev; team-scale only                               |
+| —     | ~~Notification utility~~        | ~~CLI module (`notifySlack()`)~~         | ~~2h~~  | Deprioritized — solo dev, terminal sufficient                                    |
 
 > **Principle:** Default to CLI modules. Promote to MCP only when agents demonstrably need mid-session access that cannot be pre-injected. Prioritize items that save money or prevent wasted retries over architectural elegance.
 >

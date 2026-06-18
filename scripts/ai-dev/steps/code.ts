@@ -6,6 +6,14 @@ import { codeQualityCommand } from './code-quality.js';
 import { codeSecurityCommand } from './code-security.js';
 import { codePerfCommand } from './code-perf.js';
 import { shouldSkipExpensiveSteps } from '../core/trivial-skip.js';
+import {
+  checkScopeDrift,
+  reportDrift,
+  assertNoDrift,
+} from '../core/scope-drift.js';
+import { loadConfig } from '../config.js';
+import { featureDir } from '../core/file-helpers.js';
+import { join } from 'path';
 
 export async function codeCommand(ctx: PipelineContext): Promise<void> {
   Logger.banner(`Running all code steps for ${ctx.ticketId}`);
@@ -30,6 +38,11 @@ export async function codeCommand(ctx: PipelineContext): Promise<void> {
         ctx.codeAliasMode = true;
         await step.fn(ctx);
         Logger.success(`${step.name} step completed`);
+
+        // Check for scope drift after code-impl
+        if (step.name === 'Implementation') {
+          await checkAndReportScopeDrift(ctx);
+        }
 
         if (shouldSkipExpensiveSteps()) {
           skippedTrivial = true;
@@ -88,5 +101,28 @@ All code steps have completed. Next steps:
   2. Run: ai-dev ${ctx.ticketId} validate to validate before deployment
       `.trim()
     );
+  }
+}
+
+async function checkAndReportScopeDrift(ctx: PipelineContext): Promise<void> {
+  try {
+    const config = await loadConfig(ctx.repoRoot);
+    const designPath = join(config.featureDocsDir, ctx.ticketId, 'design.md');
+
+    Logger.info('Checking for scope drift...');
+    const result = await checkScopeDrift(
+      ctx.repoRoot,
+      ctx.ticketId,
+      designPath
+    );
+    reportDrift(result);
+
+    if (result.hasDrift) {
+      Logger.warn(
+        'Some files were modified outside the declared scope. Review and confirm if intentional.'
+      );
+    }
+  } catch (error) {
+    Logger.warn(`Scope drift check skipped: ${error}`);
   }
 }
