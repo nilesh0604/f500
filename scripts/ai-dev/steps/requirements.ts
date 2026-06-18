@@ -56,10 +56,11 @@ export async function requirementsCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the requirements agent
     Logger.info('Running requirements analysis...');
-    const output = await runAgent(ctx, agentConfig, {
+    const result = await runAgent(ctx, agentConfig, {
       TICKET_ID: ctx.ticketId,
       TICKET_CONTEXT: context,
     });
+    const output = result.summary;
 
     // Verify output file was created; if not, write agent stdout as fallback
     const reqFile = join(

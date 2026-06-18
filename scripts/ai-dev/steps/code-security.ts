@@ -74,7 +74,8 @@ export async function codeSecurityCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the code security agent
     Logger.info('Analyzing security results and generating fixes...');
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Save security analysis
     const securityPath = join(

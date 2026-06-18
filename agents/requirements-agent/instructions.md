@@ -157,3 +157,24 @@ Edge cases:          [count]
 Open questions:      [count] — resolve before proceeding to design
 Affected services:   [list]
 ```
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of requirements",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — requirements.md complete with all ACs in Given/When/Then format
+- `fail` — Could not complete requirements
+- `blocked` — Missing ticket context or description
+- `setup-error` — Environment or configuration issue

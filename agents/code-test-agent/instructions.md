@@ -115,3 +115,24 @@ State:
 - Files where tests were added + line counts
 - Coverage before vs after per file (branches / functions / lines / statements)
 - Any AC that cannot be covered by automated tests — explain why
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of test coverage",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All ACs covered, ≥80% coverage threshold passed
+- `fail` — Coverage threshold not met or tests failed
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

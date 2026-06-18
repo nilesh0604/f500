@@ -90,23 +90,18 @@ This closes the feedback loop without requiring the developer to watch the termi
 
 ---
 
-### Gap 6 — No structured agent return format
+### Gap 6 — No structured agent return format ✅ DONE
 
-**Current state:** Agents communicate results via file artifacts (IMPL_CHECKLIST.md, SECURITY_REVIEW.md). The TypeScript CLI detects success/failure by checking file existence or parsing exit codes.
+**Implemented:** Structured agent return format with `AgentResult` type.
 
-**Problem:** Unreliable — an agent may exit 0 but produce incomplete output. The CLI cannot distinguish "done successfully" from "gave up silently". Auto-dispatch logic (e.g., `deploy-ship`) must rely on heuristics.
+- Added `AgentResult` type with `status` (done|fail|blocked|setup-error), `summary`, `followups`
+- Added marker constants: `AGENT_RESULT_START`, `AGENT_RESULT_END`
+- Updated `runAgent()` to parse structured result from stdout
+- Added fallback logic (`deriveAgentResult`) for agents without structured output
+- Updated all 16 agent instructions to output structured result
+- Updated all step files to handle `AgentResult` return type
 
-**Planned fix:** Define a JSON return contract for all agents. Each agent must output a structured block between markers:
-
-```
----AGENT_RESULT_START---
-{ "status": "done|fail|blocked|setup-error", "summary": "...", "followups": [...] }
----AGENT_RESULT_END---
-```
-
-The `runAgent()` helper parses this from stdout and uses `status` for deterministic orchestration decisions (retry, re-plan, hard-block).
-
-**Effort:** ~2 hours (update `runAgent()` + all agent instructions)
+**Status:** Complete — CLI can now make deterministic orchestration decisions based on agent status.
 
 ---
 
@@ -177,20 +172,19 @@ This also provides the brownfield grounding needed for Gap 3 — the design agen
 
 ---
 
-### Gap 10 — No warm-continue on agent retries
+### Gap 10 — No warm-continue on agent retries ✅ COMPLETED
 
-**Current state:** When a `fix-*` agent retries (or `code-test` retries for coverage), it cold-spawns a fresh claude process with no context from the previous failed attempt.
+**Implemented:** Added `{PREVIOUS_ATTEMPT_CONTEXT}` placeholder to `runAgent()` in `scripts/ai-dev/core/agent-runner.ts`. On retry, the previous agent's output and error messages are injected into the prompt, giving the retry agent "memory" of what failed.
 
-**Problem:** The retry agent re-reads the entire codebase from scratch, wasting tokens on context it already built. It may also repeat the same mistake if it doesn't know what was tried before.
+**Changes:**
 
-**Planned fix:** On retry, prepend the previous agent's failure output to the system prompt. Since `runAgent()` already constructs the prompt via string substitution, add a `{PREVIOUS_ATTEMPT_CONTEXT}` placeholder:
-
-- First attempt: placeholder is empty
-- Retry: placeholder contains the previous agent's stdout summary + error messages
-
-This gives the retry agent "memory" of what failed without maintaining a persistent session.
-
-**Effort:** ~1 hour (capture previous stdout in `runAgent()`, inject on retry)
+- `scripts/ai-dev/core/agent-runner.ts` — Added `previousAttemptContext` parameter, injects as `PREVIOUS_ATTEMPT_CONTEXT` variable
+- `scripts/ai-dev/steps/fix-build.ts` — Captures previous attempt context on failure, passes on retry
+- `scripts/ai-dev/steps/fix-types.ts` — Same pattern
+- `scripts/ai-dev/steps/fix-tests.ts` — Same pattern
+- `agents/fix-build-agent/instructions.md` — Added `{PREVIOUS_ATTEMPT_CONTEXT}` input
+- `agents/fix-types-agent/instructions.md` — Added `{PREVIOUS_ATTEMPT_CONTEXT}` input
+- `agents/fix-tests-agent/instructions.md` — Added `{PREVIOUS_ATTEMPT_CONTEXT}` input
 
 ---
 

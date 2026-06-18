@@ -134,3 +134,36 @@ State:
 - Findings deferred for human review (count)
 - npm audit status (HIGH/CRITICAL count)
 - Final verdict
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result. This is required for the CLI to orchestrate the pipeline:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of security review results",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — PASS verdict, no unresolved HIGH/CRITICAL findings
+- `fail` — FAIL verdict or unresolved HIGH/CRITICAL findings
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue
+
+**Example:**
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done",
+  "summary": "Fixed 3 HIGH findings (A03, A07), PASS verdict",
+  "followups": ["Review MEDIUM findings in SECURITY_REVIEW.md"]
+}
+---AGENT_RESULT_END---
+```

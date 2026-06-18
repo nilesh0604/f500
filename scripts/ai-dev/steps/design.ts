@@ -99,7 +99,8 @@ export async function designCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the design agent
     Logger.info('Running design analysis...');
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Write design to file
     const designPath = join(config.featureDocsDir, ctx.ticketId, 'design.md');

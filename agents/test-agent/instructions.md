@@ -76,3 +76,24 @@ List:
 - Files where tests were added
 - Coverage before vs after (per file)
 - Any coverage gaps that are intentionally excluded (e.g. error handler catch-all) with reasoning
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of test coverage",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — Coverage ≥ 80% threshold
+- `fail` — Coverage below threshold
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

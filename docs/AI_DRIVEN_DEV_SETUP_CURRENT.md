@@ -274,14 +274,14 @@ Each is a focused, constrained `instructions.md`:
 
 **Fix agents** (all ✅, used by `deploy-ship` auto-dispatched and standalone `fix-*` subcommands):
 
-| Agent                 | Model  | Budget | Trigger                                                |
-| --------------------- | ------ | ------ | ------------------------------------------------------ |
-| `fix-lint-agent`      | haiku  | $1.00  | ESLint errors remain after `eslint --fix`              |
-| `fix-types-agent`     | haiku  | $1.00  | `tsc --noEmit` errors (max 2 attempts)                 |
-| `fix-tests-agent`     | sonnet | $2.00  | Jest `FAIL` lines (max 2 attempts, spec as tiebreaker) |
-| `fix-build-agent`     | sonnet | $2.00  | `npm run build` failures (max 2 attempts)              |
-| `fix-security-agent`  | sonnet | $2.00  | HIGH/CRITICAL vulns after `npm audit fix`              |
-| `fix-conflicts-agent` | sonnet | $2.00  | ≤10 conflicted files after failed `git rebase`         |
+| Agent                 | Model  | Budget | Trigger                                                               |
+| --------------------- | ------ | ------ | --------------------------------------------------------------------- |
+| `fix-lint-agent`      | haiku  | $1.00  | ESLint errors remain after `eslint --fix`                             |
+| `fix-types-agent`     | haiku  | $1.00  | `tsc --noEmit` errors (max 2 attempts, warm-continue)                 |
+| `fix-tests-agent`     | sonnet | $2.00  | Jest `FAIL` lines (max 2 attempts, spec as tiebreaker, warm-continue) |
+| `fix-build-agent`     | sonnet | $2.00  | `npm run build` failures (max 2 attempts, warm-continue)              |
+| `fix-security-agent`  | sonnet | $2.00  | HIGH/CRITICAL vulns after `npm audit fix`                             |
+| `fix-conflicts-agent` | sonnet | $2.00  | ≤10 conflicted files after failed `git rebase`                        |
 
 **No-Fabrication Guard** (cross-cutting, applied to all 6 code-writing agents):
 
@@ -538,23 +538,23 @@ scripts/ai-dev/
 
 **Budget allocation per agent** (source of truth: `scripts/ai-dev/config.ts`):
 
-| Agent               | Model  | Budget | Rationale                                      |
-| ------------------- | ------ | ------ | ---------------------------------------------- |
-| ticket-creator      | sonnet | $1.00  | Codebase analysis + structured JSON output     |
-| requirements-agent  | sonnet | $1.50  | Deep reasoning on ambiguous requirements       |
-| design-agent        | sonnet | $2.00  | System interaction, Mermaid, API contract      |
-| code-impl-agent     | sonnet | $3.00  | Spec-driven implementation + IMPL_CHECKLIST.md |
-| code-test-agent     | sonnet | $2.00  | Spec compliance tests; 80% coverage (1 retry)  |
-| code-quality-agent  | sonnet | $1.50  | Residual lint/tsc errors after auto-fix        |
-| code-security-agent | sonnet | $1.50  | OWASP review → SECURITY_REVIEW.md              |
-| code-perf-agent     | sonnet | $1.50  | N+1/cache review + E2E stubs                   |
-| deploy-agent        | sonnet | $2.00  | PR creation via `gh` CLI                       |
-| fix-lint-agent      | haiku  | $1.00  | ESLint residuals after auto-fix                |
-| fix-types-agent     | haiku  | $1.00  | TypeScript type errors (max 2 attempts)        |
-| fix-tests-agent     | sonnet | $2.00  | Jest failures, spec as tiebreaker (max 2)      |
-| fix-build-agent     | sonnet | $2.00  | Build/compile errors (max 2 attempts)          |
-| fix-security-agent  | sonnet | $2.00  | HIGH/CRITICAL vulns after `npm audit fix`      |
-| fix-conflicts-agent | sonnet | $2.00  | ≤10 conflicted files after failed `git rebase` |
+| Agent               | Model  | Budget | Rationale                                                |
+| ------------------- | ------ | ------ | -------------------------------------------------------- |
+| ticket-creator      | sonnet | $1.00  | Codebase analysis + structured JSON output               |
+| requirements-agent  | sonnet | $1.50  | Deep reasoning on ambiguous requirements                 |
+| design-agent        | sonnet | $2.00  | System interaction, Mermaid, API contract                |
+| code-impl-agent     | sonnet | $3.00  | Spec-driven implementation + IMPL_CHECKLIST.md           |
+| code-test-agent     | sonnet | $2.00  | Spec compliance tests; 80% coverage (1 retry)            |
+| code-quality-agent  | sonnet | $1.50  | Residual lint/tsc errors after auto-fix                  |
+| code-security-agent | sonnet | $1.50  | OWASP review → SECURITY_REVIEW.md                        |
+| code-perf-agent     | sonnet | $1.50  | N+1/cache review + E2E stubs                             |
+| deploy-agent        | sonnet | $2.00  | PR creation via `gh` CLI                                 |
+| fix-lint-agent      | haiku  | $1.00  | ESLint residuals after auto-fix                          |
+| fix-types-agent     | haiku  | $1.00  | TypeScript type errors (max 2 attempts, warm-continue)   |
+| fix-tests-agent     | sonnet | $2.00  | Jest failures, spec as tiebreaker (max 2, warm-continue) |
+| fix-build-agent     | sonnet | $2.00  | Build/compile errors (max 2 attempts, warm-continue)     |
+| fix-security-agent  | sonnet | $2.00  | HIGH/CRITICAL vulns after `npm audit fix`                |
+| fix-conflicts-agent | sonnet | $2.00  | ≤10 conflicted files after failed `git rebase`           |
 
 **Configurable CLI:** Override `claudeCmd` in a custom `ai-dlc.config.ts` at repo root (default: `codemie-claude`). Set to `claude` to use raw Claude Code CLI.
 
@@ -609,9 +609,9 @@ Parent ticket: SCRUM-123
 | `release SCRUM-123`       | — (script)              | —                 | —      | Smart CDK targeting (rag-only vs full infra), smoke tests, writes `.last-known-good-commit`                                                                                                                                                                                                                                 |
 | `rollback SCRUM-123`      | — (script)              | —                 | —      | Reverts CDK stacks to `.last-known-good-commit` — deterministic git + CDK operation                                                                                                                                                                                                                                         |
 | `fix-lint SCRUM-123`      | `fix-lint-agent`        | Claude Haiku 4.5  | $1.0   | ESLint/Prettier fixes are rule-based and mechanical — Haiku is fast and cost-efficient here                                                                                                                                                                                                                                 |
-| `fix-types SCRUM-123`     | `fix-types-agent`       | Claude Haiku 4.5  | $1.0   | TypeScript type annotations are mostly mechanical (add types, fix null checks) — Haiku sufficient                                                                                                                                                                                                                           |
-| `fix-tests SCRUM-123`     | `fix-tests-agent`       | Claude Sonnet 4.6 | $2.0   | Failing tests often need reasoning about what changed vs what was expected — Sonnet required                                                                                                                                                                                                                                |
-| `fix-build SCRUM-123`     | `fix-build-agent`       | Claude Sonnet 4.6 | $2.0   | Build errors can involve complex dependency resolution and config changes — Sonnet required                                                                                                                                                                                                                                 |
+| `fix-types SCRUM-123`     | `fix-types-agent`       | Claude Haiku 4.5  | $1.0   | TypeScript type annotations are mostly mechanical (add types, fix null checks) — Haiku sufficient; includes warm-continue on retry                                                                                                                                                                                          |
+| `fix-tests SCRUM-123`     | `fix-tests-agent`       | Claude Sonnet 4.6 | $2.0   | Failing tests often need reasoning about what changed vs what was expected — Sonnet required; includes warm-continue on retry                                                                                                                                                                                               |
+| `fix-build SCRUM-123`     | `fix-build-agent`       | Claude Sonnet 4.6 | $2.0   | Build errors can involve complex dependency resolution and config changes — Sonnet required; includes warm-continue on retry                                                                                                                                                                                                |
 | `fix-security SCRUM-123`  | `fix-security-agent`    | Claude Sonnet 4.6 | $2.0   | `npm audit fix` may need reasoning about which CVEs to fix vs accept and manual patching                                                                                                                                                                                                                                    |
 | `fix-conflicts SCRUM-123` | `fix-conflicts-agent`   | Claude Sonnet 4.6 | $2.0   | Semantic merge conflicts require understanding intent of both branches — Sonnet required                                                                                                                                                                                                                                    |
 | `status SCRUM-123`        | — (script)              | —                 | —      | Reads live pipeline state from Jira subtask statuses — no AI needed                                                                                                                                                                                                                                                         |
@@ -807,15 +807,15 @@ No human gate — either passes and unlocks `deploy-pr`, or fails with per-check
 
 **CI failure classification (`deploy-ship`):**
 
-| CI Failure  | Fix dispatched                       | Max retries |
-| ----------- | ------------------------------------ | ----------- |
-| `lint`      | `fix-lint-agent` (haiku $1.00)       | 3           |
-| `types`     | `fix-types-agent` (haiku $1.00)      | 3           |
-| `tests`     | `fix-tests-agent` (sonnet $2.00)     | 3           |
-| `build`     | `fix-build-agent` (sonnet $2.00)     | 3           |
-| `security`  | `fix-security-agent` (sonnet $2.00)  | 3           |
-| `conflicts` | `fix-conflicts-agent` (sonnet $2.00) | 3           |
-| `unknown`   | — (manual required)                  | —           |
+| CI Failure  | Fix dispatched                       | Max retries         |
+| ----------- | ------------------------------------ | ------------------- |
+| `lint`      | `fix-lint-agent` (haiku $1.00)       | 3                   |
+| `types`     | `fix-types-agent` (haiku $1.00)      | 3 (+ warm-continue) |
+| `tests`     | `fix-tests-agent` (sonnet $2.00)     | 3 (+ warm-continue) |
+| `build`     | `fix-build-agent` (sonnet $2.00)     | 3 (+ warm-continue) |
+| `security`  | `fix-security-agent` (sonnet $2.00)  | 3                   |
+| `conflicts` | `fix-conflicts-agent` (sonnet $2.00) | 3                   |
+| `unknown`   | — (manual required)                  | —                   |
 
 No auto-merge — Fortune 500 compliance requires human approval: `gh pr merge <N> --squash --delete-branch`
 
@@ -970,6 +970,7 @@ flowchart TD
 - [x] E.1 — `scripts/ai-dev/` — TypeScript CLI (Jira-backed subcommand dispatcher)
   - [x] 25 subcommands: `help, create, init, requirements, resolve, design, code, code-impl, code-test, code-quality, code-security, code-perf, validate, deploy-pr, deploy-ship, deploy (deprecated), release, rollback, fix-lint, fix-types, fix-tests, fix-build, fix-security, fix-conflicts, status`
   - [x] `runAgent()` helper — native `{VAR}` substitution via `String.replaceAll()`, `--permission-mode bypassPermissions`
+  - [x] **Structured agent return format** — `AgentResult` type with `status` (done|fail|blocked|setup-error), `summary`, `followups`; parsed from stdout between `---AGENT_RESULT_START---` / `---AGENT_RESULT_END---` markers; enables deterministic orchestration decisions (retry, re-plan, hard-block)
   - [x] 10 Jira subtasks created per ticket (all STEPS_ORDERED: requirements → deploy-ship)
   - [x] 8 gated steps (each validates prior subtask = "Done" in Jira) + validate gated by code-perf
   - [x] Jira REST API helpers (create, comment, attachment, transition, get status)

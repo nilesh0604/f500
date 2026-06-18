@@ -99,6 +99,19 @@ export interface FixRetries {
   [key: string]: number;
 }
 
+// Agent result format for structured return
+export type AgentStatus = 'done' | 'fail' | 'blocked' | 'setup-error';
+
+export interface AgentResult {
+  status: AgentStatus;
+  summary: string;
+  followups?: string[];
+}
+
+// Marker constants for parsing agent results
+export const AGENT_RESULT_START = '---AGENT_RESULT_START---';
+export const AGENT_RESULT_END = '---AGENT_RESULT_END---';
+
 // Secrets patterns for security scanning
 export const SECRET_PATTERNS = [
   /AWS[_\s]*ACCESS[_\s]*KEY[_\s]*ID[=:]\s*[A-Z0-9]{20}/gi,

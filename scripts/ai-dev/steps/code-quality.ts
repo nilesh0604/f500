@@ -74,7 +74,8 @@ export async function codeQualityCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the code quality agent
     Logger.info('Analyzing quality results and generating fixes...');
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Save quality analysis
     const qualityPath = join(config.featureDocsDir, ctx.ticketId, 'quality.md');

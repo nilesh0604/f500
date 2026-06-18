@@ -71,3 +71,24 @@ State:
 - Lint errors fixed (count + rule names)
 - Any `// eslint-disable` suppressions added with justification
 - Files modified
+
+### Step 5 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of lint fixes",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — Lint passes with zero errors
+- `fail` — Lint still has errors
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

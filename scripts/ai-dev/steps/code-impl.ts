@@ -75,7 +75,8 @@ export async function codeImplCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the code implementation agent
     Logger.info('Running code implementation...');
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Save implementation output
     const implPath = join(

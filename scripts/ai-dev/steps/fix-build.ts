@@ -26,6 +26,7 @@ export async function fixBuildCommand(ctx: PipelineContext): Promise<void> {
 
   const maxAttempts = 2;
   let attempt = 0;
+  let previousAttemptContext = '';
   const changedFilesList = changedFiles('main').join(',');
 
   while (attempt < maxAttempts) {
@@ -49,7 +50,15 @@ export async function fixBuildCommand(ctx: PipelineContext): Promise<void> {
         CHANGED_FILES: changedFilesList,
         BUILD_ERRORS: buildResult.stdout,
       };
-      await runAgent(ctx, agentConfig, variables);
+      try {
+        await runAgent(ctx, agentConfig, variables, previousAttemptContext);
+      } catch (error) {
+        previousAttemptContext = formatPreviousAttemptContext(
+          buildResult.stdout,
+          error instanceof Error ? error.message : String(error)
+        );
+        throw error;
+      }
     }
   }
 
@@ -86,4 +95,22 @@ export async function fixBuildCommand(ctx: PipelineContext): Promise<void> {
   Logger.info('');
   Logger.info('fix-build complete.');
   Logger.info(`  Next: ai-dev ${ctx.ticketId} deploy-ship`);
+}
+
+function formatPreviousAttemptContext(
+  buildOutput: string,
+  errorMessage: string
+): string {
+  return `
+## Previous Attempt Context
+
+### Build Output:
+${buildOutput}
+
+### Error:
+${errorMessage}
+
+### Instructions:
+The previous attempt to fix the build failed. Please analyze the above build output and error message to understand what went wrong. Do not repeat the same failed fixes. Instead, try a different approach based on the specific errors encountered.
+`.trim();
 }

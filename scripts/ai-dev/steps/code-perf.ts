@@ -76,7 +76,8 @@ export async function codePerfCommand(ctx: PipelineContext): Promise<void> {
     Logger.info(
       'Analyzing performance results and generating optimizations...'
     );
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Save performance analysis
     const perfPath = join(

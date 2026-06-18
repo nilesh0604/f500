@@ -120,3 +120,24 @@ State:
 - Issues noted for human review (count)
 - E2E stub files created (paths)
 - k6 stub files created (paths, or "none — no load requirements in TDD")
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of performance review",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All HIGH impact anti-patterns fixed, stubs created
+- `fail` — Could not complete review or fix
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

@@ -87,3 +87,24 @@ State:
 - Type errors fixed (count + categories)
 - Functions refactored for length (names + before/after line count)
 - Any `// eslint-disable` suppressions added with justification
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of quality fixes",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All lint and type errors resolved
+- `fail` — Errors remain after fix attempts
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

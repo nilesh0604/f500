@@ -104,7 +104,8 @@ export async function codeTestCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the code test agent
     Logger.info('Running test generation...');
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Save test output
     const testPath = join(config.featureDocsDir, ctx.ticketId, 'tests.md');

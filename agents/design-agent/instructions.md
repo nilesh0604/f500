@@ -159,3 +159,24 @@ verify all items are checked before starting implementation.
 - [ ] Estimated complexity is realistic (S=1-2 files, M=3-5, L=6-10, XL=10+)
 - [ ] No requirements from requirements.md were silently dropped
 ```
+
+### Step 4 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of the design",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — TDD.md complete with all sections filled
+- `fail` — Could not complete design
+- `blocked` — Missing context or requirements incomplete
+- `setup-error` — Environment or configuration issue

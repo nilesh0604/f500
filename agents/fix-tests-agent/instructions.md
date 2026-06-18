@@ -25,6 +25,7 @@ Recommended: `claude-sonnet`
 - `{TICKET_ID}` — ticket identifier
 - `{REQUIREMENTS_PATH}` — path to requirements.md (the spec — source of truth)
 - `{JEST_FAILURES}` — full output of `jest --no-coverage 2>&1`
+- `{PREVIOUS_ATTEMPT_CONTEXT}` — (empty on first attempt) On retry, contains the previous agent's output and error messages to avoid repeating failed fixes
 
 ---
 
@@ -79,3 +80,24 @@ State:
 - Total failures resolved
 - Implementation fixes (N): file names + what changed
 - Test corrections (N): test names + which AC drove the correction
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of test fixes",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All tests passing
+- `fail` — Tests still failing
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

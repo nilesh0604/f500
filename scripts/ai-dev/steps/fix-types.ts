@@ -26,6 +26,7 @@ export async function fixTypesCommand(ctx: PipelineContext): Promise<void> {
 
   const maxAttempts = 2;
   let attempt = 0;
+  let previousAttemptContext = '';
   const changedFilesList = changedFiles('main').join(',');
 
   while (attempt < maxAttempts) {
@@ -50,7 +51,15 @@ export async function fixTypesCommand(ctx: PipelineContext): Promise<void> {
         CHANGED_FILES: changedFilesList,
         TSC_ERRORS: tscResult.stdout,
       };
-      await runAgent(ctx, agentConfig, variables);
+      try {
+        await runAgent(ctx, agentConfig, variables, previousAttemptContext);
+      } catch (error) {
+        previousAttemptContext = formatPreviousAttemptContext(
+          tscResult.stdout,
+          error instanceof Error ? error.message : String(error)
+        );
+        throw error;
+      }
     }
   }
 
@@ -87,4 +96,22 @@ export async function fixTypesCommand(ctx: PipelineContext): Promise<void> {
   Logger.info('');
   Logger.info('fix-types complete.');
   Logger.info(`  Next: ai-dev ${ctx.ticketId} deploy-ship`);
+}
+
+function formatPreviousAttemptContext(
+  tscOutput: string,
+  errorMessage: string
+): string {
+  return `
+## Previous Attempt Context
+
+### TypeScript Errors:
+${tscOutput}
+
+### Error:
+${errorMessage}
+
+### Instructions:
+The previous attempt to fix TypeScript errors failed. Please analyze the above errors and error message to understand what went wrong. Do not repeat the same failed fixes. Instead, try a different approach based on the specific type errors encountered.
+`.trim();
 }

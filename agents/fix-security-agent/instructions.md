@@ -90,3 +90,24 @@ State:
 - Vulnerabilities resolved (count + package names)
 - Vulnerabilities documented with accepted risk (count + CVE IDs)
 - Changes to package.json (version bumps + overrides added)
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of security fixes",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All HIGH/CRITICAL vulnerabilities resolved or documented
+- `fail` — Vulnerabilities remain unresolved
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue
