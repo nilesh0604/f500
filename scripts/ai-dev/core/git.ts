@@ -31,7 +31,20 @@ export function changedFiles(baseBranch: string = 'origin/main'): string[] {
   return files;
 }
 
+export function localBranchExists(name: string): boolean {
+  const result = Shell.execSilent(`git rev-parse --verify refs/heads/${name}`);
+  return result.exitCode === 0;
+}
+
 export function checkoutNewBranch(name: string): void {
+  if (localBranchExists(name)) {
+    Logger.info(`Branch already exists, checking out: ${name}`);
+    const result = Shell.exec(`git checkout ${name}`);
+    if (result.exitCode !== 0) {
+      throw new Error(`Failed to checkout branch: ${name}`);
+    }
+    return;
+  }
   Logger.info(`Creating and checking out branch: ${name}`);
   const result = Shell.exec(`git checkout -b ${name}`);
   if (result.exitCode !== 0) {

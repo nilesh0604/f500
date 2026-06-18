@@ -38,6 +38,7 @@ export async function fixTestsCommand(ctx: PipelineContext): Promise<void> {
 
   const maxAttempts = 2;
   let attempt = 0;
+  let previousAttemptContext = '';
 
   while (attempt < maxAttempts) {
     attempt++;
@@ -64,7 +65,15 @@ export async function fixTestsCommand(ctx: PipelineContext): Promise<void> {
         REQUIREMENTS_PATH: reqPath,
         JEST_FAILURES: testResult.stdout,
       };
-      await runAgent(ctx, agentConfig, variables);
+      try {
+        await runAgent(ctx, agentConfig, variables, previousAttemptContext);
+      } catch (error) {
+        previousAttemptContext = formatPreviousAttemptContext(
+          testResult.stdout,
+          error instanceof Error ? error.message : String(error)
+        );
+        throw error;
+      }
     }
   }
 
@@ -110,4 +119,22 @@ export async function fixTestsCommand(ctx: PipelineContext): Promise<void> {
   Logger.info('');
   Logger.info('fix-tests complete.');
   Logger.info(`  Next: ai-dev ${ctx.ticketId} deploy-ship`);
+}
+
+function formatPreviousAttemptContext(
+  testOutput: string,
+  errorMessage: string
+): string {
+  return `
+## Previous Attempt Context
+
+### Test Failures:
+${testOutput}
+
+### Error:
+${errorMessage}
+
+### Instructions:
+The previous attempt to fix test failures failed. Please analyze the above test output and error message to understand what went wrong. Do not repeat the same failed fixes. Instead, try a different approach based on the specific test failures encountered.
+`.trim();
 }

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **docs/AI_DRIVEN_DEV_SETUP_CURRENT.md alignment** — Corrected multiple discrepancies between documentation and actual implementation:
+  - `.claudeignore` section now shows all 18 entries (was missing 6)
+  - Agent budgets/models updated to match `scripts/ai-dev/config.ts` (deploy-agent: haiku→sonnet, fix-types: sonnet→haiku, multiple budget corrections)
+  - CLI invocation flags corrected (`--permission-mode bypassPermissions` not `--dangerously-skip-permissions`)
+  - Subtask count corrected: 10 per ticket (not 9) — `validate` gets a subtask
+  - Subcommand count corrected: 25 (not 22) — includes `help`
+  - Local state file `subtasks.json` (not `.jira-subtasks`), added `.branch` and `.ticket-summary` markers
+  - `AI_DEV_CLAUDE_CMD` env var replaced with `claudeCmd` config via `ai-dlc.config.ts`
+  - Added `vyasa-slack-cmd` to per-service CLAUDE.md tracking
+  - Gated steps chain updated to include `validate` (gated by code-perf Done)
+
 ### Added
 
 - **TypeScript migration of ai-dev CLI (Phase 1-3)** — Successfully migrated the 3,109-line bash script to a modular TypeScript CLI at `scripts/ai-dev/`

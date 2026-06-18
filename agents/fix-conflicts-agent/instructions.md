@@ -73,3 +73,24 @@ For each file resolved:
 - Number of conflict blocks resolved
 - Resolution strategy used (lockfile / feature-priority / incoming)
 - Any ambiguous decisions and why you chose as you did
+
+### Step 5 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of conflict resolution",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All conflicts resolved, no markers remain
+- `fail` — Could not resolve all conflicts
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

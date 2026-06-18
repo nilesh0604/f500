@@ -23,6 +23,7 @@ Recommended: `claude-sonnet` (balance of quality and cost for design work)
 - `{TICKET_ID}` — ticket identifier
 - `{TICKET_CONTEXT}` — full ticket description with acceptance criteria
 - `{REQUIREMENTS_PATH}` — path to approved `requirements.md` (if available)
+- `{BROWNFIELD_CONTEXT}` — injected snapshot of existing codebase (shared types, service patterns, error classes)
 
 ---
 
@@ -30,7 +31,14 @@ Recommended: `claude-sonnet` (balance of quality and cost for design work)
 
 ### Step 1 — Read existing context
 
-Before designing, read:
+**Use the injected `{BROWNFIELD_CONTEXT}` as your primary source for existing patterns.** This snapshot contains:
+
+- Existing shared types from `libs/shared-types/src/`
+- Service handler structure from `vyasa-rag-service/src/handlers/`
+- Service layer patterns from `vyasa-rag-service/src/services/`
+- Error handling patterns from `vyasa-rag-service/src/lib/`
+
+Additionally, read:
 
 - `{REQUIREMENTS_PATH}` — approved requirements (if provided, this is your primary input)
 - `CLAUDE.md` (root) — architecture + standards
@@ -38,9 +46,9 @@ Before designing, read:
   - `apps/vyasa-rag-service/CLAUDE.md` — for RAG/chat/Bedrock work
   - `apps/vyasa-ui/CLAUDE.md` — for UI/frontend work
   - `infra/CLAUDE.md` — for CDK/infrastructure work
-- `libs/shared-types/src/index.ts` — existing domain types
 - Any existing ADRs in `docs/adr/` that may be relevant
-- Existing source code in affected services for pattern reference
+
+**Important:** When proposing new types, interfaces, or patterns, ensure they align with the injected brownfield context. Reuse existing shared types from `libs/shared-types/` where possible rather than creating duplicates.
 
 ### Step 2 — Produce TDD.md
 
@@ -151,3 +159,24 @@ verify all items are checked before starting implementation.
 - [ ] Estimated complexity is realistic (S=1-2 files, M=3-5, L=6-10, XL=10+)
 - [ ] No requirements from requirements.md were silently dropped
 ```
+
+### Step 4 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of the design",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — TDD.md complete with all sections filled
+- `fail` — Could not complete design
+- `blocked` — Missing context or requirements incomplete
+- `setup-error` — Environment or configuration issue

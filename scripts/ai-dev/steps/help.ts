@@ -41,11 +41,11 @@ GLOBAL OPTIONS:
   --repo-root <path>     Set repository root path
 
 EXAMPLES:
-  ai-dev OF-123 init                    Initialize ticket
-  ai-dev OF-123 requirements            Run requirements step
-  ai-dev OF-123 code                    Run all code steps
-  ai-dev OF-123 status                  Show status
-  ai-dev --debug OF-123 deploy-pr       Deploy with debug
+  ai-dev -- init SCRUM-123                     Initialize ticket
+  ai-dev -- requirements SCRUM-123             Run requirements step
+  ai-dev -- code SCRUM-123                     Run all code steps
+  ai-dev -- status SCRUM-123                   Show status
+  ai-dev -- --debug SCRUM-123 deploy-pr      Deploy with debug
   `.trim()
   );
 }

@@ -22,6 +22,12 @@ Recommended: `claude-sonnet`
 
 ---
 
+## No Fabrication Rule
+
+Every file path, class name, namespace, and endpoint you reference must trace to: (1) an existing file in the repo, (2) the approved TDD.md spec, or (3) a resolved design decision. If you cannot find a reference, STOP and report `status: blocked` with the missing reference.
+
+---
+
 ## Inputs
 
 - `{TICKET_ID}` — ticket identifier
@@ -81,3 +87,24 @@ State:
 - Type errors fixed (count + categories)
 - Functions refactored for length (names + before/after line count)
 - Any `// eslint-disable` suppressions added with justification
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of quality fixes",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All lint and type errors resolved
+- `fail` — Errors remain after fix attempts
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

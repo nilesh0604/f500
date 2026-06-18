@@ -19,6 +19,12 @@ Recommended: `claude-sonnet`
 
 ---
 
+## No Fabrication Rule
+
+Every file path, class name, namespace, and endpoint you reference must trace to: (1) an existing file in the repo, (2) the approved TDD.md spec, or (3) a resolved design decision. If you cannot find a reference, STOP and report `status: blocked` with the missing reference.
+
+---
+
 ## Inputs
 
 - `{TICKET_ID}` — ticket identifier
@@ -123,3 +129,36 @@ State:
 - Count of acceptance criteria satisfied
 - Whether IMPL_CHECKLIST.md has any ❌ items
 - Any manual steps required
+
+### Step 7 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result. This is required for the CLI to orchestrate the pipeline:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of what was accomplished or why it failed",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All acceptance criteria satisfied, IMPL_CHECKLIST.md has no ❌ items
+- `fail` — Build failed or implementation incomplete
+- `blocked` — TDD incomplete, missing context, or cannot proceed without human help
+- `setup-error` — Environment or configuration issue
+
+**Example:**
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done",
+  "summary": "Implemented 5 endpoints, 3 DB changes, all AC satisfied",
+  "followups": ["Run prisma migrate deploy in prod"]
+}
+---AGENT_RESULT_END---
+```

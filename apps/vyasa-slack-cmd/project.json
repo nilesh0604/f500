@@ -1,0 +1,55 @@
+{
+  "name": "vyasa-slack-cmd",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/vyasa-slack-cmd/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "target": "node",
+        "compiler": "tsc",
+        "outputPath": "dist/apps/vyasa-slack-cmd",
+        "main": "apps/vyasa-slack-cmd/src/handlers/receiver.ts",
+        "tsConfig": "apps/vyasa-slack-cmd/tsconfig.app.json",
+        "assets": [],
+        "generatePackageJson": true,
+        "format": ["cjs"],
+        "webpackConfig": "apps/vyasa-slack-cmd/webpack.config.js"
+      },
+      "configurations": {
+        "development": {
+          "optimization": false,
+          "sourceMap": true
+        },
+        "production": {
+          "optimization": true,
+          "sourceMap": false
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/apps/vyasa-slack-cmd"],
+      "options": {
+        "jestConfig": "apps/vyasa-slack-cmd/jest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx apps/vyasa-slack-cmd/src/server.ts",
+        "cwd": "/Users/Nilesh_Shinde/iSpace/f500",
+        "envFile": "apps/vyasa-slack-cmd/.env.local"
+      }
+    }
+  },
+  "tags": ["backend", "lambda", "slack"]
+}

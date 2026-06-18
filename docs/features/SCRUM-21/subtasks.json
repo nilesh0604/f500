@@ -1,0 +1,12 @@
+{
+  "design": "SCRUM-23",
+  "code-impl": "SCRUM-24",
+  "code-test": "SCRUM-25",
+  "code-quality": "SCRUM-26",
+  "code-security": "SCRUM-27",
+  "code-perf": "SCRUM-28",
+  "validate": "SCRUM-29",
+  "deploy-pr": "SCRUM-30",
+  "deploy-ship": "SCRUM-31",
+  "requirements": "SCRUM-32"
+}

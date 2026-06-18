@@ -62,7 +62,10 @@ Questions:
 
 ### Step 3 — Produce requirements.md
 
-Create `docs/features/{TICKET_ID}/requirements.md`:
+If you have Write tool access, create the file at `docs/features/{TICKET_ID}/requirements.md`.
+If you do not have Write tool access, output the full file contents directly in your response — the pipeline will capture your stdout and write the file. Do NOT wrap the content in a code block.
+
+File content:
 
 ```markdown
 # Requirements — {TICKET_ID}: {title}
@@ -154,3 +157,24 @@ Edge cases:          [count]
 Open questions:      [count] — resolve before proceeding to design
 Affected services:   [list]
 ```
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of requirements",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — requirements.md complete with all ACs in Given/When/Then format
+- `fail` — Could not complete requirements
+- `blocked` — Missing ticket context or description
+- `setup-error` — Environment or configuration issue

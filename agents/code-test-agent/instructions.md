@@ -20,6 +20,12 @@ Recommended: `claude-sonnet`
 
 ---
 
+## No Fabrication Rule
+
+Every file path, class name, namespace, and endpoint you reference must trace to: (1) an existing file in the repo, (2) the approved TDD.md spec, or (3) a resolved design decision. If you cannot find a reference, STOP and report `status: blocked` with the missing reference.
+
+---
+
 ## Inputs
 
 - `{TICKET_ID}` — ticket identifier
@@ -109,3 +115,24 @@ State:
 - Files where tests were added + line counts
 - Coverage before vs after per file (branches / functions / lines / statements)
 - Any AC that cannot be covered by automated tests — explain why
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of test coverage",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — All ACs covered, ≥80% coverage threshold passed
+- `fail` — Coverage threshold not met or tests failed
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

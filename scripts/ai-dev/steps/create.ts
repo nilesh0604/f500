@@ -41,10 +41,11 @@ export async function createCommand(
 
     // Run the agent to generate ticket details
     Logger.info('Analyzing codebase and generating ticket...');
-    const agentOutput = await runAgent(ctx, agentConfig, {
+    const result = await runAgent(ctx, agentConfig, {
       IDEA: idea,
       PROJECT_KEY: projectKey,
     });
+    const agentOutput = result.summary;
 
     // Extract JSON from agent output (between markers)
     const ticketJson = extractJsonFromOutput(agentOutput);

@@ -1,5 +1,10 @@
 import { HttpClient, HttpError } from './http.js';
-import { JiraCredentials, JiraIssue, AdfNode } from '../types.js';
+import {
+  JiraCredentials,
+  JiraIssue,
+  JiraAttachment,
+  AdfNode,
+} from '../types.js';
 import { Logger } from '../core/logger.js';
 
 export interface JiraComment {
@@ -102,20 +107,16 @@ export class JiraClient {
   ): Promise<string> {
     Logger.debug(`Creating subtask under ${parentKey}: ${summary}`);
 
-    // Get parent issue to get project key
-    const parent = await this.getIssue(parentKey);
-    const subtaskTypeId = await this.getIssueTypeId(
-      parent.fields.project.key,
-      'Sub-task'
-    );
+    const projectKey = parentKey.split('-')[0];
+    const subtaskTypeId = await this.getIssueTypeId(projectKey, 'Subtask');
 
-    const request: CreateIssueRequest = {
+    const fields: CreateIssueRequest = {
       summary,
       description: description
-        ? JSON.stringify(this.adfFromText(description))
+        ? (this.adfFromText(description) as unknown as string)
         : undefined,
       project: {
-        key: parent.fields.project.key,
+        key: projectKey,
       },
       issuetype: {
         id: subtaskTypeId,
@@ -125,11 +126,9 @@ export class JiraClient {
       },
     };
 
-    const response = await this.request<any>(
-      'POST',
-      '/rest/api/3/issue',
-      request
-    );
+    const response = await this.request<any>('POST', '/rest/api/3/issue', {
+      fields,
+    });
     return response.key;
   }
 
@@ -193,6 +192,37 @@ export class JiraClient {
     if (!response.ok) {
       throw new Error(`Failed to upload attachment: ${response.statusText}`);
     }
+  }
+
+  async downloadAttachment(
+    issueKey: string,
+    filename: string
+  ): Promise<string> {
+    Logger.debug(`Downloading attachment '${filename}' from ${issueKey}`);
+
+    const issue = await this.request<JiraIssue>(
+      'GET',
+      `/rest/api/3/issue/${issueKey}?fields=attachment`
+    );
+
+    const attachments = issue.fields.attachment ?? [];
+    const attachment = attachments.find(a => a.filename === filename);
+
+    if (!attachment) {
+      throw new Error(`Attachment '${filename}' not found on ${issueKey}`);
+    }
+
+    const response = await fetch(attachment.content, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.credentials.email}:${this.credentials.apiToken}`).toString('base64')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to download attachment: ${response.statusText}`);
+    }
+
+    return response.text();
   }
 
   async getTransitions(issueKey: string): Promise<JiraTransition[]> {

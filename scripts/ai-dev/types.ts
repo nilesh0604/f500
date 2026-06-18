@@ -35,6 +35,7 @@ export interface AgentConfig {
   instructionsFile: string;
   budget: number;
   model: 'sonnet' | 'haiku';
+  allowedTools?: string[];
 }
 
 export interface PipelineContext {
@@ -43,6 +44,13 @@ export interface PipelineContext {
   claudeCmd: string;
   jira: JiraCredentials;
   codeAliasMode: boolean;
+}
+
+export interface JiraAttachment {
+  id: string;
+  filename: string;
+  content: string;
+  mimeType: string;
 }
 
 export interface JiraIssue {
@@ -61,6 +69,7 @@ export interface JiraIssue {
       id: string;
       name: string;
     };
+    attachment?: JiraAttachment[];
   };
 }
 
@@ -89,6 +98,19 @@ export interface CiStatus {
 export interface FixRetries {
   [key: string]: number;
 }
+
+// Agent result format for structured return
+export type AgentStatus = 'done' | 'fail' | 'blocked' | 'setup-error';
+
+export interface AgentResult {
+  status: AgentStatus;
+  summary: string;
+  followups?: string[];
+}
+
+// Marker constants for parsing agent results
+export const AGENT_RESULT_START = '---AGENT_RESULT_START---';
+export const AGENT_RESULT_END = '---AGENT_RESULT_END---';
 
 // Secrets patterns for security scanning
 export const SECRET_PATTERNS = [

@@ -24,6 +24,7 @@ Recommended: `claude-sonnet`
 - `{TICKET_ID}` — ticket identifier
 - `{CHANGED_FILES}` — comma-separated list of changed files
 - `{BUILD_ERRORS}` — full output of `npm run build 2>&1`
+- `{PREVIOUS_ATTEMPT_CONTEXT}` — (empty on first attempt) On retry, contains the previous agent's output and error messages to avoid repeating failed fixes
 
 ---
 
@@ -81,3 +82,24 @@ State:
 - Files modified
 - Any new dependencies added (with justification)
 - Bundle size change (report if > 5 KB gzipped change)
+
+### Step 5 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of build fixes",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — Build passes (exit 0)
+- `fail` — Build still failing
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

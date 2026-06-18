@@ -134,6 +134,126 @@ describe('JiraClient', () => {
     });
   });
 
+  describe('downloadAttachment', () => {
+    beforeEach(() => {
+      global.fetch = jest.fn();
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should download attachment content by filename', async () => {
+      const mockIssue = {
+        id: '10001',
+        key: 'TEST-123',
+        fields: {
+          summary: 'Test',
+          status: { name: 'Done' },
+          issuetype: { name: 'Subtask' },
+          project: { key: 'TEST' },
+          attachment: [
+            {
+              id: 'att-1',
+              filename: 'requirements.md',
+              content:
+                'https://test.atlassian.net/secure/attachment/1/requirements.md',
+              mimeType: 'text/markdown',
+            },
+          ],
+        },
+      };
+      mockRequest.mockResolvedValue({ data: mockIssue });
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        text: jest.fn().mockResolvedValue('# Requirements\n\nSome content'),
+      });
+
+      const result = await client.downloadAttachment(
+        'TEST-123',
+        'requirements.md'
+      );
+
+      expect(result).toBe('# Requirements\n\nSome content');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://test.atlassian.net/secure/attachment/1/requirements.md',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: expect.stringContaining('Basic '),
+          }),
+        })
+      );
+    });
+
+    it('should throw when attachment not found', async () => {
+      const mockIssue = {
+        id: '10001',
+        key: 'TEST-123',
+        fields: {
+          summary: 'Test',
+          status: { name: 'Done' },
+          issuetype: { name: 'Subtask' },
+          project: { key: 'TEST' },
+          attachment: [],
+        },
+      };
+      mockRequest.mockResolvedValue({ data: mockIssue });
+
+      await expect(
+        client.downloadAttachment('TEST-123', 'requirements.md')
+      ).rejects.toThrow("Attachment 'requirements.md' not found on TEST-123");
+    });
+
+    it('should throw when attachment has no attachments field', async () => {
+      const mockIssue = {
+        id: '10001',
+        key: 'TEST-123',
+        fields: {
+          summary: 'Test',
+          status: { name: 'Done' },
+          issuetype: { name: 'Subtask' },
+          project: { key: 'TEST' },
+        },
+      };
+      mockRequest.mockResolvedValue({ data: mockIssue });
+
+      await expect(
+        client.downloadAttachment('TEST-123', 'requirements.md')
+      ).rejects.toThrow("Attachment 'requirements.md' not found on TEST-123");
+    });
+
+    it('should throw when download request fails', async () => {
+      const mockIssue = {
+        id: '10001',
+        key: 'TEST-123',
+        fields: {
+          summary: 'Test',
+          status: { name: 'Done' },
+          issuetype: { name: 'Subtask' },
+          project: { key: 'TEST' },
+          attachment: [
+            {
+              id: 'att-1',
+              filename: 'requirements.md',
+              content:
+                'https://test.atlassian.net/secure/attachment/1/requirements.md',
+              mimeType: 'text/markdown',
+            },
+          ],
+        },
+      };
+      mockRequest.mockResolvedValue({ data: mockIssue });
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        statusText: 'Forbidden',
+      });
+
+      await expect(
+        client.downloadAttachment('TEST-123', 'requirements.md')
+      ).rejects.toThrow('Failed to download attachment: Forbidden');
+    });
+  });
+
   describe('search', () => {
     it('should search issues with JQL', async () => {
       const mockSearchResult = {

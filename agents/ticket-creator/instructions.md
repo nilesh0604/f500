@@ -175,3 +175,24 @@ Before outputting, verify:
 - [ ] Constraints reference actual ADRs or project standards
 - [ ] Open Questions captures genuine ambiguities (not padding)
 - [ ] Type and priority are reasonable for the idea
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of ticket creation",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — Ticket created with all required sections
+- `fail` — Could not create ticket
+- `blocked` — Missing context or requirements
+- `setup-error` — Environment or configuration issue

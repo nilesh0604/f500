@@ -18,6 +18,12 @@ Recommended: `claude-sonnet` (cost-effective for code generation)
 
 ---
 
+## No Fabrication Rule
+
+Every file path, class name, namespace, and endpoint you reference must trace to: (1) an existing file in the repo, (2) the approved TDD.md spec, or (3) a resolved design decision. If you cannot find a reference, STOP and report `status: blocked` with the missing reference.
+
+---
+
 ## Inputs
 
 - `{TICKET_ID}` — ticket identifier
@@ -114,3 +120,24 @@ Output a summary:
 - Files created/modified (list)
 - Tests written (count)
 - Any manual steps required (e.g. Prisma migration, env vars to add)
+
+### Step 7 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of implementation",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — Tests and lint pass, implementation complete
+- `fail` — Tests or lint failing
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

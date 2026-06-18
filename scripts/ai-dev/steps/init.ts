@@ -4,6 +4,7 @@ import { Logger } from '../core/logger.js';
 import { checkoutNewBranch, currentBranch } from '../core/git.js';
 import {
   ensureFeatureDir,
+  getSubtaskKey,
   saveSubtaskKey,
   writeMarker,
   writePrNumber,
@@ -39,10 +40,20 @@ export async function initCommand(ctx: PipelineContext): Promise<void> {
     Logger.info('Creating subtasks...');
     const subtaskKeys: Record<string, string> = {};
 
-    // Skip 'requirements' as it's the first step
-    const stepsToCreate = STEPS_ORDERED.filter(step => step !== 'requirements');
+    const stepsToCreate = STEPS_ORDERED;
 
     for (const step of stepsToCreate) {
+      const existing = await getSubtaskKey(
+        ctx.repoRoot,
+        ctx.ticketId,
+        step as any
+      );
+      if (existing) {
+        subtaskKeys[step] = existing;
+        Logger.info(`Subtask ${step} already exists: ${existing}, skipping`);
+        continue;
+      }
+
       const summary = `${step} for ${ctx.ticketId}`;
       const description = `Subtask for ${step} execution on ${ctx.ticketId}: ${ticket.fields.summary}`;
 
@@ -65,14 +76,6 @@ export async function initCommand(ctx: PipelineContext): Promise<void> {
         throw error;
       }
     }
-
-    // Also save the requirements subtask (the parent ticket itself)
-    await saveSubtaskKey(
-      ctx.repoRoot,
-      ctx.ticketId,
-      'requirements',
-      ctx.ticketId
-    );
 
     // 5. Create initial marker files
     await writeMarker(ctx.repoRoot, ctx.ticketId, 'branch', branchName);

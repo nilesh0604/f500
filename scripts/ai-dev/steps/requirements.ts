@@ -56,21 +56,30 @@ export async function requirementsCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the requirements agent
     Logger.info('Running requirements analysis...');
-    const output = await runAgent(ctx, agentConfig, {
+    const result = await runAgent(ctx, agentConfig, {
       TICKET_ID: ctx.ticketId,
       TICKET_CONTEXT: context,
     });
+    const output = result.summary;
 
-    // Verify output file was created
+    // Verify output file was created; if not, write agent stdout as fallback
     const reqFile = join(
       featureDir(ctx.repoRoot, ctx.ticketId),
       'requirements.md'
     );
-    let reqContent: string;
 
-    try {
-      reqContent = (await readFileIfExists(reqFile)) ?? '';
-    } catch {
+    let reqContent = (await readFileIfExists(reqFile)) ?? '';
+
+    if (!reqContent && output) {
+      // Agent ran in text-only mode (no Write tool access) — persist its stdout
+      Logger.info(
+        'Agent output captured; writing requirements.md from stdout...'
+      );
+      await writeFileWithDir(reqFile, output);
+      reqContent = output;
+    }
+
+    if (!reqContent) {
       await jira.addComment(
         subtaskKey,
         'Requirements agent failed to produce output. Re-run needed.'

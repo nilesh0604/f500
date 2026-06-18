@@ -117,3 +117,24 @@ This deploys CDK stacks to production, syncs S3/CloudFront for the UI, runs smok
 ```
 ./scripts/ai-dev.sh {TICKET_ID} rollback
 ```
+
+### Step 6 — Output structured result
+
+At the very end of your response, output a JSON block with the execution result:
+
+```
+---AGENT_RESULT_START---
+{
+  "status": "done|fail|blocked|setup-error",
+  "summary": "Brief summary of deployment",
+  "followups": ["Any follow-up actions needed"]
+}
+---AGENT_RESULT_END---
+```
+
+**Status values:**
+
+- `done` — PR opened successfully
+- `fail` — Failed to open PR
+- `blocked` — Cannot proceed due to missing context
+- `setup-error` — Environment or configuration issue

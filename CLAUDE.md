@@ -201,15 +201,15 @@ npm run cdk:diff
 npm run lint
 
 # --- ai-dev CLI (TypeScript) ---
-npm run ai-dev -- SCRUM-123 status       # Show pipeline status
-npm run ai-dev -- SCRUM-123 init         # Initialize ticket (create branch + subtasks)
-npm run ai-dev -- SCRUM-123 requirements # Run requirements agent
-npm run ai-dev -- SCRUM-123 design       # Run design agent
-npm run ai-dev -- SCRUM-123 code         # Run all code steps (impl→test→quality→security→perf)
-npm run ai-dev -- SCRUM-123 validate     # CI dry-run validation
-npm run ai-dev -- SCRUM-123 deploy-pr    # Deploy PR
-npm run ai-dev -- SCRUM-123 deploy-ship  # Monitor CI and auto-fix failures
-npm run ai-dev -- SCRUM-123 release      # Post-merge production deployment
+npm run ai-dev -- status SCRUM-123       # Show pipeline status
+npm run ai-dev -- init SCRUM-123         # Initialize ticket (create branch + subtasks)
+npm run ai-dev -- requirements SCRUM-123 # Run requirements agent
+npm run ai-dev -- design SCRUM-123       # Run design agent
+npm run ai-dev -- code SCRUM-123         # Run all code steps (impl→test→quality→security→perf)
+npm run ai-dev -- validate SCRUM-123     # CI dry-run validation
+npm run ai-dev -- deploy-pr SCRUM-123    # Deploy PR
+npm run ai-dev -- deploy-ship SCRUM-123  # Monitor CI and auto-fix failures
+npm run ai-dev -- release SCRUM-123      # Post-merge production deployment
 
 # --- Vyasa RAG Service ---
 npx nx build vyasa-rag-service   # Build Lambda bundle

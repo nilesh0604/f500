@@ -107,7 +107,7 @@ strip_markdown() {
 #
 # Example:
 #   run_agent agents/requirements-agent/instructions.md 1.50 sonnet \
-#     TICKET_ID="OF-123" TICKET_CONTEXT="$context"
+#     TICKET_ID="SCRUM-123" TICKET_CONTEXT="$context"
 #
 run_agent() {
   local instructions_file="$1"

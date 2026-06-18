@@ -75,7 +75,8 @@ export async function codeImplCommand(ctx: PipelineContext): Promise<void> {
 
     // Run the code implementation agent
     Logger.info('Running code implementation...');
-    const output = await runAgent(ctx, agentConfig, variables);
+    const result = await runAgent(ctx, agentConfig, variables);
+    const output = result.summary;
 
     // Save implementation output
     const implPath = join(
@@ -98,6 +99,7 @@ h3. Files Modified/Created:
 ${changes.length > 0 ? changes.map(f => `* ${f}`).join('\n') : '* No file changes reported'}
 
 h3. Implementation Checklist:
+IMPL_CHECKLIST
 ${generateImplementationChecklist(output)}
 
 h3. Next Steps:
@@ -115,7 +117,10 @@ h3. Files:
 
     // Commit and push changes if any
     if (changes.length > 0) {
-      const commitMsg = `feat(${ctx.ticketId}): Implement ${ticket.fields.summary}`;
+      const summary = ticket.fields.summary
+        .replace(/["\n\r]/g, ' ')
+        .slice(0, 50);
+      const commitMsg = `feat: ${summary}`;
       const hasChanges = commitAndPush(commitMsg);
       if (hasChanges) {
         Logger.success('Changes committed and pushed');
@@ -173,32 +178,32 @@ function extractFileChanges(output: string): string[] {
 
 function generateImplementationChecklist(output: string): string {
   const checklist: string[] = [
-    '* [ ] Code follows project coding standards',
-    '* [ ] Error handling implemented',
-    '* [ ] Logging added where appropriate',
-    '* [ ] Code is self-documenting',
-    '* [ ] No hardcoded values',
-    '* [ ] Performance considerations addressed',
+    '- [ ] Code follows project coding standards',
+    '- [ ] Error handling implemented',
+    '- [ ] Logging added where appropriate',
+    '- [ ] Code is self-documenting',
+    '- [ ] No hardcoded values',
+    '- [ ] Performance considerations addressed',
   ];
 
   // Look for specific implementation details in output
   if (output.includes('test')) {
-    checklist.push('* [ ] Testable code structure');
+    checklist.push('- [ ] Testable code structure');
   }
 
   if (output.includes('API') || output.includes('endpoint')) {
-    checklist.push('* [ ] API endpoints documented');
-    checklist.push('* [ ] Input validation added');
+    checklist.push('- [ ] API endpoints documented');
+    checklist.push('- [ ] Input validation added');
   }
 
   if (output.includes('database') || output.includes('DB')) {
-    checklist.push('* [ ] Database queries optimized');
-    checklist.push('* [ ] Transactions handled correctly');
+    checklist.push('- [ ] Database queries optimized');
+    checklist.push('- [ ] Transactions handled correctly');
   }
 
   if (output.includes('security') || output.includes('auth')) {
-    checklist.push('* [ ] Security best practices followed');
-    checklist.push('* [ ] Authorization implemented');
+    checklist.push('- [ ] Security best practices followed');
+    checklist.push('- [ ] Authorization implemented');
   }
 
   return checklist.join('\n');

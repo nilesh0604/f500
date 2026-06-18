@@ -1,0 +1,30 @@
+{
+  "extends": ["../../.eslintrc.json"],
+  "ignorePatterns": ["!**/*", "webpack.config.js", "jest.config.ts"],
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+      "parserOptions": {
+        "project": ["apps/vyasa-slack-cmd/tsconfig.app.json"]
+      },
+      "rules": {}
+    },
+    {
+      "files": ["*.spec.ts", "*.test.ts"],
+      "parserOptions": {
+        "project": ["apps/vyasa-slack-cmd/tsconfig.spec.json"]
+      },
+      "rules": {
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    },
+    {
+      "files": ["*.ts", "*.tsx"],
+      "rules": {}
+    },
+    {
+      "files": ["*.js", "*.jsx"],
+      "rules": {}
+    }
+  ]
+}
