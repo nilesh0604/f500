@@ -45,6 +45,12 @@ coverage/
 *.log
 *.sqlite
 tmp/
+.turbo/
+.serverless/
+.terraform/
+*.tfstate*
+.localstack/
+infra/node_modules/
 ```
 
 ---
@@ -66,7 +72,7 @@ Key sections to include (based on what already exists in this project):
 - Compaction protection block
 - Environment: Single `prod` environment (per ADR-011) — no dev/staging
 
-> **⚠️ Stale line in `CLAUDE.md` line 25:** Still says `Environments: dev → staging → pre-prod → prod` but project uses only `prod`. Update this to match `infra/config/environments.ts`.
+**Status:** ✅ Updated — CLAUDE.md line 37 now correctly states "Environments: Single `prod` environment in `us-east-1`".
 
 ---
 
@@ -88,7 +94,7 @@ Key sections to include (based on what already exists in this project):
 - Model: Amazon Nova Pro (`amazon.nova-pro-v1:0`)
 - Local dev: `npm run dev` (Express wrapper), eval scripts
 
-**`apps/vyasa-ui/CLAUDE.md`** ❌ (not yet created)
+**`apps/vyasa-ui/CLAUDE.md`** ✅ (exists)
 
 - React 18 + Vite + TailwindCSS chat interface
 - SSE streaming support, session management sidebar
@@ -100,6 +106,11 @@ Key sections to include (based on what already exists in this project):
 - CDK TypeScript stacks, single `prod` environment config
 - Stack names, existing stacks list
 - `npm run cdk:diff` before any changes
+
+**`apps/vyasa-slack-cmd/`** (exists, no `CLAUDE.md` yet)
+
+- Slack slash command integration for Vyasa RAG
+- Planned: create `apps/vyasa-slack-cmd/CLAUDE.md`
 
 **Future (when scaffolded):**
 
@@ -202,8 +213,8 @@ This is the entry point for any autonomous task. Current implementation is an 8-
 > current orchestrator will be updated to align with that model.
 >
 > **CLI note:** Agents are invoked via `runAgent()` in the TypeScript CLI (`scripts/ai-dev/cli.ts`) using valid
-> `codemie-claude`/`claude` CLI flags (`-p --system-prompt --model --max-budget-usd`).
-> The earlier `--var` and `--max-turns` flags were aspirational and never existed in the CLI.
+> `codemie-claude`/`claude` CLI flags (`-p --model --max-budget-usd --permission-mode`).
+> Instructions are passed as the `-p` prompt argument. Permission bypass uses `--permission-mode bypassPermissions`.
 
 ---
 
@@ -215,6 +226,7 @@ Each is a focused, constrained `instructions.md`:
 
 - Input: `requirements.md` path, ticket context
 - Output: `docs/features/{TICKET_ID}/TDD.md` — API contract, DB schema, Mermaid sequence diagram, rollback plan, Spec Validation Checklist
+- Brownfield context injection: `gatherBrownfieldContext()` in `scripts/ai-dev/steps/design.ts` pre-collects shared types, handler structure, service patterns, and error handling from existing code — injected as `{BROWNFIELD_CONTEXT}` variable (zero token cost for agent discovery)
 - Tools allowed: read files, write docs only
 - Tools forbidden: git, cdk, npm
 
@@ -231,30 +243,30 @@ Each is a focused, constrained `instructions.md`:
 - Output: spec-compliance tests; each AC tagged `// AC: <id>`
 - Gate: 80% coverage (branches/functions/lines/statements) — auto-retries once
 
-**`agents/code-quality-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$0.50`
+**`agents/code-quality-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$1.50`
 
 - Invoked only when `eslint --fix + prettier --write` leave remaining errors
 - Input: changed files, remaining error list
 - Gate: ESLint + `tsc --noEmit` must pass before `code-security` unlocks
 
-**`agents/code-security-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$1.00`
+**`agents/code-security-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$1.50`
 
 - Input: TDD.md, changed files, `npm audit` output
 - Output: `docs/features/{TICKET_ID}/SECURITY_REVIEW.md` with `## Overall Verdict`
 - Pre-flight: secrets pattern scan on `git diff` (blocks on hit); `npm audit` run before agent
 - Gate: verdict must not be `FAIL` before `code-perf` unlocks
 
-**`agents/code-perf-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$2.00`
+**`agents/code-perf-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$1.50`
 
 - Input: TDD.md, changed files
 - Output: N+1/cache review findings + E2E stubs for new API endpoints
 
-**`agents/deploy-agent/instructions.md`** ✅ — model: `claude-haiku`, budget: `$0.50`
+**`agents/deploy-agent/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$2.00`
 
 - Input: branch name, ticket ID, changed files
 - Output: PR opened via `gh` CLI with filled PR template, Conventional Commit title, correct labels
 
-**`agents/ticket-creator/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$2.00`
+**`agents/ticket-creator/instructions.md`** ✅ — model: `claude-sonnet`, budget: `$1.00`
 
 - Input: one-liner idea, project key
 - Output: structured JSON between `---JSON_OUTPUT_START---` markers (summary, description, type, priority, labels)
@@ -264,12 +276,16 @@ Each is a focused, constrained `instructions.md`:
 
 | Agent                 | Model  | Budget | Trigger                                                |
 | --------------------- | ------ | ------ | ------------------------------------------------------ |
-| `fix-lint-agent`      | haiku  | $0.25  | ESLint errors remain after `eslint --fix`              |
-| `fix-types-agent`     | sonnet | $0.50  | `tsc --noEmit` errors (max 2 attempts)                 |
-| `fix-tests-agent`     | sonnet | $1.00  | Jest `FAIL` lines (max 2 attempts, spec as tiebreaker) |
-| `fix-build-agent`     | sonnet | $0.50  | `npm run build` failures (max 2 attempts)              |
-| `fix-security-agent`  | sonnet | $0.50  | HIGH/CRITICAL vulns after `npm audit fix`              |
-| `fix-conflicts-agent` | sonnet | $0.75  | ≤10 conflicted files after failed `git rebase`         |
+| `fix-lint-agent`      | haiku  | $1.00  | ESLint errors remain after `eslint --fix`              |
+| `fix-types-agent`     | haiku  | $1.00  | `tsc --noEmit` errors (max 2 attempts)                 |
+| `fix-tests-agent`     | sonnet | $2.00  | Jest `FAIL` lines (max 2 attempts, spec as tiebreaker) |
+| `fix-build-agent`     | sonnet | $2.00  | `npm run build` failures (max 2 attempts)              |
+| `fix-security-agent`  | sonnet | $2.00  | HIGH/CRITICAL vulns after `npm audit fix`              |
+| `fix-conflicts-agent` | sonnet | $2.00  | ≤10 conflicted files after failed `git rebase`         |
+
+**No-Fabrication Guard** (cross-cutting, applied to all 6 code-writing agents):
+
+Every code-writing agent (`code-impl`, `code-test`, `code-quality`, `code-security`, `code-perf`, `code-agent`) has a `## No Fabrication Rule` section in its `instructions.md`. Requires every file path, class name, namespace, and endpoint to trace to: (1) an existing file in the repo, (2) the approved TDD.md spec, or (3) a resolved design decision. Agents must report `status: blocked` if a reference cannot be found — prevents hallucinated imports and broken runtime errors.
 
 **Legacy agents** (still present, not called by current pipeline):
 
@@ -338,11 +354,16 @@ _Estimated effort: 1 hour | Needs API tokens_
       }
     },
     "aws-unified": {
-      "command": "npx",
-      "args": ["-y", "@aws/mcp-unified"],
+      "command": "/Users/Nilesh_Shinde/.local/bin/uvx",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=us-east-1"
+      ],
       "env": {
-        "AWS_REGION": "${AWS_REGION}",
-        "AWS_PRSCRUMILE": "${AWS_PRSCRUMILE}"
+        "AWS_PROFILE": "default",
+        "READ_OPERATIONS_ONLY": "true"
       }
     },
     "jira": {
@@ -365,12 +386,14 @@ _Estimated effort: 1 hour | Needs API tokens_
 }
 ```
 
+> **Note:** AWS MCP uses `uvx` (uv package runner) instead of `npx`. Adjust path for non-Mac systems.
+
 **Tokens needed:**
 
 - GitHub PAT (`GITHUB_PERSONAL_ACCESS_TOKEN`): `https://github.com/settings/tokens`
 - Jira API token + email (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`): `https://id.atlassian.com/manage-profile/security/api-tokens`
 - Langfuse (`LANGFUSE_API_TOKEN`): Base64-encoded `pk:sk` from Langfuse project settings
-- AWS: Profile configured via `aws configure` or SSO (`AWS_REGION`, `AWS_PRSCRUMILE`)
+- AWS: Profile configured via `aws configure` or SSO (`AWS_PROFILE`, `READ_OPERATIONS_ONLY`)
 
 > **Note:** Slack MCP was originally planned but replaced by Langfuse MCP for RAG evaluation
 > observability. Slack can be added later if notification integration is needed.
@@ -410,7 +433,9 @@ Keeps all Claude API calls inside AWS private network — no data touches the pu
 
 ### D.4 — Add `llm-security-scan.yml` workflow
 
-**File:** `.github/workflows/llm-security-scan.yml`
+**File:** `.github/workflows/llm-security-scan.yml.disabled` (currently disabled)
+
+> **Status:** Workflow created but disabled. Enable when ready to enforce AI security review on every PR.
 
 ```yaml
 name: LLM Security Review (Bedrock)
@@ -490,10 +515,11 @@ scripts/ai-dev/
 │   ├── file-helpers.ts       # featureDir(), subtasksFile(), markers
 │   ├── ci-status.ts          # getCIStatus(), classifyCIFailure()
 │   ├── logger.ts             # Colored console output
-│   └── shell.ts              # execSync wrapper
+│   ├── shell.ts              # execSync wrapper
+│   └── trivial-skip.ts       # shouldSkipExpensiveSteps() — skip test/security/perf for trivial changes
 │
 └── steps/
-    ├── create.ts, init.ts, status.ts
+    ├── create.ts, init.ts, status.ts, help.ts
     ├── requirements.ts, resolve.ts, design.ts
     ├── code-impl.ts, code-test.ts, code-quality.ts, code-security.ts, code-perf.ts
     ├── code.ts (alias), validate.ts
@@ -506,33 +532,33 @@ scripts/ai-dev/
 
 - Reads agent instructions file (Markdown)
 - Substitutes `{KEY}` placeholders with `String.replaceAll()` (no `perl` needed)
-- Invokes `$CLAUDE_CMD -p --system-prompt "$instructions" --model <model> --max-budget-usd <budget> --dangerously-skip-permissions`
+- Invokes `$CLAUDE_CMD -p "$instructions" --model <model> --max-budget-usd <budget> --permission-mode bypassPermissions`
 
 **Eliminated dependencies:** `jq`, `perl`, `curl`, `base64`, `awk`, `sed` — all replaced by Node.js native APIs.
 
-**Budget allocation per agent:**
+**Budget allocation per agent** (source of truth: `scripts/ai-dev/config.ts`):
 
 | Agent               | Model  | Budget | Rationale                                      |
 | ------------------- | ------ | ------ | ---------------------------------------------- |
-| ticket-creator      | sonnet | $2.00  | Codebase analysis + structured JSON output     |
+| ticket-creator      | sonnet | $1.00  | Codebase analysis + structured JSON output     |
 | requirements-agent  | sonnet | $1.50  | Deep reasoning on ambiguous requirements       |
 | design-agent        | sonnet | $2.00  | System interaction, Mermaid, API contract      |
 | code-impl-agent     | sonnet | $3.00  | Spec-driven implementation + IMPL_CHECKLIST.md |
 | code-test-agent     | sonnet | $2.00  | Spec compliance tests; 80% coverage (1 retry)  |
-| code-quality-agent  | sonnet | $0.50  | Residual lint/tsc errors after auto-fix        |
-| code-security-agent | sonnet | $1.00  | OWASP review → SECURITY_REVIEW.md              |
-| code-perf-agent     | sonnet | $2.00  | N+1/cache review + E2E stubs                   |
-| deploy-agent        | haiku  | $0.50  | Pure scripting — opens PR via `gh` CLI         |
-| fix-lint-agent      | haiku  | $0.25  | ESLint residuals after auto-fix                |
-| fix-types-agent     | sonnet | $0.50  | TypeScript type errors (max 2 attempts)        |
-| fix-tests-agent     | sonnet | $1.00  | Jest failures, spec as tiebreaker (max 2)      |
-| fix-build-agent     | sonnet | $0.50  | Build/compile errors (max 2 attempts)          |
-| fix-security-agent  | sonnet | $0.50  | HIGH/CRITICAL vulns after `npm audit fix`      |
-| fix-conflicts-agent | sonnet | $0.75  | ≤10 conflicted files after failed `git rebase` |
+| code-quality-agent  | sonnet | $1.50  | Residual lint/tsc errors after auto-fix        |
+| code-security-agent | sonnet | $1.50  | OWASP review → SECURITY_REVIEW.md              |
+| code-perf-agent     | sonnet | $1.50  | N+1/cache review + E2E stubs                   |
+| deploy-agent        | sonnet | $2.00  | PR creation via `gh` CLI                       |
+| fix-lint-agent      | haiku  | $1.00  | ESLint residuals after auto-fix                |
+| fix-types-agent     | haiku  | $1.00  | TypeScript type errors (max 2 attempts)        |
+| fix-tests-agent     | sonnet | $2.00  | Jest failures, spec as tiebreaker (max 2)      |
+| fix-build-agent     | sonnet | $2.00  | Build/compile errors (max 2 attempts)          |
+| fix-security-agent  | sonnet | $2.00  | HIGH/CRITICAL vulns after `npm audit fix`      |
+| fix-conflicts-agent | sonnet | $2.00  | ≤10 conflicted files after failed `git rebase` |
 
-**Configurable CLI:** Set `AI_DEV_CLAUDE_CMD=claude` to bypass CodeMie and use raw Claude Code CLI.
+**Configurable CLI:** Override `claudeCmd` in a custom `ai-dlc.config.ts` at repo root (default: `codemie-claude`). Set to `claude` to use raw Claude Code CLI.
 
-**Subtask architecture (9 subtasks per ticket):**
+**Subtask architecture (10 subtasks per ticket):**
 
 ```
 Parent ticket: SCRUM-123
@@ -543,6 +569,7 @@ Parent ticket: SCRUM-123
 ├── [AI] Code Quality: SCRUM-123       → lint/tsc pass (gated: human Done)
 ├── [AI] Security Review: SCRUM-123    → SECURITY_REVIEW.md (gated: human Done)
 ├── [AI] Performance Review: SCRUM-123 → perf findings (gated: human Done)
+├── [AI] Validate: SCRUM-123           → .validate-passed marker (gated: code-perf Done)
 ├── [AI] PR: SCRUM-123                 → PR opened, transitions to "In Review"
 └── [AI] Ship: SCRUM-123               → CI green, transitions to "Done"
 ```
@@ -551,8 +578,10 @@ Parent ticket: SCRUM-123
 
 | File                      | Purpose                                                   |
 | ------------------------- | --------------------------------------------------------- |
-| `.jira-subtasks`          | step → Jira key mapping (source of truth for subtask IDs) |
-| `.ticket-context`         | ticket summary + description (passed to agents)           |
+| `subtasks.json`           | step → Jira key mapping (source of truth for subtask IDs) |
+| `.ticket-context`         | ticket context (read by agents if present)                |
+| `.branch`                 | feature branch name (written by `init`)                   |
+| `.ticket-summary`         | ticket summary text (written by `init`)                   |
 | `.pr_number`              | PR number for `deploy-ship` and `release`                 |
 | `.fix_retries.json`       | retry counter per failure type (max 3 before hard-block)  |
 | `.last-known-good-commit` | rollback target written by `release` before CDK deploy    |
@@ -561,34 +590,34 @@ Parent ticket: SCRUM-123
 
 **Full subcommand reference:**
 
-| Subcommand                | Agent                   | Model             | Budget | Rationale                                                                                                                  |
-| ------------------------- | ----------------------- | ----------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `create "idea"`           | `ticket-creator`        | Claude Sonnet 4.6 | $1.0   | Maps a vague one-liner to a structured Jira ticket (summary, description, ACs, story points) — requires creative reasoning |
-| `init SCRUM-123`          | — (script)              | —                 | —      | Deterministic: parses ticket via Jira API, creates 9 subtasks, creates git branch — no AI reasoning needed                 |
-| `requirements SCRUM-123`  | `requirements-agent`    | Claude Sonnet 4.6 | $1.5   | Detects ambiguities, writes BDD-style acceptance criteria, generates clarifying questions — requires analytical reasoning  |
-| `resolve SCRUM-123`       | — (script)              | —                 | —      | Pulls PO answers from Jira comments and patches requirements.md — deterministic text merge                                 |
-| `design SCRUM-123`        | `design-agent`          | Claude Sonnet 4.6 | $2.0   | Plans TDD test structure, maps ACs to test cases, reasons about edge cases and mocking strategy                            |
-| `code SCRUM-123`          | alias                   | —                 | —      | Chains code-impl → code-test → code-quality → code-security → code-perf (auto-approves each)                               |
-| `code-impl SCRUM-123`     | `code-impl-agent`       | Claude Sonnet 4.6 | $3.0   | Highest budget — generates multi-file implementation per CLAUDE.md conventions, produces IMPL_CHECKLIST.md                 |
-| `code-test SCRUM-123`     | `code-test-agent`       | Claude Sonnet 4.6 | $2.0   | Writes spec tests targeting 80% branch/line coverage; must reason about async patterns and edge cases                      |
-| `code-quality SCRUM-123`  | `code-quality-agent`    | Claude Sonnet 4.6 | $1.5   | Reviews residual ESLint/tsc errors after auto-fix pass; non-trivial fixes require judgment                                 |
-| `code-security SCRUM-123` | `code-security-agent`   | Claude Sonnet 4.6 | $1.5   | OWASP Top 10 + SOC 2 review — must reason about injection vectors, auth gaps, PII exposure                                 |
-| `code-perf SCRUM-123`     | `code-perf-agent`       | Claude Sonnet 4.6 | $1.5   | Detects N+1 queries, unnecessary re-renders, missing indexes; generates E2E performance stubs                              |
-| `validate SCRUM-123`      | — (script)              | —                 | —      | CI dry-run: runs lint / tsc / jest / build / npm audit sequentially — no AI needed                                         |
-| `deploy-pr SCRUM-123`     | `deploy-agent`          | Claude Sonnet 4.6 | $2.0   | Crafts PR description, applies branch-naming convention, pushes branch, opens GitHub PR                                    |
-| `deploy-ship SCRUM-123`   | — (script + fix agents) | —                 | —      | Monitors CI; classifies failure type; dispatches the matching `fix-*` agent (max 3 retries per type)                       |
-| `release SCRUM-123`       | — (script)              | —                 | —      | Smart CDK targeting (rag-only vs full infra), smoke tests, writes `.last-known-good-commit`                                |
-| `rollback SCRUM-123`      | — (script)              | —                 | —      | Reverts CDK stacks to `.last-known-good-commit` — deterministic git + CDK operation                                        |
-| `fix-lint SCRUM-123`      | `fix-lint-agent`        | Claude Haiku 4.5  | $1.0   | ESLint/Prettier fixes are rule-based and mechanical — Haiku is fast and cost-efficient here                                |
-| `fix-types SCRUM-123`     | `fix-types-agent`       | Claude Haiku 4.5  | $1.0   | TypeScript type annotations are mostly mechanical (add types, fix null checks) — Haiku sufficient                          |
-| `fix-tests SCRUM-123`     | `fix-tests-agent`       | Claude Sonnet 4.6 | $2.0   | Failing tests often need reasoning about what changed vs what was expected — Sonnet required                               |
-| `fix-build SCRUM-123`     | `fix-build-agent`       | Claude Sonnet 4.6 | $2.0   | Build errors can involve complex dependency resolution and config changes — Sonnet required                                |
-| `fix-security SCRUM-123`  | `fix-security-agent`    | Claude Sonnet 4.6 | $2.0   | `npm audit fix` may need reasoning about which CVEs to fix vs accept and manual patching                                   |
-| `fix-conflicts SCRUM-123` | `fix-conflicts-agent`   | Claude Sonnet 4.6 | $2.0   | Semantic merge conflicts require understanding intent of both branches — Sonnet required                                   |
-| `status SCRUM-123`        | — (script)              | —                 | —      | Reads live pipeline state from Jira subtask statuses — no AI needed                                                        |
+| Subcommand                | Agent                   | Model             | Budget | Rationale                                                                                                                                                                                                                                                                                                                   |
+| ------------------------- | ----------------------- | ----------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create "idea"`           | `ticket-creator`        | Claude Sonnet 4.6 | $1.0   | Maps a vague one-liner to a structured Jira ticket (summary, description, ACs, story points) — requires creative reasoning                                                                                                                                                                                                  |
+| `init SCRUM-123`          | — (script)              | —                 | —      | Deterministic: parses ticket via Jira API, creates 10 subtasks, creates git branch — no AI reasoning needed                                                                                                                                                                                                                 |
+| `requirements SCRUM-123`  | `requirements-agent`    | Claude Sonnet 4.6 | $1.5   | Detects ambiguities, writes BDD-style acceptance criteria, generates clarifying questions — requires analytical reasoning                                                                                                                                                                                                   |
+| `resolve SCRUM-123`       | — (script)              | —                 | —      | Pulls PO answers from Jira comments and patches requirements.md — deterministic text merge                                                                                                                                                                                                                                  |
+| `design SCRUM-123`        | `design-agent`          | Claude Sonnet 4.6 | $2.0   | Plans TDD test structure, maps ACs to test cases, reasons about edge cases and mocking strategy                                                                                                                                                                                                                             |
+| `code SCRUM-123`          | alias                   | —                 | —      | Chains code-impl → code-test → code-quality → code-security → code-perf (auto-approves each). **Trivial-skip:** Changes ≤10 lines on allowlisted files (`.md`, `.css`, `.json`, `.yaml`, `.toml`) with no security-sensitive paths and passing `tsc --noEmit` skip test/security/perf steps — saves ~$8+ per trivial change |
+| `code-impl SCRUM-123`     | `code-impl-agent`       | Claude Sonnet 4.6 | $3.0   | Highest budget — generates multi-file implementation per CLAUDE.md conventions, produces IMPL_CHECKLIST.md                                                                                                                                                                                                                  |
+| `code-test SCRUM-123`     | `code-test-agent`       | Claude Sonnet 4.6 | $2.0   | Writes spec tests targeting 80% branch/line coverage; must reason about async patterns and edge cases                                                                                                                                                                                                                       |
+| `code-quality SCRUM-123`  | `code-quality-agent`    | Claude Sonnet 4.6 | $1.5   | Reviews residual ESLint/tsc errors after auto-fix pass; non-trivial fixes require judgment                                                                                                                                                                                                                                  |
+| `code-security SCRUM-123` | `code-security-agent`   | Claude Sonnet 4.6 | $1.5   | OWASP Top 10 + SOC 2 review — must reason about injection vectors, auth gaps, PII exposure                                                                                                                                                                                                                                  |
+| `code-perf SCRUM-123`     | `code-perf-agent`       | Claude Sonnet 4.6 | $1.5   | Detects N+1 queries, unnecessary re-renders, missing indexes; generates E2E performance stubs                                                                                                                                                                                                                               |
+| `validate SCRUM-123`      | — (script)              | —                 | —      | CI dry-run: runs lint / tsc / jest / build / npm audit sequentially — no AI needed                                                                                                                                                                                                                                          |
+| `deploy-pr SCRUM-123`     | `deploy-agent`          | Claude Sonnet 4.6 | $2.0   | Crafts PR description, applies branch-naming convention, pushes branch, opens GitHub PR                                                                                                                                                                                                                                     |
+| `deploy-ship SCRUM-123`   | — (script + fix agents) | —                 | —      | Monitors CI; classifies failure type; dispatches the matching `fix-*` agent (max 3 retries per type)                                                                                                                                                                                                                        |
+| `release SCRUM-123`       | — (script)              | —                 | —      | Smart CDK targeting (rag-only vs full infra), smoke tests, writes `.last-known-good-commit`                                                                                                                                                                                                                                 |
+| `rollback SCRUM-123`      | — (script)              | —                 | —      | Reverts CDK stacks to `.last-known-good-commit` — deterministic git + CDK operation                                                                                                                                                                                                                                         |
+| `fix-lint SCRUM-123`      | `fix-lint-agent`        | Claude Haiku 4.5  | $1.0   | ESLint/Prettier fixes are rule-based and mechanical — Haiku is fast and cost-efficient here                                                                                                                                                                                                                                 |
+| `fix-types SCRUM-123`     | `fix-types-agent`       | Claude Haiku 4.5  | $1.0   | TypeScript type annotations are mostly mechanical (add types, fix null checks) — Haiku sufficient                                                                                                                                                                                                                           |
+| `fix-tests SCRUM-123`     | `fix-tests-agent`       | Claude Sonnet 4.6 | $2.0   | Failing tests often need reasoning about what changed vs what was expected — Sonnet required                                                                                                                                                                                                                                |
+| `fix-build SCRUM-123`     | `fix-build-agent`       | Claude Sonnet 4.6 | $2.0   | Build errors can involve complex dependency resolution and config changes — Sonnet required                                                                                                                                                                                                                                 |
+| `fix-security SCRUM-123`  | `fix-security-agent`    | Claude Sonnet 4.6 | $2.0   | `npm audit fix` may need reasoning about which CVEs to fix vs accept and manual patching                                                                                                                                                                                                                                    |
+| `fix-conflicts SCRUM-123` | `fix-conflicts-agent`   | Claude Sonnet 4.6 | $2.0   | Semantic merge conflicts require understanding intent of both branches — Sonnet required                                                                                                                                                                                                                                    |
+| `status SCRUM-123`        | — (script)              | —                 | —      | Reads live pipeline state from Jira subtask statuses — no AI needed                                                                                                                                                                                                                                                         |
 
 **Gated steps** (each checks the prior subtask = "Done" before running):
-`requirements → design → code-impl → code-test → code-quality → code-security → code-perf → deploy-pr`
+`requirements → design → code-impl → code-test → code-quality → code-security → code-perf → validate → deploy-pr`
 
 **Approval mechanism:** Transition subtask to "Done" in Jira UI — no CLI `approve` command.
 
@@ -612,7 +641,7 @@ Parent ticket: SCRUM-123
 
 **Prerequisites:** Node.js 22+, `codemie-claude` CLI (`npm install -g @codemieai/code`) or `claude` CLI, `gh` (GitHub CLI), `aws` (AWS CLI), Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
 
-> **Note:** Set `AI_DEV_CLAUDE_CMD=claude` to use raw Claude Code CLI instead of the CodeMie enterprise wrapper.
+> **Note:** Override `claudeCmd` in a custom `ai-dlc.config.ts` at repo root to use `claude` (raw Claude Code CLI) instead of the default `codemie-claude`.
 
 ---
 
@@ -636,13 +665,13 @@ Parent ticket: SCRUM-123
 
 ## What You Get After Each Phase
 
-| After Phase         | What works                                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **A** (Brain)       | Every Claude session in Windsurf instantly knows the full project context — no re-explaining stack, patterns, or standards |
-| **B** (Agents)      | `runAgent()` helper invokes `codemie-claude -p --system-prompt <instructions> --model sonnet` for autonomous PR generation |
-| **C** (MCPs)        | Orchestrator can read Jira tickets itself + Langfuse observability for RAG eval — no manual copy-paste                     |
-| **D** (Security CI) | Every PR gets AI security review via Bedrock — no code leaves your AWS VPC                                                 |
-| **E** (Script)      | Async pipeline: `npm run ai-dev -- JIRA-456 <step>` — review offline, approve, trigger next step                           |
+| After Phase         | What works                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** (Brain)       | Every Claude session in Windsurf instantly knows the full project context — no re-explaining stack, patterns, or standards                     |
+| **B** (Agents)      | `runAgent()` helper invokes `codemie-claude -p <instructions> --model sonnet --permission-mode bypassPermissions` for autonomous PR generation |
+| **C** (MCPs)        | Orchestrator can read Jira tickets itself + Langfuse observability for RAG eval — no manual copy-paste                                         |
+| **D** (Security CI) | Every PR gets AI security review via Bedrock — no code leaves your AWS VPC                                                                     |
+| **E** (Script)      | Async pipeline: `npm run ai-dev -- JIRA-456 <step>` — review offline, approve, trigger next step                                               |
 
 ---
 
@@ -760,9 +789,10 @@ runs all 5 code sub-steps automatically (useful for trusted changes).
 
 | Aspect     | Details                                                                         |
 | ---------- | ------------------------------------------------------------------------------- |
-| **Type**   | Script-only — no agent, no Jira subtask                                         |
+| **Type**   | Script-only — no agent (Jira subtask created but auto-managed)                  |
 | **Checks** | [1] ESLint, [2] `tsc --noEmit`, [3] jest 80% coverage, [4] build, [5] npm audit |
 | **Output** | `.validate-passed` marker (gates `deploy-pr`)                                   |
+| **Gate**   | Gated by `code-perf` subtask Done (per `PREREQUISITE_MAP`)                      |
 
 No human gate — either passes and unlocks `deploy-pr`, or fails with per-check fix guidance.
 
@@ -772,19 +802,19 @@ No human gate — either passes and unlocks `deploy-pr`, or fails with per-check
 
 | Subcommand    | Agent                            | Details                                                                           |
 | ------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| `deploy-pr`   | `deploy-agent` (haiku — $0.50)   | Push branch, open PR with filled template via `gh` CLI; poll CI for 60s           |
+| `deploy-pr`   | `deploy-agent` (sonnet — $2.00)  | Push branch, open PR with filled template via `gh` CLI; poll CI for 60s           |
 | `deploy-ship` | `fix-*` agents (auto-dispatched) | Monitor CI; classify failure type → dispatch fix agent → commit + push → re-check |
 
 **CI failure classification (`deploy-ship`):**
 
 | CI Failure  | Fix dispatched                       | Max retries |
 | ----------- | ------------------------------------ | ----------- |
-| `lint`      | `fix-lint-agent` (haiku $0.25)       | 3           |
-| `types`     | `fix-types-agent` (sonnet $0.50)     | 3           |
-| `tests`     | `fix-tests-agent` (sonnet $1.00)     | 3           |
-| `build`     | `fix-build-agent` (sonnet $0.50)     | 3           |
-| `security`  | `fix-security-agent` (sonnet $0.50)  | 3           |
-| `conflicts` | `fix-conflicts-agent` (sonnet $0.75) | 3           |
+| `lint`      | `fix-lint-agent` (haiku $1.00)       | 3           |
+| `types`     | `fix-types-agent` (haiku $1.00)      | 3           |
+| `tests`     | `fix-tests-agent` (sonnet $2.00)     | 3           |
+| `build`     | `fix-build-agent` (sonnet $2.00)     | 3           |
+| `security`  | `fix-security-agent` (sonnet $2.00)  | 3           |
+| `conflicts` | `fix-conflicts-agent` (sonnet $2.00) | 3           |
 | `unknown`   | — (manual required)                  | —           |
 
 No auto-merge — Fortune 500 compliance requires human approval: `gh pr merge <N> --squash --delete-branch`
@@ -809,6 +839,25 @@ No auto-merge — Fortune 500 compliance requires human approval: `gh pr merge <
 | Haiku for deploy + fix-lint (scripting only)          | ~60% vs Sonnet per call                                  |
 | Script-only `validate` (no LLM)                       | 100% LLM tokens for CI check eliminated                  |
 | `deploy-ship` classifies then fixes (not blind retry) | Avoids re-running whole pipeline on simple lint failures |
+
+---
+
+### Design Principles
+
+> Aligned with industry AI-SDLC frameworks (ref: `ai-agentic-sdlc-workflow` architecture).
+
+| Principle                        | Enforcement in this pipeline                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Orchestrator never codes**     | TypeScript CLI dispatches agents; `runAgent()` only passes prompts and reads results                    |
+| **Separation of concerns**       | Each agent owns one task; communication through disk artifacts (`docs/features/TICKET/`), not chat      |
+| **No fabrication**               | `## No Fabrication Rule` in all 6 code-writing agents — blocks on ungrounded references                 |
+| **Bounded retries**              | `deploy-ship` max 3/type; `code-test` 1 retry; escalates to human on exhaust                            |
+| **Budget-based cost control**    | `--max-budget-usd` per agent invocation; config in `scripts/ai-dev/config.ts`                           |
+| **Zero-reasoning scripts**       | `validate`, `init`, `resolve`, `status` — deterministic operations with no LLM call                     |
+| **Fail-fast gate ordering**      | Cheapest checks first: lint → tsc → jest → build → audit (validate step)                                |
+| **Spec as source of truth**      | Agents read `requirements.md` + `TDD.md` — never derive intent from chat history                        |
+| **Human-gated async flow**       | Jira subtask "Done" transitions gate each step; `checkPrerequisite()` enforces                          |
+| **Brownfield context injection** | `gatherBrownfieldContext()` pre-collects patterns; injected as `{BROWNFIELD_CONTEXT}` — zero agent cost |
 
 ---
 
@@ -871,6 +920,7 @@ flowchart TD
   - [x] `apps/vyasa-rag-service/CLAUDE.md`
   - [x] `infra/CLAUDE.md`
   - [x] `apps/vyasa-ui/CLAUDE.md`
+  - [ ] `apps/vyasa-slack-cmd/CLAUDE.md` — pending (app exists, no CLAUDE.md yet)
   - [ ] `apps/order-service/CLAUDE.md` — deferred (service not scaffolded)
   - [ ] `apps/notification-svc/CLAUDE.md` — deferred (service not scaffolded)
   - [ ] `apps/web/CLAUDE.md` — deferred (service not scaffolded)
@@ -913,24 +963,24 @@ flowchart TD
 - [x] D.2 — IAM role created: `orderflow-github-bedrock-role` (arn:aws:iam::947612421212:role/orderflow-github-bedrock-role)
 - [x] D.2b — `AWS_BEDROCK_ROLE_ARN` secret added to GitHub repo
 - [ ] D.3 — VPC endpoint for Bedrock ⚠️ OPTIONAL — recommended for production
-- [x] D.4 — `.github/workflows/llm-security-scan.yml`
+- [x] D.4 — `.github/workflows/llm-security-scan.yml.disabled` (created but disabled)
 
 ### Phase E — Operator Script (10-Step Pipeline)
 
 - [x] E.1 — `scripts/ai-dev/` — TypeScript CLI (Jira-backed subcommand dispatcher)
-  - [x] 22 subcommands: `create, init, requirements, resolve, design, code, code-impl, code-test, code-quality, code-security, code-perf, validate, deploy-pr, deploy-ship, deploy (deprecated), release, rollback, fix-lint, fix-types, fix-tests, fix-build, fix-security, fix-conflicts, status`
-  - [x] `runAgent()` helper — native `{VAR}` substitution via `String.replaceAll()`, `--dangerously-skip-permissions`
-  - [x] 9 Jira subtasks created per ticket (requirements → deploy-ship)
-  - [x] 8 gated steps (each validates prior subtask = "Done" in Jira)
+  - [x] 25 subcommands: `help, create, init, requirements, resolve, design, code, code-impl, code-test, code-quality, code-security, code-perf, validate, deploy-pr, deploy-ship, deploy (deprecated), release, rollback, fix-lint, fix-types, fix-tests, fix-build, fix-security, fix-conflicts, status`
+  - [x] `runAgent()` helper — native `{VAR}` substitution via `String.replaceAll()`, `--permission-mode bypassPermissions`
+  - [x] 10 Jira subtasks created per ticket (all STEPS_ORDERED: requirements → deploy-ship)
+  - [x] 8 gated steps (each validates prior subtask = "Done" in Jira) + validate gated by code-perf
   - [x] Jira REST API helpers (create, comment, attachment, transition, get status)
   - [x] `resolve` — multi-round PO Q&A loop via Jira comments
   - [x] `validate` — script-only CI dry-run (5 checks, no LLM, no Jira subtask)
   - [x] `deploy-ship` — CI classification + auto-dispatch to `fix-*` agents (max 3 retries/type)
   - [x] `release` — smart CDK deploy + smoke tests + auto-rollback on failure
   - [x] `rollback` — manual CDK revert to `.last-known-good-commit`
-  - [x] Local state files: `.jira-subtasks`, `.pr_number`, `.fix_retries.json`, `.last-known-good-commit`, `.validate-passed`, `.questions-round`
+  - [x] Local state files: `subtasks.json`, `.branch`, `.ticket-summary`, `.pr_number`, `.fix_retries.json`, `.last-known-good-commit`, `.validate-passed`, `.questions-round`
   - [x] Budget-based cost control (`--max-budget-usd`) per agent
-  - [x] `AI_DEV_CLAUDE_CMD` env var (default: `codemie-claude`; set to `claude` for raw CLI)
+  - [x] `claudeCmd` config (default: `codemie-claude`; override via `ai-dlc.config.ts` for raw `claude` CLI)
 - [x] E.2 — `agents/ticket-creator/instructions.md` — structured JSON output from one-liner idea
 
 ### Agentic Pipeline (all steps implemented)
