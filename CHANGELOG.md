@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gap 17 — TDD test-first split** — Documented new planned enhancement in `docs/AI_DRIVEN_DEV_SETUP_FUTURE.md`:
+  - Split `code-impl` (Step 3) into `code-test-first` (write failing tests, verify red) → `code-impl` (make tests pass, verify green)
+  - Makes TDD red phase externally verifiable via `jest` exit code — matches SDD's structural gate pattern
+  - Priority: P2, effort ~3h, cost +$1.50/ticket (break-even at 1 caught divergence per 3 tickets)
+  - Updated priority matrix, reasoning section, recommended implementation order, and implementation priority table
+
 - **TypeScript migration of ai-dev CLI (Phase 1-3)** — Successfully migrated the 3,109-line bash script to a modular TypeScript CLI at `scripts/ai-dev/`
   - Created modular architecture with 25+ TypeScript modules
   - Implemented core utilities (logger, shell, config, types)

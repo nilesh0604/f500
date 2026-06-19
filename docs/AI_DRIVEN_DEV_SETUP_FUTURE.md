@@ -327,6 +327,75 @@ The `design-agent`'s brownfield context injection (`gatherBrownfieldContext()`) 
 
 ---
 
+### Gap 17 — TDD red phase not externally verifiable (test-first split)
+
+**Current state:** The `code-impl-agent` (Step 3) performs the entire TDD cycle — failing test → implementation → refactor — **inside a single agent invocation**. The `code-test-agent` (Step 4) then writes _additional_ spec-compliance tests afterward. The "red" phase (failing tests written first) is internal to the agent's reasoning and is never externally observable or verifiable.
+
+**Problem:** Classical TDD requires the test-first phase to be visible: write a failing test, **verify it fails**, then make it pass. When the red phase is hidden inside one agent call:
+
+1. **No proof tests were written first** — the agent may implement first and write tests to match (confirmation bias), defeating TDD's purpose
+2. **No checkpoint to catch spec misinterpretation early** — if the agent misunderstands the spec, both tests and implementation are wrong; the divergence is only caught at the human gate after `code-impl` (or worse, at `code-test`)
+3. **Wasted budget on redo** — if `code-test-agent` finds spec divergence, both implementation and tests must be rewritten (~$5 wasted: $3 impl + $2 test)
+4. **Weaker than SDD discipline** — the pipeline's SDD flow has externally verifiable gates (requirements.md → human review → TDD.md → human review → IMPL_CHECKLIST.md gate), but TDD's red-green-refactor has no equivalent structural enforcement
+
+**Planned fix:** Split `code-impl` (Step 3) into two sub-steps with a verifiable gate between them:
+
+```
+code-impl (current)
+  ↓
+code-test-first (NEW) → code-impl (modified)
+  ↓
+code-test (existing, now validates + augments)
+```
+
+**Step 3a — `code-test-first` (new sub-step):**
+
+- Agent: `code-test-first-agent` (sonnet, $1.50)
+- Input: `TDD.md`, `requirements.md`, `dev-plan.md` (if Gap 1 implemented)
+- Output: Failing test files only — no production code
+- **Gate:** `jest --coverage` must run and show **all new tests FAIL** (exit non-zero, confirming tests exist and assert against unimplemented code)
+- Jira subtask: `[AI] Test-First: SCRUM-123` (gated: human Done or auto-approved if all tests fail as expected)
+- Human gate: Review test names, `// AC: <id>` tags, and assertion structure — confirm they match TDD.md spec
+
+**Step 3b — `code-impl` (modified):**
+
+- Agent: `code-impl-agent` (sonnet, $3.00) — unchanged budget
+- Input: `TDD.md`, `requirements.md`, **failing test files from 3a**
+- Output: Source files + `IMPL_CHECKLIST.md` (all ✅)
+- **Gate:** `jest` must now show **all tests PASS** (the red→green transition is externally verified)
+- Existing IMPL_CHECKLIST.md gate remains
+
+**Step 4 — `code-test` (unchanged):**
+
+- Still writes additional spec-compliance / edge-case tests targeting 80% coverage
+- Now augments the test-first baseline rather than writing all tests from scratch
+
+**Pipeline becomes:**
+
+```
+requirements → design → [code-test-first] → code-impl → code-test → code-quality → ...
+```
+
+**Why this matters:**
+
+- Makes TDD discipline **structurally enforced** — same pattern as SDD's spec gates
+- The red→green transition is a **verifiable checkpoint** — `jest` exit code changes from non-zero (3a) to zero (3b)
+- Catches spec misinterpretation **before** implementation budget is spent ($1.50 test-first vs $3.00 impl)
+- Pairs naturally with Gap 1 (dev-plan) — the plan sequences which tests to write first
+- Pairs with Gap 11 (code-review agent) — reviewer can compare tests against TDD.md before impl runs
+
+**Cost impact:**
+
+- Adds $1.50 per ticket (test-first agent)
+- Saves ~$5 on tickets where spec divergence would have been caught late (impl + test redo)
+- Break-even: 1 caught divergence per 3 tickets — realistic for complex features
+
+**Trivial-skip interaction:** The trivial-skip gate (Gap 12, ✅ implemented) already skips `code-test` for trivial changes. The `code-test-first` step should also be skipped for trivial changes (≤10 lines on allowlisted files) — no need for failing tests on a README fix.
+
+**Effort:** ~3 hours (new agent instructions + new CLI step + Jira subtask + prerequisite map update + trivial-skip integration)
+
+---
+
 ## Future Improvements Priority Matrix
 
 > **Re-evaluated:** 2026-06-18. Reassessed against current fully-implemented 10-step pipeline
@@ -334,22 +403,23 @@ The `design-agent`'s brownfield context injection (`gatherBrownfieldContext()`) 
 >
 > **Completed gaps removed:** Gap 3 (brownfield context ✅), Gap 5 (scope drift ✅), Gap 7 (no-fabrication guard ✅)
 
-| Priority | Gap   | Title                                | Impact   | Effort  | Reasoning                                                                           |
-| -------- | ----- | ------------------------------------ | -------- | ------- | ----------------------------------------------------------------------------------- |
-| **P1**   | 12    | Trivial-skip gate                    | High     | ~1h     | Direct $ savings — README/config changes don't need $8 security+perf review         |
-| **P1**   | 10    | Warm-continue on retries             | High     | ~1h     | Stops retries from repeating same mistake. Near-zero risk, immediate ROI            |
-| **P1**   | 6     | Structured agent return format       | High     | ~2h     | Eliminates silent failures (exit 0 but incomplete). Smarter orchestration           |
-| **P2**   | 15    | Lightweight per-run telemetry report | High     | ~3h     | Cost visibility per ticket/agent without Docker infra; enables optimization         |
-| ~~P2~~   | ~~5~~ | ~~Scope drift detection~~ ✅ DONE    | ~~High~~ | ~~~1h~~ | ~~Catches agents touching unrelated files~~ — now implemented using design.md scope |
-| **P2**   | 1     | Dev plan step                        | Medium   | ~3h     | Only needed for complex multi-file features; TDD.md covers 80% of cases             |
-| **P3**   | 14    | Structured change lifecycle          | Medium   | ~3h     | Resume interrupted work + richer status; not critical while pipeline is stable      |
-| **P3**   | 16    | Knowledge accumulation (archive)     | Medium   | ~2h     | ROI increases with feature count; not urgent with <10 shipped features              |
-| **P3**   | 8     | Circuit breaker + re-planning        | Medium   | ~4h     | Over-engineering for solo dev — manual investigation is fast & informative          |
-| **P3**   | 9     | CodeGraph MCP                        | Medium   | ~8h     | Codebase too small to justify; brownfield injection covers main use case            |
-| **P4**   | 11    | Code review agent post-impl          | Low      | ~2h     | Redundant — human gate after code-impl catches spec divergence                      |
-| **P4**   | 2     | Enforced human gates                 | Low      | ~2h     | Solo dev controls the flow; no accidental automation to prevent                     |
-| **P4**   | 4     | Slack notifications                  | Low      | ~3h     | Terminal output sufficient for solo async workflow                                  |
-| **P4**   | 13    | OTLP telemetry dashboard (full)      | Low      | ~6h     | Superseded by Gap 15 for solo use; only relevant at team scale                      |
+| Priority | Gap   | Title                                | Impact   | Effort  | Reasoning                                                                                      |
+| -------- | ----- | ------------------------------------ | -------- | ------- | ---------------------------------------------------------------------------------------------- |
+| **P1**   | 12    | Trivial-skip gate                    | High     | ~1h     | Direct $ savings — README/config changes don't need $8 security+perf review                    |
+| **P1**   | 10    | Warm-continue on retries             | High     | ~1h     | Stops retries from repeating same mistake. Near-zero risk, immediate ROI                       |
+| **P1**   | 6     | Structured agent return format       | High     | ~2h     | Eliminates silent failures (exit 0 but incomplete). Smarter orchestration                      |
+| **P2**   | 15    | Lightweight per-run telemetry report | High     | ~3h     | Cost visibility per ticket/agent without Docker infra; enables optimization                    |
+| ~~P2~~   | ~~5~~ | ~~Scope drift detection~~ ✅ DONE    | ~~High~~ | ~~~1h~~ | ~~Catches agents touching unrelated files~~ — now implemented using design.md scope            |
+| **P2**   | 1     | Dev plan step                        | Medium   | ~3h     | Only needed for complex multi-file features; TDD.md covers 80% of cases                        |
+| **P3**   | 14    | Structured change lifecycle          | Medium   | ~3h     | Resume interrupted work + richer status; not critical while pipeline is stable                 |
+| **P3**   | 16    | Knowledge accumulation (archive)     | Medium   | ~2h     | ROI increases with feature count; not urgent with <10 shipped features                         |
+| **P3**   | 8     | Circuit breaker + re-planning        | Medium   | ~4h     | Over-engineering for solo dev — manual investigation is fast & informative                     |
+| **P3**   | 9     | CodeGraph MCP                        | Medium   | ~8h     | Codebase too small to justify; brownfield injection covers main use case                       |
+| **P4**   | 11    | Code review agent post-impl          | Low      | ~2h     | Redundant — human gate after code-impl catches spec divergence                                 |
+| **P4**   | 2     | Enforced human gates                 | Low      | ~2h     | Solo dev controls the flow; no accidental automation to prevent                                |
+| **P4**   | 4     | Slack notifications                  | Low      | ~3h     | Terminal output sufficient for solo async workflow                                             |
+| **P2**   | 17    | TDD test-first split                 | Medium   | ~3h     | Makes TDD red phase externally verifiable; catches spec divergence before $3 impl budget spent |
+| **P4**   | 13    | OTLP telemetry dashboard (full)      | Low      | ~6h     | Superseded by Gap 15 for solo use; only relevant at team scale                                 |
 
 ---
 
@@ -367,12 +437,14 @@ The `design-agent`'s brownfield context injection (`gatherBrownfieldContext()`) 
 
 6. **Gap 2 demoted P2→P4** — `checkPrerequisite()` already gates on Jira status. The "enforced" improvement only matters in team settings where someone might accidentally skip review.
 
+7. **Gap 17 placed at P2** — The pipeline's SDD discipline is structurally enforced (spec → human gate → design → human gate → IMPL_CHECKLIST gate), but TDD discipline relies on the agent's internal behavior. Splitting `code-impl` into `code-test-first` → `code-impl` makes the red→green transition an externally verifiable checkpoint (`jest` exit code change). This catches spec misinterpretation before the $3 implementation budget is spent — break-even at 1 caught divergence per 3 tickets. P2 (not P1) because the current single-agent TDD approach works for most tickets; the split adds the most value on complex, multi-file features where spec divergence risk is highest. Pairs with Gap 1 (dev-plan) and Gap 11 (code-review).
+
 ---
 
 **Recommended implementation order:**
 
 1. **Quick wins (P1):** Gap 12 → Gap 10 → Gap 6 — ~4 hours total, improve every subsequent pipeline run
-2. **Observability + safety (P2):** Gap 15 → ~~Gap 5~~ → Gap 1 — telemetry enables data-driven optimization; ~~scope guard catches drift~~ ✅
+2. **Observability + safety (P2):** Gap 15 → ~~Gap 5~~ → Gap 1 → Gap 17 — telemetry enables data-driven optimization; ~~scope guard catches drift~~ ✅; test-first split strengthens TDD discipline
 3. **Maturity (P3):** Gap 14 → Gap 16 — structured lifecycle + knowledge accumulation; implement after 10+ features shipped
 4. **Defer until needed (P3–P4):** Gaps 8, 9, 11, 2, 4, 13 — revisit quarterly or when pain emerges
 
@@ -503,20 +575,21 @@ An MCP is justified **only** when the AI agent needs to call the tool **during i
 
 ### Implementation Priority (Updated 2026-06-18)
 
-| Order | Item                            | Type                                     | Effort  | Notes                                                                            |
-| ----- | ------------------------------- | ---------------------------------------- | ------- | -------------------------------------------------------------------------------- |
-| 1     | Trivial-skip gate (Gap 12)      | CLI module in `scripts/ai-dev/core/`     | ~1h     | Biggest cost saver — implement first                                             |
-| 2     | Warm-continue on retries (10)   | CLI module (modify `runAgent()`)         | ~1h     | Inject `{PREVIOUS_ATTEMPT_CONTEXT}` on retry                                     |
-| 3     | Structured agent return (6)     | CLI module (modify `runAgent()`)         | ~2h     | Parse JSON between markers from stdout                                           |
-| 4     | Per-run telemetry (Gap 15)      | CLI module (modify `runAgent()`)         | ~3h     | JSONL capture + HTML report; replaces Gap 13 for solo use                        |
-| ~~5~~ | ~~Scope Guard (Gap 5)~~ ✅ DONE | ~~CLI module in `scripts/ai-dev/core/`~~ | ~~~1h~~ | ~~`git diff --name-only` vs declared scope~~ — implemented using design.md scope |
-| 6     | Change lifecycle (Gap 14)       | CLI module (`state.json` per ticket)     | ~3h     | Resume logic + archive step; implement after 10+ features shipped                |
-| 7     | Knowledge accumulation (16)     | CLI step (post-release archive)          | ~2h     | Pattern extraction → `docs/patterns/`; pairs with Gap 14                         |
-| 8     | Knowledge Base MCP              | Custom MCP                               | ~5h     | Defer — only if design agent struggles with ADRs                                 |
-| 9     | CodeGraph MCP                   | Custom MCP                               | ~8h     | Defer — revisit when repo exceeds 100 active files                               |
-| —     | ~~OTLP dashboard (Gap 13)~~     | ~~Docker Compose stack~~                 | ~~6h~~  | Superseded by Gap 15 for solo dev; team-scale only                               |
-| —     | ~~Notification utility~~        | ~~CLI module (`notifySlack()`)~~         | ~~2h~~  | Deprioritized — solo dev, terminal sufficient                                    |
+| Order | Item                            | Type                                       | Effort  | Notes                                                                            |
+| ----- | ------------------------------- | ------------------------------------------ | ------- | -------------------------------------------------------------------------------- |
+| 1     | Trivial-skip gate (Gap 12)      | CLI module in `scripts/ai-dev/core/`       | ~1h     | Biggest cost saver — implement first                                             |
+| 2     | Warm-continue on retries (10)   | CLI module (modify `runAgent()`)           | ~1h     | Inject `{PREVIOUS_ATTEMPT_CONTEXT}` on retry                                     |
+| 3     | Structured agent return (6)     | CLI module (modify `runAgent()`)           | ~2h     | Parse JSON between markers from stdout                                           |
+| 4     | Per-run telemetry (Gap 15)      | CLI module (modify `runAgent()`)           | ~3h     | JSONL capture + HTML report; replaces Gap 13 for solo use                        |
+| ~~5~~ | ~~Scope Guard (Gap 5)~~ ✅ DONE | ~~CLI module in `scripts/ai-dev/core/`~~   | ~~~1h~~ | ~~`git diff --name-only` vs declared scope~~ — implemented using design.md scope |
+| 6     | TDD test-first split (Gap 17)   | CLI module (new step + agent instructions) | ~3h     | Makes red phase verifiable; pairs with Gap 1 (dev-plan)                          |
+| 7     | Change lifecycle (Gap 14)       | CLI module (`state.json` per ticket)       | ~3h     | Resume logic + archive step; implement after 10+ features shipped                |
+| 8     | Knowledge accumulation (16)     | CLI step (post-release archive)            | ~2h     | Pattern extraction → `docs/patterns/`; pairs with Gap 14                         |
+| 9     | Knowledge Base MCP              | Custom MCP                                 | ~5h     | Defer — only if design agent struggles with ADRs                                 |
+| 10    | CodeGraph MCP                   | Custom MCP                                 | ~8h     | Defer — revisit when repo exceeds 100 active files                               |
+| —     | ~~OTLP dashboard (Gap 13)~~     | ~~Docker Compose stack~~                   | ~~6h~~  | Superseded by Gap 15 for solo dev; team-scale only                               |
+| —     | ~~Notification utility~~        | ~~CLI module (`notifySlack()`)~~           | ~~2h~~  | Deprioritized — solo dev, terminal sufficient                                    |
 
 > **Principle:** Default to CLI modules. Promote to MCP only when agents demonstrably need mid-session access that cannot be pre-injected. Prioritize items that save money or prevent wasted retries over architectural elegance.
 >
-> **AI-SDLC reference:** Patterns for items 1–5 are validated by the `ai-agentic-sdlc-workflow` framework. Items 6–7 are inspired by its OpenSpec archive workflow.
+> **AI-SDLC reference:** Patterns for items 1–5 are validated by the `ai-agentic-sdlc-workflow` framework. Item 6 (Gap 17) strengthens TDD discipline to match SDD's structural enforcement. Items 7–8 are inspired by OpenSpec's archive workflow.
