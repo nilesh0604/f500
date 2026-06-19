@@ -396,6 +396,88 @@ requirements → design → [code-test-first] → code-impl → code-test → co
 
 ---
 
+### Gap 18 — Code-first state management (Jira-optional sync)
+
+**Current state:** Pipeline state lives primarily in Jira subtasks. Each step maps to a Jira subtask under the parent ticket. `checkPrerequisite()` calls Jira API to verify the prior subtask is "Done" before unlocking the next step. The `init` subcommand requires a Jira ticket to exist and creates 10 subtasks via Jira REST API. Human approval = transitioning a subtask to "Done" in the Jira UI.
+
+**Problem:** Jira is a hard runtime dependency for pipeline gating, even though most artifacts already live in code (`docs/features/{TICKET_ID}/`). This creates several friction points:
+
+1. **Offline unusable** — pipeline cannot run without Jira API access (network, tokens, rate limits)
+2. **Split state** — pipeline state is fragmented between Jira subtask statuses and local marker files (`.validate-passed`, `.branch`, `.fix_retries.json`), which can drift
+3. **Over-coupling** — switching from Jira to Linear, GitHub Issues, or no tracker requires rewriting core pipeline logic (`jira-client.ts`, `prerequisite.ts`, every step file)
+4. **Latency** — every `checkPrerequisite()` call is a network round-trip to Jira; during the `code` chain (impl → test → quality → security → perf), this adds measurable delay
+5. **Solo dev overhead** — maintaining Jira tickets, subtasks, and transitions for a solo workflow adds ceremony without proportional value
+
+**Planned fix:** Make `docs/features/{TICKET_ID}/state.json` the source of truth for pipeline gating. Jira becomes an optional, non-blocking sync target.
+
+**`state.json` schema:**
+
+```json
+{
+  "ticket": "SCRUM-21",
+  "created": "2026-06-19T17:58:00Z",
+  "steps": {
+    "requirements": { "status": "done", "completedAt": "2026-06-19T18:10:00Z" },
+    "design": { "status": "done", "completedAt": "2026-06-19T19:00:00Z" },
+    "code-impl": {
+      "status": "in_progress",
+      "startedAt": "2026-06-19T19:05:00Z"
+    },
+    "code-test": { "status": "pending" },
+    "code-quality": { "status": "pending" },
+    "code-security": { "status": "pending" },
+    "code-perf": { "status": "pending" },
+    "validate": { "status": "pending" },
+    "deploy-pr": { "status": "pending" },
+    "deploy-ship": { "status": "pending" }
+  },
+  "jira": {
+    "synced": true,
+    "parentKey": "SCRUM-21",
+    "subtasks": { "design": "SCRUM-23", "code-impl": "SCRUM-24" }
+  }
+}
+```
+
+**Key changes:**
+
+1. **`checkPrerequisite()`** reads `state.json` instead of calling Jira API — zero-latency, offline-capable
+2. **New `approve <step>` subcommand** — transitions a step to `done` in `state.json` (replaces Jira UI transition for human gates)
+3. **`init` works without Jira** — creates `state.json` + `ticket.md` from CLI arguments; Jira ticket creation is optional (`--no-jira` flag or auto-detected when Jira env vars are absent)
+4. **`sync-jira` subcommand** — pushes latest `state.json` statuses + artifact summaries to Jira subtasks; fails gracefully if Jira creds are missing; can be called manually or hooked into post-step
+5. **`status` subcommand** reads `state.json` for rich local progress (falls back to Jira only if `state.json` is absent for backward compatibility)
+
+**Workflow modes:**
+
+| Mode                         | `init`                                | Gating       | Approval                            | Jira sync       |
+| ---------------------------- | ------------------------------------- | ------------ | ----------------------------------- | --------------- |
+| **Code-only** (solo)         | `ticket.md` + `state.json`            | `state.json` | `approve <step>`                    | None            |
+| **Code + Jira** (team)       | Jira ticket + subtasks + `state.json` | `state.json` | `approve <step>` + auto `sync-jira` | After each step |
+| **Legacy** (backward compat) | Jira only (no `state.json`)           | Jira API     | Jira UI transition                  | N/A             |
+
+**Impact on existing subcommands:**
+
+- `resolve` (Q&A via Jira comments) — needs an alternative: `questions.md` / `answers.md` file pair for code-only mode; Jira comments remain available in code+Jira mode
+- `create` (ticket-creator agent → Jira) — in code-only mode, outputs to `ticket.md` instead of creating a Jira ticket
+- `deploy-ship` — no change (reads CI status from GitHub, not Jira)
+
+**Relationship to other gaps:**
+
+- **Supersedes Gap 2** (enforced human gates) — `approve` subcommand is a stronger gate than Jira status checks; `state.json` makes the gate programmatically enforced, not convention-based
+- **Enables Gap 14** (structured change lifecycle) — `state.json` IS the lifecycle state machine that Gap 14 proposes; implementing Gap 18 first makes Gap 14 a natural extension (add archive step, resume logic)
+- **Pairs with Gap 16** (knowledge accumulation) — archive step reads `state.json` to determine completion before extracting patterns
+
+**Effort:** ~4 hours
+
+- Refactor `checkPrerequisite()` to read `state.json` (~1h)
+- Add `state.json` read/write utilities in `core/` (~30min)
+- Add `approve` subcommand (~30min)
+- Add `sync-jira` subcommand with graceful degradation (~1h)
+- Update `init` for Jira-optional flow + `ticket.md` fallback (~30min)
+- Update `resolve` for `questions.md`/`answers.md` code-only path (~30min)
+
+---
+
 ## Future Improvements Priority Matrix
 
 > **Re-evaluated:** 2026-06-18. Reassessed against current fully-implemented 10-step pipeline
@@ -416,7 +498,8 @@ requirements → design → [code-test-first] → code-impl → code-test → co
 | **P3**   | 8     | Circuit breaker + re-planning        | Medium   | ~4h     | Over-engineering for solo dev — manual investigation is fast & informative                     |
 | **P3**   | 9     | CodeGraph MCP                        | Medium   | ~8h     | Codebase too small to justify; brownfield injection covers main use case                       |
 | **P4**   | 11    | Code review agent post-impl          | Low      | ~2h     | Redundant — human gate after code-impl catches spec divergence                                 |
-| **P4**   | 2     | Enforced human gates                 | Low      | ~2h     | Solo dev controls the flow; no accidental automation to prevent                                |
+| **P2**   | 18    | Code-first state (Jira-optional)     | High     | ~4h     | Removes hard Jira dependency; git-tracked state; enables Gap 14; supersedes Gap 2              |
+| ~~P4~~   | ~~2~~ | ~~Enforced human gates~~ (→ Gap 18)  | ~~Low~~  | ~~2h~~  | Superseded by Gap 18 — `approve` subcommand + `state.json` is a stronger gate mechanism        |
 | **P4**   | 4     | Slack notifications                  | Low      | ~3h     | Terminal output sufficient for solo async workflow                                             |
 | **P2**   | 17    | TDD test-first split                 | Medium   | ~3h     | Makes TDD red phase externally verifiable; catches spec divergence before $3 impl budget spent |
 | **P4**   | 13    | OTLP telemetry dashboard (full)      | Low      | ~6h     | Superseded by Gap 15 for solo use; only relevant at team scale                                 |
@@ -437,16 +520,20 @@ requirements → design → [code-test-first] → code-impl → code-test → co
 
 6. **Gap 2 demoted P2→P4** — `checkPrerequisite()` already gates on Jira status. The "enforced" improvement only matters in team settings where someone might accidentally skip review.
 
-7. **Gap 17 placed at P2** — The pipeline's SDD discipline is structurally enforced (spec → human gate → design → human gate → IMPL_CHECKLIST gate), but TDD discipline relies on the agent's internal behavior. Splitting `code-impl` into `code-test-first` → `code-impl` makes the red→green transition an externally verifiable checkpoint (`jest` exit code change). This catches spec misinterpretation before the $3 implementation budget is spent — break-even at 1 caught divergence per 3 tickets. P2 (not P1) because the current single-agent TDD approach works for most tickets; the split adds the most value on complex, multi-file features where spec divergence risk is highest. Pairs with Gap 1 (dev-plan) and Gap 11 (code-review).
+7. **Gap 18 placed at P2** — The pipeline already stores 90% of its artifacts in `docs/features/{TICKET_ID}/` — making _state_ code-first too is the natural evolution. For a solo developer, Jira as a hard dependency adds ceremony (token management, API latency, subtask transitions) without proportional value. P2 (not P1) because the current Jira-backed flow works and isn't broken — this is an architectural improvement, not a cost leak or failure mode. Ranked above Gap 14 (P3) because `state.json` is a prerequisite for the structured lifecycle that Gap 14 proposes. Supersedes Gap 2 entirely — the `approve` subcommand is a programmatically enforced gate, stronger than Jira status checks.
+
+8. **Gap 2 superseded by Gap 18** — The `approve <step>` subcommand in Gap 18 provides a stronger, offline-capable enforcement mechanism than Jira status transitions. Gap 2 is retained in the matrix for traceability but marked as superseded.
+
+9. **Gap 17 placed at P2** — The pipeline's SDD discipline is structurally enforced (spec → human gate → design → human gate → IMPL_CHECKLIST gate), but TDD discipline relies on the agent's internal behavior. Splitting `code-impl` into `code-test-first` → `code-impl` makes the red→green transition an externally verifiable checkpoint (`jest` exit code change). This catches spec misinterpretation before the $3 implementation budget is spent — break-even at 1 caught divergence per 3 tickets. P2 (not P1) because the current single-agent TDD approach works for most tickets; the split adds the most value on complex, multi-file features where spec divergence risk is highest. Pairs with Gap 1 (dev-plan) and Gap 11 (code-review).
 
 ---
 
 **Recommended implementation order:**
 
 1. **Quick wins (P1):** Gap 12 → Gap 10 → Gap 6 — ~4 hours total, improve every subsequent pipeline run
-2. **Observability + safety (P2):** Gap 15 → ~~Gap 5~~ → Gap 1 → Gap 17 — telemetry enables data-driven optimization; ~~scope guard catches drift~~ ✅; test-first split strengthens TDD discipline
-3. **Maturity (P3):** Gap 14 → Gap 16 — structured lifecycle + knowledge accumulation; implement after 10+ features shipped
-4. **Defer until needed (P3–P4):** Gaps 8, 9, 11, 2, 4, 13 — revisit quarterly or when pain emerges
+2. **Observability + safety (P2):** Gap 15 → Gap 18 → ~~Gap 5~~ → Gap 1 → Gap 17 — telemetry enables data-driven optimization; code-first state removes Jira dependency and enables Gap 14; ~~scope guard catches drift~~ ✅; test-first split strengthens TDD discipline
+3. **Maturity (P3):** Gap 14 → Gap 16 — structured lifecycle (builds on Gap 18's `state.json`) + knowledge accumulation; implement after 10+ features shipped
+4. **Defer until needed (P3–P4):** Gaps 8, 9, 11, ~~2~~ (superseded), 4, 13 — revisit quarterly or when pain emerges
 
 > **AI-SDLC reference validation:** Gaps 6, 10, 12 are independently validated by the `ai-agentic-sdlc-workflow` architecture (structured returns, warm-continue, trivial-skip). Their implementation patterns can be referenced from that framework's Claude Code pipeline.
 
@@ -582,14 +669,15 @@ An MCP is justified **only** when the AI agent needs to call the tool **during i
 | 3     | Structured agent return (6)     | CLI module (modify `runAgent()`)           | ~2h     | Parse JSON between markers from stdout                                           |
 | 4     | Per-run telemetry (Gap 15)      | CLI module (modify `runAgent()`)           | ~3h     | JSONL capture + HTML report; replaces Gap 13 for solo use                        |
 | ~~5~~ | ~~Scope Guard (Gap 5)~~ ✅ DONE | ~~CLI module in `scripts/ai-dev/core/`~~   | ~~~1h~~ | ~~`git diff --name-only` vs declared scope~~ — implemented using design.md scope |
-| 6     | TDD test-first split (Gap 17)   | CLI module (new step + agent instructions) | ~3h     | Makes red phase verifiable; pairs with Gap 1 (dev-plan)                          |
-| 7     | Change lifecycle (Gap 14)       | CLI module (`state.json` per ticket)       | ~3h     | Resume logic + archive step; implement after 10+ features shipped                |
-| 8     | Knowledge accumulation (16)     | CLI step (post-release archive)            | ~2h     | Pattern extraction → `docs/patterns/`; pairs with Gap 14                         |
-| 9     | Knowledge Base MCP              | Custom MCP                                 | ~5h     | Defer — only if design agent struggles with ADRs                                 |
-| 10    | CodeGraph MCP                   | Custom MCP                                 | ~8h     | Defer — revisit when repo exceeds 100 active files                               |
+| 6     | Code-first state (Gap 18)       | CLI module (refactor gating + new cmds)    | ~4h     | Removes Jira dependency; `state.json` + `approve` + `sync-jira`; enables Gap 14  |
+| 7     | TDD test-first split (Gap 17)   | CLI module (new step + agent instructions) | ~3h     | Makes red phase verifiable; pairs with Gap 1 (dev-plan)                          |
+| 8     | Change lifecycle (Gap 14)       | CLI module (extends Gap 18's `state.json`) | ~3h     | Resume logic + archive step; builds on Gap 18; implement after 10+ features      |
+| 9     | Knowledge accumulation (16)     | CLI step (post-release archive)            | ~2h     | Pattern extraction → `docs/patterns/`; pairs with Gap 14                         |
+| 10    | Knowledge Base MCP              | Custom MCP                                 | ~5h     | Defer — only if design agent struggles with ADRs                                 |
+| 11    | CodeGraph MCP                   | Custom MCP                                 | ~8h     | Defer — revisit when repo exceeds 100 active files                               |
 | —     | ~~OTLP dashboard (Gap 13)~~     | ~~Docker Compose stack~~                   | ~~6h~~  | Superseded by Gap 15 for solo dev; team-scale only                               |
 | —     | ~~Notification utility~~        | ~~CLI module (`notifySlack()`)~~           | ~~2h~~  | Deprioritized — solo dev, terminal sufficient                                    |
 
 > **Principle:** Default to CLI modules. Promote to MCP only when agents demonstrably need mid-session access that cannot be pre-injected. Prioritize items that save money or prevent wasted retries over architectural elegance.
 >
-> **AI-SDLC reference:** Patterns for items 1–5 are validated by the `ai-agentic-sdlc-workflow` framework. Item 6 (Gap 17) strengthens TDD discipline to match SDD's structural enforcement. Items 7–8 are inspired by OpenSpec's archive workflow.
+> **AI-SDLC reference:** Patterns for items 1–5 are validated by the `ai-agentic-sdlc-workflow` framework. Item 6 (Gap 18) decouples pipeline state from external trackers — code-as-source-of-truth. Item 7 (Gap 17) strengthens TDD discipline to match SDD's structural enforcement. Items 8–9 are inspired by OpenSpec's archive workflow.
