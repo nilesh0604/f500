@@ -6,7 +6,7 @@ React 18 + Vite + TailwindCSS chat interface for the `vyasa-rag-service`.
 Deployed to S3 + CloudFront.
 
 - **Dev/Internal**: `https://d2j5xbveesoc8s.cloudfront.net`
-- **External/Production**: `https://vyasa.nshinde.xyz`
+- **External/Production**: `https://<VYASA_DOMAIN>`
 
 ---
 
@@ -117,7 +117,7 @@ Deployed via `.github/workflows/vyasa-ui-cd.yml`:
 **Live URLs:**
 
 - Dev/Internal: `https://d2j5xbveesoc8s.cloudfront.net` (use during development)
-- External/Production: `https://vyasa.nshinde.xyz` (custom domain for end users)
+- External/Production: `https://<VYASA_DOMAIN>` (custom domain for end users)
 
 CloudFront `/api/*` behaviour proxies to the Vyasa RAG API Gateway endpoint.
 

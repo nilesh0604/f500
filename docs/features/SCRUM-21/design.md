@@ -1,13 +1,3 @@
-CLI Version │ 0.3.2
-Profile │ global_sonet_4_6_profile
-Provider │ ai-run-sso
-Model │ sonnet
-CodeMie URL │ https://codemie.lab.epam.com
-Agent │ claude
-Session │ 2776f552-1e0d-4875-b224-454cd7e11f02
-
-📈 Progress over perfection. Ship it now, improve it later, but always keep moving forward.
-
 The write was blocked by permissions. Here is the full content of the TDD for the pipeline to capture:
 
 ---
@@ -20,7 +10,7 @@ The write was blocked by permissions. Here is the full content of the TDD for th
 
 ## Problem Statement
 
-Team members must context-switch to `vyasa.nshinde.xyz` to query the Vyasa Knowledge Base. A `/vyasa` Slack slash command eliminates this friction and validates the enterprise integration pattern for the Vyasa Intelligence platform.
+Team members must context-switch to `<VYASA_DOMAIN>` to query the Vyasa Knowledge Base. A `/vyasa` Slack slash command eliminates this friction and validates the enterprise integration pattern for the Vyasa Intelligence platform.
 
 ---
 
@@ -336,8 +326,6 @@ sequenceDiagram
 
 **Summary:** The design uses a dual-Lambda pattern (`receiver` + `worker`) within a new `apps/vyasa-slack-cmd/` app. The receiver validates Slack HMAC-SHA256 signatures, returns an immediate HTTP 200 ack to beat the 3-second Slack deadline, then fire-and-forgets the worker via `InvokeFunction(Event)`. The worker calls the existing `vyasa-rag-prod` API Gateway and posts the answer to Slack's `response_url`. Three new shared types and an SSRF guard on `response_url` address the key security requirements. All infrastructure is created manually for the PoC (no CDK changes).
 
-Shutting down...
 📖 Documentation is love. Future you will thank present you for those clear comments.
 
-Powered by AI/Run CodeMie CLI
 ```

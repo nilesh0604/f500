@@ -1,13 +1,3 @@
-CLI Version │ 0.3.2
-Profile │ global_sonet_4_6_profile
-Provider │ ai-run-sso
-Model │ sonnet
-CodeMie URL │ https://codemie.lab.epam.com
-Agent │ claude
-Session │ 7f8f97b5-3276-428c-9af5-0d66e6c83ff4
-
-🔥 Let's crush it. Today is the day we turn impossible into inevitable.
-
 ---
 
 ## Performance Review — SCRUM-21 Summary
@@ -45,7 +35,4 @@ No N+1 queries, sequential-independent awaits, unparallelized AWS calls, or unbo
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `scripts/load-tests/k6/SCRUM-21-slash-command.js` | Derived from TDD AC #1 (30s SLA) + Slack's hard 3-second ack deadline. Threshold: `p(99) < 3000ms` on the receiver. TODOs for HMAC generation and `BASE_URL` before run. |
 
-Shutting down...
 🌊 Rough seas make skilled sailors. Today's difficulties are tomorrow's war stories.
-
-Powered by AI/Run CodeMie CLI

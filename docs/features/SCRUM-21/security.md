@@ -1,13 +1,3 @@
-CLI Version │ 0.3.2
-Profile │ global_sonet_4_6_profile
-Provider │ ai-run-sso
-Model │ sonnet
-CodeMie URL │ https://codemie.lab.epam.com
-Agent │ claude
-Session │ 1285f462-3c5b-40cc-9a70-afc8f2c2485d
-
-💪 You've got this. You've solved harder problems before, this one doesn't stand a chance.
-
 # Security Review — SCRUM-21
 
 ## Review Date
@@ -85,7 +75,4 @@ These are pre-existing/transitive dependencies, excluded per review scope (handl
 
 No exploitable HIGH/CRITICAL vulnerabilities in the PR's application code. Two MEDIUM items deferred for human review before production: missing Secrets Manager key guard (`receiver.ts:47`) and absent service-to-service auth on RAG calls (`worker.ts:43`). The `shell-quote` critical dependency must be resolved in a separate ticket.
 
-Shutting down...
 🌍 The world needs your code. What you build today might change someone's life tomorrow.
-
-Powered by AI/Run CodeMie CLI

@@ -17,7 +17,7 @@ Purpose: hands-on Fortune 500 SDLC patterns demonstration.
 
 ## Jira Integration
 
-- **Site**: `nilesh0604.atlassian.net`
+- **Site**: `<JIRA_SITE>` (set via `JIRA_BASE_URL` env var, e.g. `https://your-domain.atlassian.net`)
 - **Project key**: `SCRUM`
 - **Project name**: Vyasa Intelligence
 - **Board type**: Software (next-gen / Team-managed)
@@ -67,10 +67,10 @@ The system has **6 Lambda functions** total. Only modify infrastructure function
 
 ### Services (active)
 
-| Service           | Runtime          | Directory                 | Status                                                                              |
-| ----------------- | ---------------- | ------------------------- | ----------------------------------------------------------------------------------- |
-| vyasa-rag-service | Lambda + Bedrock | `apps/vyasa-rag-service/` | ✅ Live — Lambda `vyasa-rag-dev`, API Gateway `lkbzhoe1pj` in `us-east-1`           |
-| vyasa-ui          | React 18 + Vite  | `apps/vyasa-ui/`          | ✅ Live — CloudFront `d2j5xbveesoc8s` (dist `E1W56P4E23UU5Y`) / `vyasa.nshinde.xyz` |
+| Service           | Runtime          | Directory                 | Status                                                                           |
+| ----------------- | ---------------- | ------------------------- | -------------------------------------------------------------------------------- |
+| vyasa-rag-service | Lambda + Bedrock | `apps/vyasa-rag-service/` | ✅ Live — Lambda `vyasa-rag-dev`, API Gateway `lkbzhoe1pj` in `us-east-1`        |
+| vyasa-ui          | React 18 + Vite  | `apps/vyasa-ui/`          | ✅ Live — CloudFront `d2j5xbveesoc8s` (dist `E1W56P4E23UU5Y`) / `<VYASA_DOMAIN>` |
 
 ### Services (planned — not yet scaffolded)
 
@@ -247,7 +247,7 @@ main          ← production-ready, protected
 ## Known Technical Debt
 
 - `aws-sdk` v2 still in `package.json` root dependencies — do NOT use in new code
-- Route 53 / custom domain not provisioned for OrderFlow — Vyasa uses `vyasa.nshinde.xyz` (Namecheap CNAME) / `d2j5xbveesoc8s.cloudfront.net` (direct CloudFront)
+- Route 53 / custom domain not provisioned for OrderFlow — Vyasa uses `<VYASA_DOMAIN>` (Namecheap CNAME) / `d2j5xbveesoc8s.cloudfront.net` (direct CloudFront)
 - Secrets rotation Lambda not wired in CDK yet (tracked in `docs/PRODUCTION_APP_MASTER_PLAN.md`)
 - SSM Parameter Store migration not complete — some config still in ECS env vars
 - `apps/vyasa-rag-service/CLAUDE.md` still says "Claude 3 Haiku" in diagram — actual model is Amazon Nova Pro

@@ -18,10 +18,10 @@
 | **API Gateway**      | `https://t859xz8d3c.execute-api.us-east-1.amazonaws.com` |
 | **Bedrock KB**       | `JGDXZQCA1Y`                                             |
 | **Data Source**      | `5DGY6OL5YG`                                             |
-| **S3 Vector Bucket** | `vyasa-vectors-prod-947612421212`                        |
+| **S3 Vector Bucket** | `vyasa-vectors-prod-<AWS_ACCOUNT_ID>`                    |
 | **Vector Index**     | `vyasa-index-prod` (9,362 vectors)                       |
-| **Corpus Bucket**    | `vyasa-rag-corpus-prod-947612421212`                     |
-| **Prompts Bucket**   | `vyasa-rag-prompts-prod-947612421212`                    |
+| **Corpus Bucket**    | `vyasa-rag-corpus-prod-<AWS_ACCOUNT_ID>`                 |
+| **Prompts Bucket**   | `vyasa-rag-prompts-prod-<AWS_ACCOUNT_ID>`                |
 | **LLM Model**        | `amazon.nova-pro-v1:0`                                   |
 | **Embedding Model**  | `amazon.titan-embed-text-v2:0` (1024-dim)                |
 
@@ -145,7 +145,7 @@ Bedrock KB Data Source (5DGY6OL5YG)
         ├── Titan Embed V2 → 1024-dim float32 vectors
         │
         ▼
-S3 Vectors: vyasa-vectors-prod-947612421212 / vyasa-index-prod
+S3 Vectors: vyasa-vectors-prod-<AWS_ACCOUNT_ID> / vyasa-index-prod
         │   nonFilterableMetadataKeys: [AMAZON_BEDROCK_TEXT, AMAZON_BEDROCK_METADATA]
         │   distanceMetric: euclidean
         │   9,362 vectors written
@@ -316,15 +316,15 @@ generation prompt. History section is omitted entirely when empty to avoid pollu
 
 ## 5. Corpus Details
 
-| Property          | Value                                                     |
-| ----------------- | --------------------------------------------------------- |
-| **Source**        | `docs/Mahabharata (Unabridged in English).pdf`            |
-| **Size**          | 19 MB, 2,328 pages                                        |
-| **Translation**   | Kisari Mohan Ganguli (1883–1896), sacred-texts.com        |
-| **S3 location**   | `s3://vyasa-rag-corpus-prod-947612421212/mahabharata.pdf` |
-| **Chunking**      | Fixed-size, ~500 tokens, 20% overlap                      |
-| **Vectors**       | 9,362 × 1024-dim float32, euclidean distance              |
-| **Ingestion job** | `NZMK8FJBRE` — COMPLETE, ~25 min                          |
+| Property          | Value                                                         |
+| ----------------- | ------------------------------------------------------------- |
+| **Source**        | `docs/Mahabharata (Unabridged in English).pdf`                |
+| **Size**          | 19 MB, 2,328 pages                                            |
+| **Translation**   | Kisari Mohan Ganguli (1883–1896), sacred-texts.com            |
+| **S3 location**   | `s3://vyasa-rag-corpus-prod-<AWS_ACCOUNT_ID>/mahabharata.pdf` |
+| **Chunking**      | Fixed-size, ~500 tokens, 20% overlap                          |
+| **Vectors**       | 9,362 × 1024-dim float32, euclidean distance                  |
+| **Ingestion job** | `NZMK8FJBRE` — COMPLETE, ~25 min                              |
 
 ---
 
@@ -360,7 +360,7 @@ generation prompt. History section is omitted entirely when empty to avoid pollu
 
 ```json
 // Request
-{ "source_uri": "s3://vyasa-rag-corpus-prod-947612421212/mahabharata.pdf" }
+{ "source_uri": "s3://vyasa-rag-corpus-prod-<AWS_ACCOUNT_ID>/mahabharata.pdf" }
 
 // Response
 { "job_id": "NZMK8FJBRE", "status": "STARTING", "message": "..." }

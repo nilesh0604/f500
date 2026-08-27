@@ -1,13 +1,3 @@
-CLI Version │ 0.3.2
-Profile │ global_sonet_4_6_profile
-Provider │ ai-run-sso
-Model │ sonnet
-CodeMie URL │ https://codemie.lab.epam.com
-Agent │ claude
-Session │ 9edb4980-3ea8-4f70-bb09-b382dd6cea43
-
-👑 You know nothing, Jon Snow. But today, you'll learn everything about this codebase.
-
 Coverage is already at **100%** across all metrics. Let me compile the full AC matrix and output summary.
 
 ---
@@ -101,7 +91,4 @@ All four thresholds (branches / functions / lines / statements) pass at **100%**
 
 **ACs that cannot be covered by automated unit tests:** None. EDGE-2 (RAG cold start timing) and EDGE-6 (concurrent invocations with no shared state) are structural properties of the Lambda runtime model verified by integration/load tests, but both are indirectly covered — EDGE-2 by the `RAG_TIMEOUT_MS` env-var wiring (28 s), and EDGE-6 by the stateless handler design (no module-level mutable state between invocations beyond the signing-secret cache, which is intentional and idempotent).
 
-Shutting down...
 💾 Small commits, big impact. Incremental progress is still progress, and it compounds.
-
-Powered by AI/Run CodeMie CLI

@@ -6,7 +6,7 @@
 
 ## Problem Statement
 
-Mobile users accessing the Vyasa Intelligence chat interface at `d2j5xbveesoc8s.cloudfront.net` (dev) and `vyasa.nshinde.xyz` (production) encounter a desktop-only layout that renders poorly on screens narrower than 768px: the fixed 264px sidebar consumes the majority of the viewport, suggestion chips overflow horizontally, and interactive touch targets fall below the 44×44px minimum recommended by WCAG and Apple/Google HIG guidelines. This prevents adoption from on-the-go users who want to query the Mahabharata knowledge base on phones and tablets, limiting the reach of the Vyasa product beyond desktop contexts.
+Mobile users accessing the Vyasa Intelligence chat interface at `d2j5xbveesoc8s.cloudfront.net` (dev) and `<VYASA_DOMAIN>` (production) encounter a desktop-only layout that renders poorly on screens narrower than 768px: the fixed 264px sidebar consumes the majority of the viewport, suggestion chips overflow horizontally, and interactive touch targets fall below the 44×44px minimum recommended by WCAG and Apple/Google HIG guidelines. This prevents adoption from on-the-go users who want to query the Mahabharata knowledge base on phones and tablets, limiting the reach of the Vyasa product beyond desktop contexts.
 
 ---
 

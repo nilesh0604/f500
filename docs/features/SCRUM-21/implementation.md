@@ -1,13 +1,3 @@
-CLI Version │ 0.3.2
-Profile │ global_sonet_4_6_profile
-Provider │ ai-run-sso
-Model │ sonnet
-CodeMie URL │ https://codemie.lab.epam.com
-Agent │ claude
-Session │ 3205ee31-fcaa-4e15-8e97-52507b86c737
-
-📈 Progress over perfection. Ship it now, improve it later, but always keep moving forward.
-
 The build compiled successfully. The implementation is fully in place and verified. Here's the final status:
 
 ---
@@ -46,7 +36,4 @@ The build compiled successfully. The implementation is fully in place and verifi
 
 Next step: `ai-dev SCRUM-21 code-test`
 
-Shutting down...
 🌍 The world needs your code. What you build today might change someone's life tomorrow.
-
-Powered by AI/Run CodeMie CLI

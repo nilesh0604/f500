@@ -356,11 +356,16 @@ async function createPipelineContext(
 
   // Get Jira credentials from environment
   const jira: JiraCredentials = {
-    baseUrl: process.env.JIRA_BASE_URL || 'https://nilesh0604.atlassian.net',
+    baseUrl: process.env.JIRA_BASE_URL || '',
     email: process.env.JIRA_EMAIL || '',
     apiToken: process.env.JIRA_API_TOKEN || '',
   };
 
+  if (!jira.baseUrl) {
+    throw new Error(
+      'JIRA_BASE_URL environment variable must be set (e.g. https://your-domain.atlassian.net)'
+    );
+  }
   if (!jira.email || !jira.apiToken) {
     throw new Error(
       'JIRA_EMAIL and JIRA_API_TOKEN environment variables must be set'

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Secrets: Langfuse API keys removed from `.env.local.example`** — Replaced real Langfuse secret/public keys and base64 MCP auth with placeholders in `apps/vyasa-rag-service/.env.local.example`. The leaked keys must be revoked at cloud.langfuse.com.
+- **Employer confidential: EPAM CodeMie metadata removed from SCRUM-21 docs** — Removed auto-generated CodeMie agent headers (containing `codemie.lab.epam.com` URL, EPAM profile name, session UUIDs) and "Powered by AI/Run CodeMie CLI" footers from all 7 SCRUM-21 feature docs.
+- **Personal info: Domain externalized** — Changed `vyasaDomainName` in `infra/config/environments.ts` from hardcoded personal domain to `process.env.VYASA_DOMAIN_NAME` env var. Replaced all doc/CLAUDE.md references with `<VYASA_DOMAIN>` placeholder.
+- **Personal info: Jira URL fallback removed** — Removed hardcoded `nilesh0604.atlassian.net` fallback in `scripts/ai-dev/cli.ts`; CLI now requires `JIRA_BASE_URL` env var. Updated `CLAUDE.md` with placeholder.
+- **Personal info: AWS Account ID redacted** — Replaced `947612421212` with `<AWS_ACCOUNT_ID>` in all doc files. Untracked `infra/cdk.context.json` (auto-generated CDK cache) and added it to `.gitignore`.
+
+### Added
+
+- **`docs/F500_ENTERPRISE_ACTION_ITEMS.md`** — New tracking doc for gaps between current state and F500 enterprise production-grade standards, per global AGENTS.md rules.
+
 ### Fixed
 
 - **docs/AI_DRIVEN_DEV_SETUP_CURRENT.md alignment** — Corrected multiple discrepancies between documentation and actual implementation:
@@ -51,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Release: Working-tree safety on rollback interruption** — `ai-dev.sh rollback` now installs a `trap EXIT INT TERM` before modifying the working tree so interrupting mid-checkout always restores `infra/` and `apps/` to HEAD.
 - **Release: Missing `--region us-east-1` on second S3 sync** — The fallback S3 sync block (post-CDK stack output) was missing the region flag. Both `aws s3 sync` and `aws s3 cp` calls now include `--region us-east-1`.
 - **Release: Redundant `2>&1` on `cdk synth` check** — Removed unnecessary stderr redirect on the pre-flight `cdk synth --quiet` call.
-- **AWS: Deleted orphaned CloudFront distribution `EP41R330H10K2` (`dmz5l917whhxp.cloudfront.net`)** — Left over from the `OrderFlow-Prod-VyasaUi` stack rename (ADR-011). Stack and most resources were already gone; manually emptied and deleted the remaining S3 bucket `vyasa-ui-prod-947612421212` (182 KB, 3 objects).
+- **AWS: Deleted orphaned CloudFront distribution `EP41R330H10K2` (`dmz5l917whhxp.cloudfront.net`)** — Left over from the `OrderFlow-Prod-VyasaUi` stack rename (ADR-011). Stack and most resources were already gone; manually emptied and deleted the remaining S3 bucket `vyasa-ui-prod-<AWS_ACCOUNT_ID>` (182 KB, 3 objects).
 
 - **CDK: Smart deployment in release script** — `ai-dev.sh release` now detects what changed in the merged PR and uses the right strategy per service: UI-only changes do `aws s3 sync` + CloudFront invalidation on the existing distribution (no CDK); RAG service changes deploy only `OrderFlow-VyasaRag`; infra changes deploy relevant CDK stacks. Eliminates unnecessary CDK deploys on UI-only PRs and prevents creating duplicate CloudFront distributions.
 - **Release: Pre-flight stack health check** — `ai-dev.sh release` now checks all OrderFlow CloudFormation stacks in both `us-east-1` and `us-east-2` for `ROLLBACK_COMPLETE` / `*_FAILED` states before any deploy. Fails fast with delete instructions instead of getting stuck mid-deploy.
@@ -201,8 +213,8 @@ cd infra && npx cdk diff
 npx cdk deploy --all --require-approval broadening
 ```
 
-- **Custom domain `vyasa.nshinde.xyz` for Vyasa UI CloudFront distribution** (`docs/adr/ADR-012-custom-domain-cloudfront.md`):
-  - `infra/config/environments.ts` — added `vyasaDomainName?: string` to `EnvironmentConfig` interface; set to `vyasa.nshinde.xyz` in prod config
+- **Custom domain `<VYASA_DOMAIN>` for Vyasa UI CloudFront distribution** (`docs/adr/ADR-012-custom-domain-cloudfront.md`):
+  - `infra/config/environments.ts` — added `vyasaDomainName?: string` to `EnvironmentConfig` interface; set to `<VYASA_DOMAIN>` in prod config
   - `infra/lib/vyasa-ui-stack.ts` — added `domainName` prop; ACM cert with DNS validation; `domainNames` + `certificate` on CloudFront distribution; renamed CF function + log group to avoid orphan conflicts; removed fixed bucket names
   - `infra/bin/app.ts` — passes `config.vyasaDomainName` to `VyasaUiStack`; hardcoded API endpoint from `OrderFlow-Prod-VyasaRag` (cross-stack export workaround)
   - New CloudFront distribution: `EP5RB7V8B8LOQ` / `d3qhic431njv7c.cloudfront.net`
@@ -332,7 +344,7 @@ npx cdk deploy --all --require-approval broadening
 - **`infra/lib/bedrock-kb-creator/index.mjs`**: Lambda asset — creates Bedrock KB + S3 data
   source via SDK (CloudFormation `AWS::Bedrock::KnowledgeBase` schema rejects `S3_VECTORS`).
 - **Prompt files**: `vyasa-system`, `vyasa-agent`, `vyasa-reflection` uploaded to
-  `s3://vyasa-rag-prompts-dev-947612421212/`.
+  `s3://vyasa-rag-prompts-dev-<AWS_ACCOUNT_ID>/`.
 
 ### Changed
 

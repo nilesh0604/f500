@@ -28,7 +28,9 @@ export const config: EnvironmentConfig = {
   natGateways: 1,
 
   cloudFrontPriceClass: 'PriceClass_100',
-  vyasaDomainName: 'vyasa.nshinde.xyz',
+  // Domain is externalized to avoid hardcoding personal domains in source.
+  // Set VYASA_DOMAIN_NAME env var at deploy time (e.g. in CDK environment).
+  vyasaDomainName: process.env.VYASA_DOMAIN_NAME ?? '',
   logRetentionDays: 90,
   enableDetailedMonitoring: true,
 

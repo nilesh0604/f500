@@ -961,7 +961,7 @@ flowchart TD
 ### Phase D — LLM Security in CI/CD
 
 - [x] D.1 — AWS Bedrock model access enabled (Claude Sonnet 4.5 + Nova Pro)
-- [x] D.2 — IAM role created: `orderflow-github-bedrock-role` (arn:aws:iam::947612421212:role/orderflow-github-bedrock-role)
+- [x] D.2 — IAM role created: `orderflow-github-bedrock-role` (arn:aws:iam::<AWS_ACCOUNT_ID>:role/orderflow-github-bedrock-role)
 - [x] D.2b — `AWS_BEDROCK_ROLE_ARN` secret added to GitHub repo
 - [ ] D.3 — VPC endpoint for Bedrock ⚠️ OPTIONAL — recommended for production
 - [x] D.4 — `.github/workflows/llm-security-scan.yml.disabled` (created but disabled)

@@ -73,7 +73,7 @@ jobs:
 
       # TODO: migrate to GitHub OIDC + IAM role (aws-actions/configure-aws-credentials
       # with role-to-assume) to eliminate long-lived static keys.
-      # Single AWS account (947612421212 / Nilesh_Shinde) — same credentials as
+      # Single AWS account (<AWS_ACCOUNT_ID> / Nilesh_Shinde) — same credentials as
       # all other workflows in this repo.
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

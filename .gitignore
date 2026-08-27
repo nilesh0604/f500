@@ -34,6 +34,7 @@ out/
 
 # CDK
 cdk.out/
+cdk.context.json
 
 # Coverage
 coverage/

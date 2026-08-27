@@ -41,9 +41,9 @@ Owner: platform-team
 
 Config in `config/environments.ts`. Single `prod` environment only.
 
-| Env  | VPC CIDR    | Region    | NAT GW | Log Retention | Domain            |
-| ---- | ----------- | --------- | ------ | ------------- | ----------------- |
-| prod | 10.0.0.0/16 | us-east-1 | 1      | 90 days       | vyasa.nshinde.xyz |
+| Env  | VPC CIDR    | Region    | NAT GW | Log Retention | Domain         |
+| ---- | ----------- | --------- | ------ | ------------- | -------------- |
+| prod | 10.0.0.0/16 | us-east-1 | 1      | 90 days       | <VYASA_DOMAIN> |
 
 The project uses a single production environment. No dev/staging environments are deployed.
 

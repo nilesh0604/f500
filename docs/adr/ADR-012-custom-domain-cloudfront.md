@@ -11,7 +11,7 @@
 
 The Vyasa Intelligence UI was served via an auto-generated CloudFront domain
 (`dmz5l917whhxp.cloudfront.net` — `OrderFlow-Prod-VyasaUi` stack). The goal
-was to serve it under a human-readable custom domain: `vyasa.nshinde.xyz`.
+was to serve it under a human-readable custom domain: `<VYASA_DOMAIN>`.
 
 Domain `nshinde.xyz` was purchased from Namecheap.
 
@@ -34,7 +34,7 @@ validated via DNS (CNAME record in Namecheap).
 | **Stack**                      | `OrderFlow-VyasaUi` (region: `us-east-1`)                                                 |
 | **CloudFront Distribution ID** | `EP5RB7V8B8LOQ`                                                                           |
 | **CloudFront Domain**          | `d2j5xbveesoc8s.cloudfront.net`                                                           |
-| **ACM Certificate ARN**        | `arn:aws:acm:us-east-1:947612421212:certificate/64cc200e-74df-45d3-b7d9-86b5ef3379e1`     |
+| **ACM Certificate ARN**        | `arn:aws:acm:us-east-1:<AWS_ACCOUNT_ID>:certificate/64cc200e-74df-45d3-b7d9-86b5ef3379e1` |
 | **S3 UI Bucket**               | `orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y`                                    |
 | **S3 Access Logs Bucket**      | auto-named (in `OrderFlow-VyasaUi` stack)                                                 |
 | **CloudFront Function**        | `vyasa-api-rewrite-prod-v2` (rewrites `/api/*` → `/*`)                                    |
@@ -47,8 +47,8 @@ All orphaned resources from the old `OrderFlow-Prod-VyasaUi` stack have been del
 | Resource                    | Value                                            | Status                       |
 | --------------------------- | ------------------------------------------------ | ---------------------------- |
 | Old CloudFront Distribution | `EP41R330H10K2` / `dmz5l917whhxp.cloudfront.net` | ✅ Deleted (stack destroyed) |
-| Old S3 UI Bucket            | `vyasa-ui-prod-947612421212`                     | ✅ Emptied and deleted       |
-| Old S3 Logs Bucket          | `vyasa-ui-access-logs-prod-947612421212`         | ✅ Already gone              |
+| Old S3 UI Bucket            | `vyasa-ui-prod-<AWS_ACCOUNT_ID>`                 | ✅ Emptied and deleted       |
+| Old S3 Logs Bucket          | `vyasa-ui-access-logs-prod-<AWS_ACCOUNT_ID>`     | ✅ Already gone              |
 | Old Log Group               | `/vyasa/ui-deploy-prod`                          | ✅ Already gone              |
 | Old CF Function             | `vyasa-api-rewrite-prod`                         | ✅ Already gone              |
 | Old Stack                   | `OrderFlow-Prod-VyasaUi`                         | ✅ Already destroyed         |
@@ -62,7 +62,7 @@ All orphaned resources from the old `OrderFlow-Prod-VyasaUi` stack have been del
 | Type  | Host                                      | Value                                                              | Purpose                                        |
 | ----- | ----------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
 | CNAME | `_14f04e88e165485e51aa0b9af8aeb5b8.vyasa` | `_0d85c2002378ec778375dfa887c2be0e.jkddzztszm.acm-validations.aws` | ACM DNS validation (permanent — do not delete) |
-| CNAME | `vyasa`                                   | `d2j5xbveesoc8s.cloudfront.net`                                    | Points `vyasa.nshinde.xyz` → CloudFront        |
+| CNAME | `vyasa`                                   | `d2j5xbveesoc8s.cloudfront.net`                                    | Points `<VYASA_DOMAIN>` → CloudFront           |
 
 ### Original Records (restore if needed)
 
@@ -78,7 +78,7 @@ All orphaned resources from the old `OrderFlow-Prod-VyasaUi` stack have been del
 ### `infra/config/environments.ts`
 
 - Added `vyasaDomainName?: string` to `EnvironmentConfig` interface
-- Set `vyasaDomainName: 'vyasa.nshinde.xyz'` in prod config
+- Set `vyasaDomainName: '<VYASA_DOMAIN>'` in prod config
 
 ### `infra/lib/vyasa-ui-stack.ts`
 
@@ -115,7 +115,7 @@ AWS_DEFAULT_REGION=us-east-1 CDK_DEFAULT_REGION=us-east-1 \
 If the S3 bucket is empty after a fresh stack deploy, sync from the old bucket:
 
 ```bash
-aws s3 sync s3://vyasa-ui-prod-947612421212 \
+aws s3 sync s3://vyasa-ui-prod-<AWS_ACCOUNT_ID> \
   s3://orderflow-vyasaui-vyasauibucket7b9068a5-tq2pu70x2k0y \
   --region us-east-1
 
@@ -131,7 +131,7 @@ aws cloudfront create-invalidation \
 
 | URL                                     | Status     | Notes                                                             |
 | --------------------------------------- | ---------- | ----------------------------------------------------------------- |
-| `https://vyasa.nshinde.xyz`             | ✅ Live    | Custom domain (external users) — may be blocked by org DNS policy |
+| `https://<VYASA_DOMAIN>`                | ✅ Live    | Custom domain (external users) — may be blocked by org DNS policy |
 | `https://d2j5xbveesoc8s.cloudfront.net` | ✅ Live    | CloudFront direct — use for dev/testing on corp devices           |
 | `https://dmz5l917whhxp.cloudfront.net`  | ❌ Deleted | Old distribution — cleaned up 2026-05-31                          |
 
@@ -177,5 +177,5 @@ stack have been deleted. The active stack is `OrderFlow-VyasaUi` in `us-east-1`.
 
 `.xyz` TLD domains may be blocked by corporate/org DNS policy. Use the
 CloudFront domain (`d2j5xbveesoc8s.cloudfront.net`) for dev/testing on managed
-devices. The custom domain (`vyasa.nshinde.xyz`) works correctly on personal
+devices. The custom domain (`<VYASA_DOMAIN>`) works correctly on personal
 devices and mobile — reserve it for external users.

@@ -6,7 +6,7 @@
 
 ## Problem Statement
 
-Mobile users accessing Vyasa Intelligence at `d2j5xbveesoc8s.cloudfront.net` and `vyasa.nshinde.xyz` experience a desktop-only layout that renders poorly on viewports below 768px: the fixed-width `w-64` sidebar consumes the majority of the viewport, suggestion chips overflow horizontally, and interactive touch targets (`w-10 h-10` = 40px) fall below the 44×44px WCAG minimum. This blocks adoption from on-the-go users who want to query the Mahabharata knowledge base on phones and tablets.
+Mobile users accessing Vyasa Intelligence at `d2j5xbveesoc8s.cloudfront.net` and `<VYASA_DOMAIN>` experience a desktop-only layout that renders poorly on viewports below 768px: the fixed-width `w-64` sidebar consumes the majority of the viewport, suggestion chips overflow horizontally, and interactive touch targets (`w-10 h-10` = 40px) fall below the 44×44px WCAG minimum. This blocks adoption from on-the-go users who want to query the Mahabharata knowledge base on phones and tablets.
 
 ---
 

@@ -1,13 +1,3 @@
-CLI Version â 0.3.2
-Profile â global_sonet_4_6_profile
-Provider â ai-run-sso
-Model â sonnet
-CodeMie URL â https://codemie.lab.epam.com
-Agent â claude
-Session â 16c688e4-122f-408b-8f8f-56149d91cb99
-
-ð¥ Quality first, always. Fast, cheap, good - you can have all three if you plan it right.
-
 The write was blocked by permissions. Here is the full file content for the pipeline to capture:
 
 ---
@@ -18,7 +8,7 @@ The write was blocked by permissions. Here is the full file content for the pipe
 
 ## Problem Statement
 
-Team members who want to query the Vyasa Intelligence knowledge base must navigate to the web UI (`vyasa.nshinde.xyz`) to ask questions about the Mahabharata. There is no Slack-native integration, which breaks the team's workflow by forcing context-switches out of their primary communication tool. A Slack slash command PoC would validate the integration pattern and demonstrate enterprise-grade platform extensibility.
+Team members who want to query the Vyasa Intelligence knowledge base must navigate to the web UI (`<VYASA_DOMAIN>`) to ask questions about the Mahabharata. There is no Slack-native integration, which breaks the team's workflow by forcing context-switches out of their primary communication tool. A Slack slash command PoC would validate the integration pattern and demonstrate enterprise-grade platform extensibility.
 
 ## User Stories
 
@@ -116,7 +106,4 @@ Open questions:      2 â resolve before proceeding to design
 Affected services:   apps/vyasa-slack-cmd/ (new), apps/vyasa-rag-service/, infra/, libs/shared-types/
 ```
 
-Shutting down...
 ð¨ Beautiful code, you wrote. Clean and clear, it is. The Force, strong with this one.
-
-Powered by AI/Run CodeMie CLI

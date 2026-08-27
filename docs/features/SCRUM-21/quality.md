@@ -1,13 +1,3 @@
-CLI Version │ 0.3.2
-Profile │ global_sonet_4_6_profile
-Provider │ ai-run-sso
-Model │ sonnet
-CodeMie URL │ https://codemie.lab.epam.com
-Agent │ claude
-Session │ ea7a3237-4c6f-47bc-8269-047cd7493fce
-
-🔥 Let's go! The momentum starts now, and nothing can stop us.
-
 ---
 
 **Code Quality Agent — Summary**
@@ -29,7 +19,4 @@ Session │ ea7a3237-4c6f-47bc-8269-047cd7493fce
 
 These are warnings on unrelated files, not regressions from this branch. No suppressions added, no logic changed.
 
-Shutting down...
 🔄 DRY: Don't Repeat Yourself. Every abstraction is a gift to your future self.
-
-Powered by AI/Run CodeMie CLI
